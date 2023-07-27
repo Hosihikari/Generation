@@ -1,0 +1,39 @@
+﻿using Hosihikari.Generation;
+using Hosihikari.Generation.LeviLaminaExport;
+using Hosihikari.Generation.MinecraftExport;
+using Hosihikari.Generation.Utils;
+using Microsoft.Extensions.Logging;
+using System.CommandLine;
+using System.Diagnostics;
+
+using ILoggerFactory factory = LoggerFactory.Create(builder => builder.AddConsole());
+ILogger logger = factory.CreateLogger(nameof(Hosihikari.Generation));
+
+Option<OutPutType> typeOption = new("--type", "The type of the output");
+Option<string> inputPathOption = new("--in", "The path of the input");
+Option<string> outputPathOption = new("--out", "The path of the output directory");
+Option<string?> sdkPathOption = new("--sdk", "The directory of dotnet sdk");
+Option<string?> refPathOption = new("--ref", "The directory of reference assemblies");
+Option<string?> versionOption = new("--ver", "The version of the assembly");
+RootCommand rootCommand = [typeOption, inputPathOption, outputPathOption, versionOption, sdkPathOption, refPathOption];
+
+rootCommand.SetHandler((type, inputPath, outputPath, sdkPath, refPath, version) =>
+{
+    Stopwatch watcher = new();
+    GeneratorBase generator = type switch
+    {
+        OutPutType.Minecraft => new McGenerator(),
+        OutPutType.LeviLamina => new LlGenerator(),
+        _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
+    };
+    generator.Initialize();
+    logger.LogInformation("Start generating at {DateTime}", DateTime.Now);
+    watcher.Start();
+    generator.Run();
+    watcher.Stop();
+    logger.LogInformation("Generated successfully at {DateTime}, which took {TimeSpan}. Saving...", DateTime.Now,
+        watcher.Elapsed);
+    generator.Save();
+    Environment.Exit(0);
+}, typeOption, inputPathOption, outputPathOption, sdkPathOption, refPathOption, versionOption);
+await rootCommand.InvokeAsync(args);
