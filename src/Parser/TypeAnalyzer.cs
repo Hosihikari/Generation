@@ -216,8 +216,11 @@ public sealed class TypeAnalyzer
                     {
                         if (searchDepth == 0)
                         {
-                            if (typeStr[--i] is '&')
+                            if (typeStr[i - 1] is '&')
+                            {
                                 ret.Type = CppTypeEnum.RValueRef;
+                                --i;
+                            }
                             else
                                 ret.Type = CppTypeEnum.Ref;
 
@@ -410,12 +413,12 @@ public sealed class TypeAnalyzer
         return ret;
     }
 
-    private static bool IsLetterOrUnderline(char c)
+    public static bool IsLetterOrUnderline(char c)
     {
         return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '_';
     }
 
-    private static bool IsDigit(char c)
+    public static bool IsDigit(char c)
     {
         return c >= '0' && c <= '9';
     }

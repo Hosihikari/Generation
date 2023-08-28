@@ -16,20 +16,22 @@ public readonly struct TypeData
             throw new NotSupportedException();
 
         Analyzer = analyzer;
-        Type = BuildManagedType(analyzer);
+        (Type, IsByRef) = BuildManagedType(analyzer);
     }
 
     public readonly TypeAnalyzer Analyzer;
     public readonly string Type;
+    public readonly bool IsByRef;
 
     public override string ToString() => Type;
 
-    private static string BuildManagedType(TypeAnalyzer analyzer)
+    private static (string type, bool isByRef) BuildManagedType(TypeAnalyzer analyzer)
     {
         var arr = analyzer.CppTypeHandle.ToArray().Reverse();
         var builder = new StringBuilder();
 
-        bool isIcppInstance = false;
+        bool isIcppInstance;
+        bool isByRef = false;
         bool temp = false;
 
         foreach (var item in arr)
@@ -45,7 +47,7 @@ public readonly struct TypeData
                 case CppTypeEnum.FundamentalType:
                     builder.Append(item.FundamentalType!.Value switch
                     {
-                        CppFundamentalType.Void => throw new InvalidOperationException(),
+                        CppFundamentalType.Void => "void",
                         CppFundamentalType.Boolean => "bool",
                         CppFundamentalType.Float => "float",
                         CppFundamentalType.Double => "double",
@@ -63,16 +65,19 @@ public readonly struct TypeData
                     break;
                 case CppTypeEnum.Pointer:
                     if (isIcppInstance)
-                        builder.Insert(0, "Hosihikari.NativeInterop.Unmanaged.Pointer<").Append('>');
+                        builder.Insert(0, "Pointer<").Append('>');
                     else
                         builder.Append('*');
                     break;
                 case CppTypeEnum.RValueRef:
                 case CppTypeEnum.Ref:
                     if (isIcppInstance)
-                        builder.Insert(0, "Hosihikari.NativeInterop.Unmanaged.Reference<").Append('>');
+                        builder.Insert(0, "Reference<").Append('>');
                     else
+                    {
                         builder.Insert(0, "ref ");
+                        isByRef = true;
+                    }
                     break;
                 case CppTypeEnum.Enum:
                     throw new NotImplementedException();
@@ -100,6 +105,6 @@ public readonly struct TypeData
             }
         }
 
-        return builder.ToString();
+        return (builder.ToString(), isByRef);
     }
 }
