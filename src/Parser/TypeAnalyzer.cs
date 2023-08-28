@@ -9,7 +9,7 @@ public enum CppFundamentalType
     Boolean = 1,
 
     Float = 2,
-    Bouble = 3,
+    Double = 3,
 
     WChar = 4,
 
@@ -21,7 +21,7 @@ public enum CppFundamentalType
     Char = 16,
     UInt16 = 17,
     UInt32 = 18,
-    Uint64 = 19
+    UInt64 = 19
 }
 
 public enum CppTypeEnum
@@ -29,6 +29,7 @@ public enum CppTypeEnum
     FundamentalType,
     Pointer,
     Ref,
+    RValueRef,
     Enum,
     Class,
     Struct,
@@ -135,6 +136,13 @@ public class CppTypeNode
             current = current.SubType;
         }
     }
+
+    public CppTypeNode[] ToArray()
+    {
+        List<CppTypeNode> nodes = new();
+        ForEach((node, _, _) => nodes.Add(node));
+        return nodes.ToArray();
+    }
 }
 
 #nullable enable
@@ -208,7 +216,12 @@ public sealed class TypeAnalyzer
                     {
                         if (searchDepth == 0)
                         {
-                            ret.Type = CppTypeEnum.Ref;
+                            if (typeStr[--i] is '&')
+                                ret.Type = CppTypeEnum.RValueRef;
+                            else
+                                ret.Type = CppTypeEnum.Ref;
+
+
                             var subTypeStr = typeStr[..i].Trim();
                             if (subTypeStr.Length > 0)
                             {
@@ -301,7 +314,7 @@ public sealed class TypeAnalyzer
             "void" => CppFundamentalType.Void,
             "bool" => CppFundamentalType.Boolean,
             "float" => CppFundamentalType.Float,
-            "double" => CppFundamentalType.Bouble,
+            "double" => CppFundamentalType.Double,
             "wchar_t" => CppFundamentalType.WChar,
             "char" => CppFundamentalType.SChar,
             "short" or "INT16" => CppFundamentalType.Int16,

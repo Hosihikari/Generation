@@ -1,4 +1,5 @@
 ﻿using Hosihikari.Generation;
+using Hosihikari.Generation.Generator;
 
-var type = TypeAnalyzer.Analyze("union QAQ");
-Console.WriteLine(type.CppTypeHandle.ToString());
+var data = new TypeData(new() { Kind = 0, Name = "class TestClass**&&" });
+Console.WriteLine(data.Type);

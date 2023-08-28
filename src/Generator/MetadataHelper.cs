@@ -1,4 +1,5 @@
-﻿using Hosihikari.Utils;
+﻿//flower Q
+using Hosihikari.Utils;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection.Metadata;
 using System.Reflection;
@@ -6,7 +7,7 @@ using System.Diagnostics;
 
 namespace Hosihikari.Generation.Generator;
 
-public static class Main
+public static class MetadataHelper
 {
     private static readonly Guid guid = new("7DB709E5-8DDF-8730-685F-9A183F655374");
     private static readonly BlobContentId contentId = new(guid, 0x04030201);
@@ -185,10 +186,26 @@ public static class Main
         var signature = BuildMethodSignature(metadata, returnType, parameters, isStatic);
         return metadata.AddMethodDefinition(
             attributes,
-            implAttributes, 
-            metadata.GetOrAddString(name), 
+            implAttributes,
+            metadata.GetOrAddString(name),
             metadata.GetOrAddBlob(signature),
             bodyOffset,
             default);
+    }
+
+    private static BlobBuilder BuildFieldSignature(MetadataBuilder metadata, Type type)
+    {
+        var signature = new BlobBuilder();
+        new BlobEncoder(signature)
+            .FieldSignature()
+            .Type(GetOrCreateTypeReference(metadata, type), type.IsValueType);
+        return signature;
+    }
+
+    private static FieldDefinitionHandle BuildFieldDefinition(MetadataBuilder metadata, FieldAttributes attributes, string name, Type type)
+    {
+        return metadata.AddFieldDefinition(attributes,
+            metadata.GetOrAddString(name),
+            metadata.GetOrAddBlob(BuildFieldSignature(metadata, type)));
     }
 }
