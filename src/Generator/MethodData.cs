@@ -1,6 +1,4 @@
 ﻿using Hosihikari.Utils;
-using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 using System.Text;
 using static Hosihikari.Utils.OriginalData.Class;
 
@@ -18,7 +16,7 @@ public readonly struct MethodData
 
     public readonly string[] Lines;
     public readonly string NativeFunctionPointerFieldName;
-    public readonly string InvovationName;
+    public readonly string InvocationName;
 
 
     public readonly bool isProperty;
@@ -27,9 +25,6 @@ public readonly struct MethodData
 
     [Flags]
     public enum PropertyMemberType { Getter, Setter }
-
-    private static string StrIfTrue(string str, bool b) => b ? str : string.Empty;
-    private static string StrIfFalse(string str, bool b) => b ? string.Empty : str;
 
     public MethodData(in Item item, bool isStatic, Func<PropertyMemberType, (Item method, bool isStatic, string fieldName)>? ifRequestGetterOrSetter = null, bool autoGeneratingForProperty = true, bool autoBuild = true)
     {
@@ -48,12 +43,12 @@ public readonly struct MethodData
 
         Parameters = @params;
         if (autoBuild)
-            (Lines, NativeFunctionPointerFieldName, InvovationName, isProperty, Getter, Setter) = BuildLines(this, ifRequestGetterOrSetter, autoGeneratingForProperty);
+            (Lines, NativeFunctionPointerFieldName, InvocationName, isProperty, Getter, Setter) = BuildLines(this, ifRequestGetterOrSetter, autoGeneratingForProperty);
         else
         {
             Lines = Array.Empty<string>();
             NativeFunctionPointerFieldName = string.Empty;
-            InvovationName = string.Empty;
+            InvocationName = string.Empty;
         }
     }
 
@@ -89,7 +84,7 @@ public readonly struct MethodData
         return (lines, fieldName);
     }
 
-    private static (string[] lines, string invovationName, bool isPropetry, Item? getter, Item? setter) BuildMethodDefintionAndBody(
+    private static (string[] lines, string invocationName, bool isPropetry, Item? getter, Item? setter) BuildMethodDefintionAndBody(
         in MethodData data, string fieldName, Func<PropertyMemberType, (Item method, bool isStatic, string fieldName)>? ifRequestGetterOrSetter, bool autoGeneratingForProperty)
     {
         if (autoGeneratingForProperty is false)
@@ -100,7 +95,7 @@ public readonly struct MethodData
         else
         {
             var item = data.Data;
-            if (data.Parameters.Length is 0)
+            if (data.Parameters.Length is 0 && data.ReturnType.Type is not "void")
             {
                 (Item method, bool isStatic, string fieldName)? temp;
                 if (item.Name.StartsWith("get"))
@@ -108,7 +103,17 @@ public readonly struct MethodData
                     temp = ifRequestGetterOrSetter?.Invoke(PropertyMemberType.Setter);
                     MethodData? data2 = temp is null ? null : new MethodData(temp.Value.method, data.IsStatic, autoBuild: false);
 
-                    var (lines, name) = BuildPropetry(data, fieldName, data2, temp?.fieldName);
+                    string? fieldName2 = null;
+                    if (data2 is not null)
+                    {
+                        var _temp = data2.Value.Data.Name + '_' + data2.Value.Data.Symbol;
+                        StringBuilder builder = new();
+                        foreach (var c in _temp)
+                            builder.Append(TypeAnalyzer.IsLetterOrUnderline(c) ? c : '_');
+                        fieldName2 = builder.ToString();
+                    }
+
+                    var (lines, name) = BuildPropetry(data, fieldName, data2, fieldName2);
                     return (lines, name, true, data.Data, temp!.Value.method);
                 }
                 else if (item.Name.StartsWith("set"))
@@ -116,7 +121,17 @@ public readonly struct MethodData
                     temp = ifRequestGetterOrSetter?.Invoke(PropertyMemberType.Getter);
                     MethodData? data2 = temp is null ? null : new MethodData(temp.Value.method, data.IsStatic, autoBuild: false);
 
-                    var (lines, name) = BuildPropetry(data, fieldName, data2, temp?.fieldName);
+                    string? fieldName2 = null;
+                    if (data2 is not null)
+                    {
+                        var _temp = data2.Value.Data.Name + '_' + data2.Value.Data.Symbol;
+                        StringBuilder builder = new();
+                        foreach (var c in _temp)
+                            builder.Append(TypeAnalyzer.IsLetterOrUnderline(c) ? c : '_');
+                        fieldName2 = builder.ToString();
+                    }
+
+                    var (lines, name) = BuildPropetry(data2, fieldName2, data, fieldName);
                     return (lines, name, true, data.Data, temp!.Value.method);
                 }
             }
@@ -125,7 +140,7 @@ public readonly struct MethodData
         }
     }
 
-    private static (string[] lines, string invovationName) BuildMethod(in MethodData data, string fieldName)
+    private static (string[] lines, string invocationName) BuildMethod(in MethodData data, string fieldName)
     {
         var item = data.Data;
         var name = item.Name;
@@ -160,7 +175,7 @@ public readonly struct MethodData
         {
             if (index is not 0)
                 argListStr.Append(", ");
-            argListStr.Append($"{StrIfTrue("ref ", param.IsByRef)}a{index}");
+            argListStr.Append($"{Utils.StrIfTrue("ref ", param.IsByRef)}a{index}");
             ++index;
         }
 
@@ -171,17 +186,18 @@ public readonly struct MethodData
             methodDefintion,
             "{",
             //    var func = (delegate* unmanaged<[nint,] type1, type2, ...>)fieldName.Value;
-            $"    var func = (delegate* unmanaged<{StrIfFalse("nint", data.IsStatic)}{StrIfTrue(", ",data.IsStatic is false && funcPointerTypeStr.Length is not 0)}{funcPointerTypeStr}>){fieldName}.Value;",
-            //    [return ] func([this.Pointer], a0, a1, ...);
-            $"    {StrIfFalse("return ", data.ReturnType.Analyzer.CppTypeHandle.FundamentalType == CppFundamentalType.Void)}{StrIfTrue("ref ", data.ReturnType.IsByRef)}func({StrIfFalse("this.Pointer", data.IsStatic)}{StrIfTrue(", ", data.IsStatic is false && argListStr.Length is not 0)}{argListStr});",
+            $"    var func = (delegate* unmanaged<{Utils.StrIfFalse("nint", data.IsStatic)}{Utils.StrIfTrue(", ", data.IsStatic is false && funcPointerTypeStr.Length is not 0)}{funcPointerTypeStr}>){fieldName}.Value;",
+            //    [return ][ref ] func([this.Pointer], [ref ]a0, [ref ]a1, ...);
+            $"    {Utils.StrIfFalse("return ", data.ReturnType.Analyzer.CppTypeHandle.FundamentalType == CppFundamentalType.Void)}{Utils.StrIfTrue("ref ", data.ReturnType.IsByRef)}func({Utils.StrIfFalse("this.Pointer", data.IsStatic)}{Utils.StrIfTrue(", ", data.IsStatic is false && argListStr.Length is not 0)}{argListStr});",
             "}"
         };
 
         return (lines, methodName);
     }
 
-    private static (string[] lines, string invovationName) BuildPropetry(in MethodData func1, string fieldName1, in MethodData? func2, string? fieldName2)
+    private static (string[] lines, string invocationName) BuildPropetry(in MethodData? getter, string? getterFuncPtrFieldName, in MethodData? setter, string? setterFuncPtrFieldName)
     {
+        //if ((getter is null || getterFuncPtrFieldName is null))
         throw new NotImplementedException();
     }
 }
