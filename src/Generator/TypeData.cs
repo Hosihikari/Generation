@@ -2,11 +2,15 @@
 using System.Text;
 using static Hosihikari.Utils.OriginalData;
 using static Hosihikari.Utils.OriginalData.Class.Item;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Hosihikari.Generation.Generator;
 
 public readonly struct TypeData
 {
+
+    public bool IsVoid => Analyzer.CppTypeHandle.FundamentalType is CppFundamentalType.Void;
+
     public TypeData(in Class.Item.TypeData type)
     {
         var analyzer = TypeAnalyzer.Analyze(type.Name);

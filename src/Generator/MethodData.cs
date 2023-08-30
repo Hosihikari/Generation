@@ -184,12 +184,12 @@ public readonly struct MethodData
         var lines = new string[]
         {
             methodDefintion,
-            "{",
+            $"{{",
             //    var func = (delegate* unmanaged<[nint,] type1, type2, ...>)fieldName.Value;
             $"    var func = (delegate* unmanaged<{Utils.StrIfFalse("nint", data.IsStatic)}{Utils.StrIfTrue(", ", data.IsStatic is false && funcPointerTypeStr.Length is not 0)}{funcPointerTypeStr}>){fieldName}.Value;",
             //    [return ][ref ] func([this.Pointer], [ref ]a0, [ref ]a1, ...);
-            $"    {Utils.StrIfFalse("return ", data.ReturnType.Analyzer.CppTypeHandle.FundamentalType == CppFundamentalType.Void)}{Utils.StrIfTrue("ref ", data.ReturnType.IsByRef)}func({Utils.StrIfFalse("this.Pointer", data.IsStatic)}{Utils.StrIfTrue(", ", data.IsStatic is false && argListStr.Length is not 0)}{argListStr});",
-            "}"
+            $"    {Utils.StrIfFalse("return ", data.ReturnType.IsVoid)}{Utils.StrIfTrue("ref ", data.ReturnType.IsByRef)}func({Utils.StrIfFalse("this.Pointer", data.IsStatic)}{Utils.StrIfTrue(", ", data.IsStatic is false && argListStr.Length is not 0)}{argListStr});",
+            $"}}"
         };
 
         return (lines, methodName);
