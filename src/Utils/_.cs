@@ -1,14 +1,9 @@
 ﻿//https://learn.microsoft.com/zh-cn/dotnet/api/system.reflection.metadata.ecma335.metadatabuilder?view=net-7.0
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Hosihikari.Generation.Utils
 {

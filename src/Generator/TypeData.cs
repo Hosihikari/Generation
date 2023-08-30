@@ -1,8 +1,5 @@
-﻿using Hosihikari.Utils;
-using System.Text;
+﻿using System.Text;
 using static Hosihikari.Utils.OriginalData;
-using static Hosihikari.Utils.OriginalData.Class.Item;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Hosihikari.Generation.Generator;
 
@@ -43,7 +40,7 @@ public readonly struct TypeData
             isIcppInstance = temp;
             temp = false;
 
-            if (item.Type is CppTypeEnum.Class || item.Type is CppTypeEnum.Struct)
+            if (item.Type is CppTypeEnum.Class or CppTypeEnum.Struct)
                 temp = true;
 
             switch (item.Type)

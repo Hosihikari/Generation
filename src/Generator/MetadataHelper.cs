@@ -3,7 +3,6 @@ using Hosihikari.Utils;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection.Metadata;
 using System.Reflection;
-using System.Diagnostics;
 
 namespace Hosihikari.Generation.Generator;
 
@@ -47,10 +46,10 @@ public static class MetadataHelper
 
     private static T DefaultIfNull<T>(T? value) => value ?? default!;
 
-    private static Type[] ToTypeArray(ParameterInfo[] parameters)
+    private static Type[] ToTypeArray(IReadOnlyList<ParameterInfo> parameters)
     {
-        var @params = new Type[parameters.Length];
-        for (int i = 0; i < parameters.Length; i++)
+        var @params = new Type[parameters.Count];
+        for (int i = 0; i < parameters.Count; i++)
             @params[i] = parameters[i].ParameterType;
         return @params;
     }
@@ -71,7 +70,7 @@ public static class MetadataHelper
             publicKeyOrToken: metadata.GetOrAddBlob(
                 NullWhen(assemblyName.GetPublicKey(),
                     () => NullWhen(assemblyName.GetPublicKeyToken(),
-                        () => Array.Empty<byte>()))),
+                        Array.Empty<byte>))),
             flags: (AssemblyFlags)assemblyName.Flags,
             hashValue: default);
 

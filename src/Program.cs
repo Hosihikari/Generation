@@ -1,5 +1,4 @@
-﻿using Hosihikari.Generation;
-using Hosihikari.Generation.Generator;
+﻿using Hosihikari.Generation.Generator;
 using Hosihikari.Utils;
 
 var methodData = new MethodData(new Hosihikari.Utils.OriginalData.Class.Item()

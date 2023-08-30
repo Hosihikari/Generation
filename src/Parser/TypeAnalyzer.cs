@@ -137,7 +137,7 @@ public class CppTypeNode
         }
     }
 
-    public CppTypeNode[] ToArray()
+    public IEnumerable<CppTypeNode> ToArray()
     {
         List<CppTypeNode> nodes = new();
         ForEach((node, _, _) => nodes.Add(node));
@@ -350,14 +350,7 @@ public sealed class TypeAnalyzer
         else if (ret.TypeIdentifier.StartsWith("enum "))
         {
             ret.Type = CppTypeEnum.Enum;
-            if (ret.TypeIdentifier.StartsWith("enum class "))
-            {
-                ret.TypeIdentifier = ret.TypeIdentifier.Remove(0, "enum class ".Length);
-            }
-            else
-            {
-                ret.TypeIdentifier = ret.TypeIdentifier.Remove(0, "enum ".Length);
-            }
+            ret.TypeIdentifier = ret.TypeIdentifier.Remove(0, ret.TypeIdentifier.StartsWith("enum class ") ? "enum class ".Length : "enum ".Length);
         }
         else
         {
@@ -415,11 +408,11 @@ public sealed class TypeAnalyzer
 
     public static bool IsLetterOrUnderline(char c)
     {
-        return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '_';
+        return c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or '_';
     }
 
     public static bool IsDigit(char c)
     {
-        return c >= '0' && c <= '9';
+        return c is >= '0' and <= '9';
     }
 }
