@@ -1,9 +1,13 @@
-﻿using System.Text.Json.Serialization;
+﻿using Hosihikari.Generation;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Hosihikari.Utils;
 
 public struct OriginalData
 {
+    //public static OriginalData GlobalData = JsonSerializer.Deserialize<OriginalData>(File.ReadAllText(Config.OriginalDataPath));
+
     [JsonPropertyName("classes")]
     public Dictionary<string, Class> Classes { get; set; }
     public struct Class

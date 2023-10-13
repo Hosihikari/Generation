@@ -1,4 +1,7 @@
-﻿using System.Text;
+﻿using Hosihikari.Utils;
+using Mono.Cecil;
+using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using static Hosihikari.Utils.OriginalData;
 
 namespace Hosihikari.Generation.Generator;
@@ -18,11 +21,20 @@ public readonly struct TypeData
 
         Analyzer = analyzer;
         (Type, IsByRef) = BuildManagedType(analyzer);
+
+        var namespaces = Analyzer.CppTypeHandle.RootType.Namespaces;
+
+        Namespaces = namespaces ?? Array.Empty<string>();
+        TypeIdentifier = Analyzer.CppTypeHandle.RootType.TypeIdentifier!;
+        FullTypeIdentifier = $"{string.Join('.', Namespaces)}{Utils.StrIfTrue(".", Namespaces.Count is not 0)}{TypeIdentifier}";
     }
 
     public readonly TypeAnalyzer Analyzer;
     public readonly string Type;
     public readonly bool IsByRef;
+    public readonly IReadOnlyList<string> Namespaces;
+    public readonly string TypeIdentifier;
+    public readonly string FullTypeIdentifier;
 
     public override string ToString() => Type;
 
@@ -107,5 +119,31 @@ public readonly struct TypeData
         }
 
         return (builder.ToString(), isByRef);
+    }
+
+
+    public bool TryInsertTypeDefinition(ModuleDefinition module, [NotNullWhen(true)] out TypeDefinition? definition)
+    {
+        definition = null;
+
+        //not impl
+        if (Namespaces.Count is not 0)
+            return false;
+
+        var type = Analyzer.CppTypeHandle.RootType;
+        switch (type.Type)
+        {
+            case CppTypeEnum.Class:
+            case CppTypeEnum.Struct:
+            case CppTypeEnum.Union:
+
+                var typeDef = new TypeDefinition("Minecraft", TypeIdentifier, TypeAttributes.Public | TypeAttributes.Class);
+                module.Types.Add(typeDef);
+                definition = typeDef;
+                return true;
+
+            default:
+                return false;
+        }
     }
 }

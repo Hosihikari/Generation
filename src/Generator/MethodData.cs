@@ -26,7 +26,7 @@ public readonly struct MethodData
     [Flags]
     public enum PropertyMemberType { Getter, Setter }
 
-    public MethodData(in Item item, bool isStatic, Func<PropertyMemberType, (Item method, bool isStatic, string fieldName)>? ifRequestGetterOrSetter = null, bool autoGeneratingForProperty = true, bool autoBuild = true)
+    public MethodData(in Item item, bool isStatic, Func<PropertyMemberType, (Item method, bool isStatic, string fieldName)>? ifRequestGetterOrSetter = null, bool autoGeneratingForProperty = false, bool autoBuild = true)
     {
         Data = item;
         IsStatic = isStatic;

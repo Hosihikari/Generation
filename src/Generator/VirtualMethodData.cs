@@ -86,5 +86,4 @@ public readonly struct VirtualMethodData
 
         return (lines, methodName);
     }
-
 }
