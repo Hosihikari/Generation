@@ -20,6 +20,13 @@ public readonly struct TypeData
             throw new NotSupportedException();
 
         Analyzer = analyzer;
+
+        foreach (var c in Analyzer.CppTypeHandle.RootType.TypeIdentifier!)
+        {
+            if (TypeAnalyzer.IsLetterOrUnderline(c) is false)
+                throw new InvalidDataException();
+        }
+
         (Type, IsByRef) = BuildManagedType(analyzer);
 
         var namespaces = Analyzer.CppTypeHandle.RootType.Namespaces;
@@ -139,6 +146,10 @@ public readonly struct TypeData
 
                 var typeDef = new TypeDefinition("Minecraft", TypeIdentifier, TypeAttributes.Public | TypeAttributes.Class);
                 module.Types.Add(typeDef);
+
+                var internalTypeDef = new TypeDefinition(string.Empty, $"I{typeDef.Name}Original", TypeAttributes.NestedPublic | TypeAttributes.Interface);
+                typeDef.NestedTypes.Add(internalTypeDef);
+
                 definition = typeDef;
                 return true;
 
