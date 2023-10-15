@@ -127,34 +127,4 @@ public readonly struct TypeData
 
         return (builder.ToString(), isByRef);
     }
-
-
-    public bool TryInsertTypeDefinition(ModuleDefinition module, [NotNullWhen(true)] out TypeDefinition? definition)
-    {
-        definition = null;
-
-        //not impl
-        if (Namespaces.Count is not 0)
-            return false;
-
-        var type = Analyzer.CppTypeHandle.RootType;
-        switch (type.Type)
-        {
-            case CppTypeEnum.Class:
-            case CppTypeEnum.Struct:
-            case CppTypeEnum.Union:
-
-                var typeDef = new TypeDefinition("Minecraft", TypeIdentifier, TypeAttributes.Public | TypeAttributes.Class);
-                module.Types.Add(typeDef);
-
-                var internalTypeDef = new TypeDefinition(string.Empty, $"I{typeDef.Name}Original", TypeAttributes.NestedPublic | TypeAttributes.Interface);
-                typeDef.NestedTypes.Add(internalTypeDef);
-
-                definition = typeDef;
-                return true;
-
-            default:
-                return false;
-        }
-    }
 }

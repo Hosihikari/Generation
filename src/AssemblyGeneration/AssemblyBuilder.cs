@@ -1,12 +1,15 @@
-﻿using Hosihikari.Generation.Generator;
+﻿global using oc = Mono.Cecil.Cil.OpCodes;
+
+using Hosihikari.Generation.Generator;
 using Hosihikari.NativeInterop;
+using Hosihikari.NativeInterop.Unmanaged;
 using Hosihikari.Utils;
 using Mono.Cecil;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using static Hosihikari.Utils.OriginalData.Class;
-using oc = Mono.Cecil.Cil.OpCodes;
 
-namespace Hosihikari.Generation;
+namespace Hosihikari.Generation.AssemblyGeneration;
 
 /// <summary>
 /// <code>
@@ -31,14 +34,23 @@ namespace Hosihikari.Generation;
 /// }
 /// </code>
 /// </summary>
-public class AssemblyBuilder
+public partial class AssemblyBuilder
 {
     private readonly string name;
     private readonly AssemblyDefinition assembly;
     private readonly ModuleDefinition module;
     private readonly string outputDir;
     private readonly Dictionary<string, TypeDefinition> definedTypes;
-    private readonly Queue<(TypeDefinition type, List<Item> list)> items;
+    private readonly Queue<(TypeDefinition type, List<(ItemAccessType accessType, Item item)> list)> items;
+
+    private enum ItemAccessType
+    {
+        PublicStatic = 0,
+        PrivateStatic,
+        Public,
+        Protected,
+        Virtual,
+    }
 
     public AssemblyBuilder(AssemblyDefinition assembly, string outputDir, string name)
     {
@@ -84,11 +96,39 @@ public class AssemblyBuilder
         BuildFunctionPointer();
     }
 
+    public static bool TryInsertTypeDefinition(in TypeData typeData, ModuleDefinition module, [NotNullWhen(true)] out TypeDefinition? definition)
+    {
+        definition = null;
+
+        //not impl
+        if (typeData.Namespaces.Count is not 0)
+            return false;
+
+        var type = typeData.Analyzer.CppTypeHandle.RootType;
+        switch (type.Type)
+        {
+            case CppTypeEnum.Class:
+            case CppTypeEnum.Struct:
+            case CppTypeEnum.Union:
+
+                var typeDef = new TypeDefinition("Minecraft", typeData.TypeIdentifier, TypeAttributes.Public | TypeAttributes.Class);
+                module.Types.Add(typeDef);
+
+                var internalTypeDef = new TypeDefinition(string.Empty, $"I{typeDef.Name}Original", TypeAttributes.NestedPublic | TypeAttributes.Interface);
+                typeDef.NestedTypes.Add(internalTypeDef);
+
+                definition = typeDef;
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
     private void ForeachClassesAndBuildTypeDefinition(in OriginalData data)
     {
         foreach (var @class in data.Classes)
         {
-
             try
             {
                 TypeDefinition definition;
@@ -96,7 +136,7 @@ public class AssemblyBuilder
                     var typeData = new TypeData(new() { Name = @class.Key });
                     if (definedTypes.TryGetValue(typeData.FullTypeIdentifier, out var type) is false)
                     {
-                        if (typeData.TryInsertTypeDefinition(module, out type))
+                        if (TryInsertTypeDefinition(typeData, module, out type))
                             definedTypes.Add(typeData.FullTypeIdentifier, type);
                     }
                     definition = type!;
@@ -104,15 +144,16 @@ public class AssemblyBuilder
 
                 var arr = new List<Item>?[]
                 {
-                @class.Value.Public,
-                @class.Value.Protected,
                 @class.Value.PublicStatic,
                 @class.Value.PrivateStatic,
+                @class.Value.Public,
+                @class.Value.Protected,
                 @class.Value.Virtual
                 };
 
-                var items = new List<Item>();
+                var items = new List<(ItemAccessType, Item)>();
 
+                int index = 0;
                 foreach (var list in arr)
                 {
                     if (list is null) continue;
@@ -127,7 +168,7 @@ public class AssemblyBuilder
                                 var typeData = new TypeData(item.Type);
                                 if (definedTypes.ContainsKey(typeData.FullTypeIdentifier) is false)
                                 {
-                                    if (typeData.TryInsertTypeDefinition(module, out var type))
+                                    if (TryInsertTypeDefinition(typeData, module, out var type))
                                         definedTypes.Add(typeData.FullTypeIdentifier, type);
                                 }
                             }
@@ -139,13 +180,13 @@ public class AssemblyBuilder
                                     var typeData = new TypeData(param);
                                     if (definedTypes.ContainsKey(typeData.FullTypeIdentifier) is false)
                                     {
-                                        if (typeData.TryInsertTypeDefinition(module, out var type))
+                                        if (TryInsertTypeDefinition(typeData, module, out var type))
                                             definedTypes.Add(typeData.FullTypeIdentifier, type);
                                     }
                                 }
                             }
 
-                            items.Add(item);
+                            items.Add(((ItemAccessType)index, item));
                         }
                         catch (Exception) { continue; }
                     }
@@ -160,6 +201,8 @@ public class AssemblyBuilder
 
     private void BuildFunctionPointer()
     {
+        static bool HasThis(ItemAccessType accessType) => (int)accessType > 1;
+
         while (items.TryDequeue(out var item))
         {
             var type = item.type;
@@ -167,19 +210,24 @@ public class AssemblyBuilder
 
             var originalType = type.NestedTypes.First(t => t.Name == $"I{type.Name}Original");
 
-            foreach (var t in list)
+            foreach (var (accessType, t) in list)
             {
                 string fptrId;
                 {
-                    var temp = t.Name + '_' + t.Symbol;
                     StringBuilder builder = new();
-                    foreach (var c in temp)
+                    foreach (var c in t.Symbol)
                         builder.Append(TypeAnalyzer.IsLetterOrUnderline(c) ? c : '_');
                     fptrId = builder.ToString();
                 }
 
                 var fptrStorageType = new TypeDefinition(string.Empty, $"__FptrStorageType_{fptrId}",
                     TypeAttributes.NestedPrivate | TypeAttributes.Sealed | TypeAttributes.Abstract | TypeAttributes.Class);
+
+                var fptrFieldType = new FunctionPointerType();
+                {
+                    fptrFieldType.CallingConvention = MethodCallingConvention.Unmanaged;
+                    var retType = new TypeData(t.Type);
+                }
 
                 var fptrField = new FieldDefinition(
                     $"__Field_{fptrId}", FieldAttributes.Public | FieldAttributes.Static | FieldAttributes.InitOnly, module.ImportReference(typeof(void).MakePointerType()));

@@ -1,4 +1,5 @@
 ﻿using Hosihikari.Utils;
+using Hosihikari.Generation.AssemblyGeneration;
 using System.Text.Json;
 
 namespace Hosihikari.Generation;
