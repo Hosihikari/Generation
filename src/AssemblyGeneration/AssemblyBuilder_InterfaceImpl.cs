@@ -55,6 +55,7 @@ namespace Hosihikari.Generation.AssemblyGeneration
             BuildDefaultCtor(definition, ptr, owns);
             BuildImplicitOperator(definition);
             BuildClassSizeProperty(definition, classSize);
+            BuildDtor(definition, dtor ?? default, false);
         }
 
         [MemberNotNull(nameof(ctor_Default), nameof(ctor_Ptr_Owns), nameof(method_ConstructInstance_object), nameof(method_ConstructInstance))]
@@ -67,13 +68,12 @@ namespace Hosihikari.Generation.AssemblyGeneration
                 MethodAttributes.SpecialName |
                 MethodAttributes.RTSpecialName,
                 module.TypeSystem.Void);
-            ctorDefault.Parameters.Add(new(definition));
             {
                 var il = ctorDefault.Body.GetILProcessor();
                 il.Append(il.Create(oc.Ldarg_0));
                 il.Append(il.Create(oc.Call, module.ImportReference(typeof(object).GetConstructors().First())));
                 il.Append(il.Create(oc.Ldarg_0));
-                il.Append(il.Create(oc.Ldc_I8, 0ul));
+                il.Append(il.Create(oc.Ldc_I8, 0L));
                 il.Append(il.Create(oc.Conv_Ovf_I));
                 il.Append(il.Create(oc.Stfld, ptr));
                 il.Append(il.Create(oc.Ldarg_0));
@@ -91,7 +91,6 @@ namespace Hosihikari.Generation.AssemblyGeneration
                 module.TypeSystem.Void);
             var ptrParameter = new ParameterDefinition("ptr", ParameterAttributes.None, module.ImportReference(typeof(nint)));
             var ownsParameter = new ParameterDefinition("owns", ParameterAttributes.Optional, module.ImportReference(typeof(bool))) { Constant = false };
-            ctor.Parameters.Add(new(definition));
             ctor.Parameters.Add(ptrParameter);
             ctor.Parameters.Add(ownsParameter);
             {
@@ -110,22 +109,24 @@ namespace Hosihikari.Generation.AssemblyGeneration
             var IcppInstanceType = new GenericInstanceType(module.ImportReference(typeof(ICppInstance<>)));
             IcppInstanceType.GenericArguments.Add(definition);
 
-            var methodRef_ConstructInstance = IcppInstanceType.Resolve().Methods.First(
+            var temp = IcppInstanceType.Resolve();
+
+            var methodRef_ConstructInstance = temp.Methods.First(
                 f => f.Name == "ConstructInstance" &&
                 f.Parameters.Count is 2 &&
-                f.Parameters[0].ParameterType == module.TypeSystem.IntPtr &&
-                f.Parameters[1].ParameterType == module.TypeSystem.Boolean &&
-                f.ReturnType == module.TypeSystem.Object);
+                f.Parameters[0].ParameterType.FullName == module.TypeSystem.IntPtr.FullName &&
+                f.Parameters[1].ParameterType.FullName == module.TypeSystem.Boolean.FullName &&
+                f.ReturnType.FullName == "TSelf");
 
             var ConstructInstanceMethod = new MethodDefinition(
                 "ConstructInstance",
-                MethodAttributes.Private |
+                MethodAttributes.Public |
                 MethodAttributes.HideBySig |
                 MethodAttributes.Static,
                 definition);
-            ConstructInstanceMethod.Overrides.Add(methodRef_ConstructInstance);
-            ConstructInstanceMethod.Parameters.Add(new(module.TypeSystem.IntPtr));
-            ConstructInstanceMethod.Parameters.Add(new(module.TypeSystem.Boolean));
+            ConstructInstanceMethod.Overrides.Add(module.ImportReference(methodRef_ConstructInstance));
+            ConstructInstanceMethod.Parameters.Add(new("ptr", ParameterAttributes.None, module.TypeSystem.IntPtr));
+            ConstructInstanceMethod.Parameters.Add(new("owns", ParameterAttributes.None, module.TypeSystem.Boolean));
             {
                 var il = ConstructInstanceMethod.Body.GetILProcessor();
                 il.Append(il.Create(oc.Ldarg_0));
@@ -136,7 +137,7 @@ namespace Hosihikari.Generation.AssemblyGeneration
 
             var ConstructInstanceNonGenericMethod = new MethodDefinition(
                 "ConstructInstance",
-                MethodAttributes.Private |
+                MethodAttributes.Public |
                 MethodAttributes.HideBySig |
                 MethodAttributes.Static,
                 module.TypeSystem.Object);
@@ -145,8 +146,8 @@ namespace Hosihikari.Generation.AssemblyGeneration
                 .GetMethods()
                 .First(f => f.Name == nameof(ICppInstanceNonGeneric.ConstructInstance))));
 
-            ConstructInstanceNonGenericMethod.Parameters.Add(new(module.TypeSystem.IntPtr));
-            ConstructInstanceNonGenericMethod.Parameters.Add(new(module.TypeSystem.Boolean));
+            ConstructInstanceNonGenericMethod.Parameters.Add(new("ptr", ParameterAttributes.None, module.TypeSystem.IntPtr));
+            ConstructInstanceNonGenericMethod.Parameters.Add(new("owns", ParameterAttributes.None, module.TypeSystem.Boolean));
             {
                 var il = ConstructInstanceNonGenericMethod.Body.GetILProcessor();
                 il.Append(il.Create(oc.Ldarg_0));
@@ -209,7 +210,7 @@ namespace Hosihikari.Generation.AssemblyGeneration
             pointerProperty_setMethod.Overrides.Add(module.ImportReference(
                 typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "set_Pointer")));
             pointerProperty_setMethod.Parameters.Add(new(definition));
-            pointerProperty_setMethod.Parameters.Add(new(module.ImportReference(typeof(nint))));
+            pointerProperty_setMethod.Parameters.Add(new("value", ParameterAttributes.None, module.ImportReference(typeof(nint))));
             {
                 var il = pointerProperty_setMethod.Body.GetILProcessor();
                 il.Append(il.Create(oc.Ldarg_0));
@@ -241,7 +242,7 @@ namespace Hosihikari.Generation.AssemblyGeneration
         void BuildIsOwnerProperty(TypeDefinition definition, out FieldDefinition owns)
         {
             var isOwnerField = new FieldDefinition(
-            "IsOwnerStorageFieldName", FieldAttributes.Private, module.ImportReference(typeof(bool)));
+            IsOwnerStorageFieldName, FieldAttributes.Private, module.ImportReference(typeof(bool)));
 
             var isOwnerProperty = new PropertyDefinition(
                 "IsOwner", PropertyAttributes.None, module.ImportReference(typeof(bool)));
@@ -276,7 +277,7 @@ namespace Hosihikari.Generation.AssemblyGeneration
             isOwnerProperty_setMethod.Overrides.Add(module.ImportReference(
                 typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "set_IsOwner")));
             isOwnerProperty_setMethod.Parameters.Add(new(definition));
-            isOwnerProperty_setMethod.Parameters.Add(new(module.ImportReference(typeof(bool))));
+            isOwnerProperty_setMethod.Parameters.Add(new("value", ParameterAttributes.None, module.ImportReference(typeof(bool))));
             {
                 var il = isOwnerProperty_setMethod.Body.GetILProcessor();
                 il.Append(il.Create(oc.Ldarg_0));
@@ -302,7 +303,49 @@ namespace Hosihikari.Generation.AssemblyGeneration
 
         void BuildDtor(TypeDefinition definition, in Item item, bool isVirtual, ulong virtualIndex = 0)
         {
+            //test
+            var method_DestructInstance = new MethodDefinition(
+                "DestructInstance",
+                MethodAttributes.Public |
+                MethodAttributes.HideBySig |
+                MethodAttributes.Static,
+                module.TypeSystem.Void);
+            method_DestructInstance.Overrides.Add(module.ImportReference(
+                typeof(ICppInstanceNonGeneric)
+                .GetMethods()
+                .First(f => f.Name is nameof(ICppInstanceNonGeneric.DestructInstance))));
+            method_DestructInstance.Parameters.Add(new("ptr", ParameterAttributes.None, module.TypeSystem.IntPtr));
+            {
+                var il = method_DestructInstance.Body.GetILProcessor();
+                il.Append(il.Create(oc.Nop));
+                il.Append(il.Create(oc.Ret));
+            }
 
+            var method_Destruct = new MethodDefinition(
+                "Destruct",
+                MethodAttributes.Public |
+                MethodAttributes.Final |
+                MethodAttributes.HideBySig |
+                MethodAttributes.NewSlot |
+                MethodAttributes.Virtual,
+                module.TypeSystem.Void);
+            method_Destruct.Overrides.Add(module.ImportReference(
+                typeof(ICppInstanceNonGeneric)
+                .GetMethods()
+                .First(f => f.Name is nameof(ICppInstanceNonGeneric.Destruct))));
+            {
+                var il = method_Destruct.Body.GetILProcessor();
+                il.Append(il.Create(oc.Ldarg_0));
+                il.Append(il.Create(oc.Ldfld, field_Pointer));
+                il.Append(il.Create(oc.Call, method_DestructInstance));
+                il.Append(il.Create(oc.Ret));
+            }
+
+            this.method_Destruct = method_Destruct;
+            this.method_DestructInstance = method_DestructInstance;
+
+            definition.Methods.Add(method_Destruct);
+            definition.Methods.Add(method_DestructInstance);
         }
 
         [MemberNotNull(nameof(method_op_Implicit_nint), nameof(method_op_Implicit_voidPtr))]
@@ -313,19 +356,20 @@ namespace Hosihikari.Generation.AssemblyGeneration
 
             var op_2_nint = new MethodDefinition(
                 "op_Implicit",
+                MethodAttributes.Public |
                 MethodAttributes.HideBySig |
                  MethodAttributes.SpecialName |
                  MethodAttributes.Static,
                 module.TypeSystem.IntPtr);
-            op_2_nint.Parameters.Add(new(definition));
+            op_2_nint.Parameters.Add(new("ins", ParameterAttributes.None, definition));
 
             var opMethod_nint = IcppInstanceType.Resolve().Methods.First(
                 f => f.Name == "op_Implicit" &&
                 f.Parameters.Count is 1 &&
-                f.Parameters[0].ParameterType == definition &&
-                f.ReturnType == module.TypeSystem.IntPtr);
+                f.Parameters[0].ParameterType.FullName == "TSelf" &&
+                f.ReturnType.FullName == module.TypeSystem.IntPtr.FullName);
 
-            op_2_nint.Overrides.Add(opMethod_nint);
+            op_2_nint.Overrides.Add(module.ImportReference(opMethod_nint));
             {
                 var il = op_2_nint.Body.GetILProcessor();
                 il.Append(il.Create(oc.Ldarg_0));
@@ -337,25 +381,26 @@ namespace Hosihikari.Generation.AssemblyGeneration
 
             var op_2_voidPtr = new MethodDefinition(
                 "op_Implicit",
+                MethodAttributes.Public |
                 MethodAttributes.HideBySig |
                  MethodAttributes.SpecialName |
                  MethodAttributes.Static,
                 module.ImportReference(typeof(void).MakePointerType()));
-            op_2_nint.Parameters.Add(new(definition));
+            op_2_voidPtr.Parameters.Add(new("ins", ParameterAttributes.None, definition));
 
 
             var opMethod_voidPtr = IcppInstanceType.Resolve().Methods.First(
                 f => f.Name == "op_Implicit" &&
                 f.Parameters.Count is 1 &&
-                f.Parameters[0].ParameterType == definition &&
-                f.ReturnType == module.ImportReference(typeof(void).MakePointerType()));
+                f.Parameters[0].ParameterType.FullName == "TSelf" &&
+                f.ReturnType.FullName == module.ImportReference(typeof(void).MakePointerType()).FullName);
 
-            op_2_nint.Overrides.Add(opMethod_voidPtr);
+            op_2_voidPtr.Overrides.Add(module.ImportReference(opMethod_voidPtr));
             {
-                var il = op_2_nint.Body.GetILProcessor();
+                var il = op_2_voidPtr.Body.GetILProcessor();
                 il.Append(il.Create(oc.Ldarg_0));
                 var field = definition.Fields.First(f => f.Name is PointerStorageFieldName);
-                il.Append(il.Create(oc.Ldfld, field));
+                il.Append(il.Create(oc.Ldflda, field));
                 il.Append(il.Create(oc.Call, module.ImportReference(typeof(nint).GetMethod(nameof(nint.ToPointer)))));
                 il.Append(il.Create(oc.Ret));
             }
@@ -381,10 +426,10 @@ namespace Hosihikari.Generation.AssemblyGeneration
                 MethodAttributes.Static,
                 module.TypeSystem.UInt64);
             getMethod.Overrides.Add(module.ImportReference(
-                typeof(ICppInstanceNonGeneric).GetMethods().First(f=>f.Name is "get_ClassSize")));
+                typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "get_ClassSize")));
             {
                 var il = getMethod.Body.GetILProcessor();
-                il.Append(il.Create(oc.Ldc_I8, classSize));
+                il.Append(il.Create(oc.Ldc_I8, (long)classSize));
                 il.Append(il.Create(oc.Conv_U8));
                 il.Append(il.Create(oc.Ret));
             }

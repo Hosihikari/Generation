@@ -96,7 +96,7 @@ public partial class AssemblyBuilder
         BuildFunctionPointer();
     }
 
-    public static bool TryInsertTypeDefinition(in TypeData typeData, ModuleDefinition module, [NotNullWhen(true)] out TypeDefinition? definition)
+    public bool TryInsertTypeDefinition(in TypeData typeData, ModuleDefinition module, [NotNullWhen(true)] out TypeDefinition? definition)
     {
         definition = null;
 
@@ -118,6 +118,9 @@ public partial class AssemblyBuilder
                 typeDef.NestedTypes.Add(internalTypeDef);
 
                 definition = typeDef;
+
+                ImplICppInstanceInterfaceForTypeDefinition(definition);
+
                 return true;
 
             default:
