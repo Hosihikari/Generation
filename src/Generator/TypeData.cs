@@ -21,6 +21,8 @@ public readonly struct TypeData
 
         Analyzer = analyzer;
 
+        if (string.IsNullOrWhiteSpace(Analyzer.CppTypeHandle.RootType.TypeIdentifier))
+            throw new InvalidDataException();
         foreach (var c in Analyzer.CppTypeHandle.RootType.TypeIdentifier!)
         {
             if (TypeAnalyzer.IsLetterOrUnderline(c) is false)

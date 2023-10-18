@@ -11,6 +11,7 @@ namespace Hosihikari.Generation.AssemblyGeneration
     {
         private const string PointerStorageFieldName = "__pointer_storage";
         private const string IsOwnerStorageFieldName = "__isOwner_storage";
+        private const string IsTempStackValueStorageFieldName = "__isTempStackValue_storage";
 
         private MethodDefinition? ctor_Default;
         private MethodDefinition? ctor_Ptr_Owns;
@@ -24,6 +25,11 @@ namespace Hosihikari.Generation.AssemblyGeneration
         private FieldDefinition? field_IsOwner;
         private MethodDefinition? property_IsOwner_getMethod;
         private MethodDefinition? property_IsOwner_setMethod;
+
+        private PropertyDefinition? property_IsTempStackValue;
+        private FieldDefinition? field_IsTempStackValue;
+        private MethodDefinition? property_IsTempStackValue_getMethod;
+        private MethodDefinition? property_IsTempStackValue_setMethod;
 
         private PropertyDefinition? property_ClassSize;
         private MethodDefinition? property_ClassSize_getMethod;
@@ -39,7 +45,7 @@ namespace Hosihikari.Generation.AssemblyGeneration
 
 
 
-        public void ImplICppInstanceInterfaceForTypeDefinition(TypeDefinition definition, in Item? dtor = null, ulong classSize = 0)
+        private void ImplICppInstanceInterfaceForTypeDefinition(TypeDefinition definition, in Item? dtor = null, ulong classSize = 0)
         {
             if (definition.IsClass is false)
                 throw new InvalidOperationException();
@@ -52,14 +58,15 @@ namespace Hosihikari.Generation.AssemblyGeneration
 
             BuildPointerProperty(definition, out var ptr);
             BuildIsOwnerProperty(definition, out var owns);
-            BuildDefaultCtor(definition, ptr, owns);
+            BuildIsTempStackValueProperty(definition, out var isTempStackValue);
+            BuildDefaultCtor(definition, ptr, owns, isTempStackValue);
             BuildImplicitOperator(definition);
             BuildClassSizeProperty(definition, classSize);
             BuildDtor(definition, dtor ?? default, false);
         }
 
         [MemberNotNull(nameof(ctor_Default), nameof(ctor_Ptr_Owns), nameof(method_ConstructInstance_object), nameof(method_ConstructInstance))]
-        void BuildDefaultCtor(TypeDefinition definition, FieldDefinition ptr, FieldDefinition owns)
+        private void BuildDefaultCtor(TypeDefinition definition, FieldDefinition ptr, FieldDefinition owns, FieldDefinition isTempStackValue)
         {
             var ctorDefault = new MethodDefinition(
                 ".ctor",
@@ -79,6 +86,9 @@ namespace Hosihikari.Generation.AssemblyGeneration
                 il.Append(il.Create(oc.Ldarg_0));
                 il.Append(il.Create(oc.Ldc_I4_0));
                 il.Append(il.Create(oc.Stfld, owns));
+                il.Append(il.Create(oc.Ldarg_0));
+                il.Append(il.Create(oc.Ldc_I4_0));
+                il.Append(il.Create(oc.Stfld, isTempStackValue));
                 il.Append(il.Create(oc.Ret));
             }
 
@@ -91,8 +101,10 @@ namespace Hosihikari.Generation.AssemblyGeneration
                 module.TypeSystem.Void);
             var ptrParameter = new ParameterDefinition("ptr", ParameterAttributes.None, module.ImportReference(typeof(nint)));
             var ownsParameter = new ParameterDefinition("owns", ParameterAttributes.Optional, module.ImportReference(typeof(bool))) { Constant = false };
+            var isTempStackValueParameter = new ParameterDefinition("isTempStackValue", ParameterAttributes.Optional, module.ImportReference(typeof(bool))) { Constant = true };
             ctor.Parameters.Add(ptrParameter);
             ctor.Parameters.Add(ownsParameter);
+            ctor.Parameters.Add(isTempStackValueParameter);
             {
                 var il = ctor.Body.GetILProcessor();
                 il.Append(il.Create(oc.Ldarg_0));
@@ -103,6 +115,9 @@ namespace Hosihikari.Generation.AssemblyGeneration
                 il.Append(il.Create(oc.Ldarg_0));
                 il.Append(il.Create(oc.Ldarg_2));
                 il.Append(il.Create(oc.Stfld, owns));
+                il.Append(il.Create(oc.Ldarg_0));
+                il.Append(il.Create(oc.Ldarg_3));
+                il.Append(il.Create(oc.Stfld, isTempStackValue));
                 il.Append(il.Create(oc.Ret));
             }
 
@@ -113,9 +128,10 @@ namespace Hosihikari.Generation.AssemblyGeneration
 
             var methodRef_ConstructInstance = temp.Methods.First(
                 f => f.Name == "ConstructInstance" &&
-                f.Parameters.Count is 2 &&
+                f.Parameters.Count is 3 &&
                 f.Parameters[0].ParameterType.FullName == module.TypeSystem.IntPtr.FullName &&
                 f.Parameters[1].ParameterType.FullName == module.TypeSystem.Boolean.FullName &&
+                f.Parameters[2].ParameterType.FullName == module.TypeSystem.Boolean.FullName &&
                 f.ReturnType.FullName == "TSelf");
 
             var ConstructInstanceMethod = new MethodDefinition(
@@ -127,10 +143,12 @@ namespace Hosihikari.Generation.AssemblyGeneration
             ConstructInstanceMethod.Overrides.Add(module.ImportReference(methodRef_ConstructInstance));
             ConstructInstanceMethod.Parameters.Add(new("ptr", ParameterAttributes.None, module.TypeSystem.IntPtr));
             ConstructInstanceMethod.Parameters.Add(new("owns", ParameterAttributes.None, module.TypeSystem.Boolean));
+            ConstructInstanceMethod.Parameters.Add(new("isTempStackValue", ParameterAttributes.None, module.TypeSystem.Boolean));
             {
                 var il = ConstructInstanceMethod.Body.GetILProcessor();
                 il.Append(il.Create(oc.Ldarg_0));
                 il.Append(il.Create(oc.Ldarg_1));
+                il.Append(il.Create(oc.Ldarg_2));
                 il.Append(il.Create(oc.Newobj, ctor));
                 il.Append(il.Create(oc.Ret));
             }
@@ -148,10 +166,12 @@ namespace Hosihikari.Generation.AssemblyGeneration
 
             ConstructInstanceNonGenericMethod.Parameters.Add(new("ptr", ParameterAttributes.None, module.TypeSystem.IntPtr));
             ConstructInstanceNonGenericMethod.Parameters.Add(new("owns", ParameterAttributes.None, module.TypeSystem.Boolean));
+            ConstructInstanceNonGenericMethod.Parameters.Add(new("isTempStackValue", ParameterAttributes.None, module.TypeSystem.Boolean));
             {
                 var il = ConstructInstanceNonGenericMethod.Body.GetILProcessor();
                 il.Append(il.Create(oc.Ldarg_0));
                 il.Append(il.Create(oc.Ldarg_1));
+                il.Append(il.Create(oc.Ldarg_2));
                 il.Append(il.Create(oc.Call, ConstructInstanceMethod));
                 il.Append(il.Create(oc.Ret));
             }
@@ -172,7 +192,7 @@ namespace Hosihikari.Generation.AssemblyGeneration
             nameof(field_Pointer),
             nameof(property_Pointer_setMethod),
             nameof(property_Pointer_getMethod))]
-        void BuildPointerProperty(TypeDefinition definition, out FieldDefinition ptr)
+        private void BuildPointerProperty(TypeDefinition definition, out FieldDefinition ptr)
         {
             var pointerField = new FieldDefinition(
             PointerStorageFieldName, FieldAttributes.Private, module.ImportReference(typeof(nint)));
@@ -239,7 +259,7 @@ namespace Hosihikari.Generation.AssemblyGeneration
             nameof(field_IsOwner),
             nameof(property_IsOwner_getMethod),
             nameof(property_IsOwner_setMethod))]
-        void BuildIsOwnerProperty(TypeDefinition definition, out FieldDefinition owns)
+        private void BuildIsOwnerProperty(TypeDefinition definition, out FieldDefinition owns)
         {
             var isOwnerField = new FieldDefinition(
             IsOwnerStorageFieldName, FieldAttributes.Private, module.ImportReference(typeof(bool)));
@@ -301,7 +321,74 @@ namespace Hosihikari.Generation.AssemblyGeneration
             field_IsOwner = isOwnerField;
         }
 
-        void BuildDtor(TypeDefinition definition, in Item item, bool isVirtual, ulong virtualIndex = 0)
+        [MemberNotNull(
+            nameof(property_IsTempStackValue),
+            nameof(field_IsTempStackValue),
+            nameof(property_IsTempStackValue_getMethod),
+            nameof(property_IsTempStackValue_setMethod))]
+        private void BuildIsTempStackValueProperty(TypeDefinition definition, out FieldDefinition isTempStackValue)
+        {
+            var isTempStackValueField = new FieldDefinition(
+            IsTempStackValueStorageFieldName, FieldAttributes.Private, module.ImportReference(typeof(bool)));
+
+            var isTempStackValueProperty = new PropertyDefinition(
+                "IsTempStackValue", PropertyAttributes.None, module.ImportReference(typeof(bool)));
+
+            var isTempStackValueProperty_getMethod = new MethodDefinition(
+                "get_IsTempStackValue",
+                MethodAttributes.Public |
+                MethodAttributes.Final |
+                MethodAttributes.HideBySig |
+                MethodAttributes.SpecialName |
+                MethodAttributes.NewSlot |
+                MethodAttributes.Virtual,
+                module.ImportReference(typeof(bool)));
+            isTempStackValueProperty_getMethod.Overrides.Add(module.ImportReference(
+                typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "get_IsTempStackValue")));
+            isTempStackValueProperty_getMethod.Parameters.Add(new(definition));
+            {
+                var il = isTempStackValueProperty_getMethod.Body.GetILProcessor();
+                il.Append(il.Create(oc.Ldarg_0));
+                il.Append(il.Create(oc.Ldfld, isTempStackValueField));
+                il.Append(il.Create(oc.Ret));
+            }
+            var isTempStackValueProperty_setMethod = new MethodDefinition(
+                "set_IsTempStackValue",
+                MethodAttributes.Public |
+                MethodAttributes.Final |
+                MethodAttributes.HideBySig |
+                MethodAttributes.SpecialName |
+                MethodAttributes.NewSlot |
+                MethodAttributes.Virtual,
+                module.TypeSystem.Void);
+            isTempStackValueProperty_setMethod.Overrides.Add(module.ImportReference(
+                typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "set_IsTempStackValue")));
+            isTempStackValueProperty_setMethod.Parameters.Add(new(definition));
+            isTempStackValueProperty_setMethod.Parameters.Add(new("value", ParameterAttributes.None, module.ImportReference(typeof(bool))));
+            {
+                var il = isTempStackValueProperty_setMethod.Body.GetILProcessor();
+                il.Append(il.Create(oc.Ldarg_0));
+                il.Append(il.Create(oc.Ldarg_1));
+                il.Append(il.Create(oc.Stfld, isTempStackValueField));
+                il.Append(il.Create(oc.Ret));
+            }
+
+            isTempStackValueProperty.GetMethod = isTempStackValueProperty_getMethod;
+            isTempStackValueProperty.SetMethod = isTempStackValueProperty_setMethod;
+
+            definition.Properties.Add(isTempStackValueProperty);
+            definition.Methods.Add(isTempStackValueProperty_getMethod);
+            definition.Methods.Add(isTempStackValueProperty_setMethod);
+            definition.Fields.Add(isTempStackValueField);
+            isTempStackValue = isTempStackValueField;
+
+            property_IsTempStackValue = isTempStackValueProperty;
+            property_IsTempStackValue_getMethod = isTempStackValueProperty_getMethod;
+            property_IsTempStackValue_setMethod = isTempStackValueProperty_setMethod;
+            field_IsTempStackValue = isTempStackValueField;
+        }
+
+        private void BuildDtor(TypeDefinition definition, in Item item, bool isVirtual, ulong virtualIndex = 0)
         {
             //test
             var method_DestructInstance = new MethodDefinition(
@@ -349,7 +436,7 @@ namespace Hosihikari.Generation.AssemblyGeneration
         }
 
         [MemberNotNull(nameof(method_op_Implicit_nint), nameof(method_op_Implicit_voidPtr))]
-        void BuildImplicitOperator(TypeDefinition definition)
+        private void BuildImplicitOperator(TypeDefinition definition)
         {
             var IcppInstanceType = new GenericInstanceType(module.ImportReference(typeof(ICppInstance<>)));
             IcppInstanceType.GenericArguments.Add(definition);
@@ -413,7 +500,7 @@ namespace Hosihikari.Generation.AssemblyGeneration
         }
 
         [MemberNotNull(nameof(property_ClassSize), nameof(property_ClassSize_getMethod))]
-        void BuildClassSizeProperty(TypeDefinition definition, ulong classSize)
+        private void BuildClassSizeProperty(TypeDefinition definition, ulong classSize)
         {
             var property = new PropertyDefinition(
                 "ClassSize", PropertyAttributes.None, module.TypeSystem.UInt64);
