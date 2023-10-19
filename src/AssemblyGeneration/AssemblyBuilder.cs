@@ -109,7 +109,7 @@ public partial class AssemblyBuilder
             case CppTypeEnum.Struct:
             case CppTypeEnum.Union:
 
-                var typeDef = new TypeDefinition("Minecraft", typeData.TypeIdentifier, TypeAttributes.Public | TypeAttributes.Class);
+                var typeDef = new TypeDefinition("Hosihikari.Minecraft", typeData.TypeIdentifier, TypeAttributes.Public | TypeAttributes.Class);
                 module.Types.Add(typeDef);
 
                 var internalTypeDef = new TypeDefinition(string.Empty, $"I{typeDef.Name}Original", TypeAttributes.NestedPublic | TypeAttributes.Interface);
