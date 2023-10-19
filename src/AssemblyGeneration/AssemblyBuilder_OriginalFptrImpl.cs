@@ -277,7 +277,7 @@ public partial class AssemblyBuilder
         return (reference!, string.Empty);
     }
 
-    private FunctionPointerType BuildFunctionPointerType(ItemAccessType itemAccessType, TypeDefinition definition, in Item t)
+    private FunctionPointerType BuildFunctionPointerType(ItemAccessType itemAccessType, in Item t)
     {
         var fptrType = new FunctionPointerType { CallingConvention = MethodCallingConvention.Unmanaged };
         var typeData = new TypeData(t.Type);
@@ -305,7 +305,7 @@ public partial class AssemblyBuilder
         var fptrName = BuildFptrName(t, random);
         fptrFieldNames.Add(fptrName);
 
-        var fptrType = BuildFunctionPointerType(itemAccessType, definition, t);
+        var fptrType = BuildFunctionPointerType(itemAccessType, t);
 
 
         var fptrPropertyDef = new PropertyDefinition(

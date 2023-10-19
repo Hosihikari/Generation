@@ -47,6 +47,7 @@ public partial class AssemblyBuilder
         Public,
         Protected,
         Virtual,
+        VirtualUnordered,
     }
 
     public AssemblyBuilder(AssemblyDefinition assembly, string outputDir, string name)
@@ -199,6 +200,10 @@ public partial class AssemblyBuilder
                     ForeachItemsForBuildTypeDefinition(items, @class.Value.Public, ItemAccessType.Public);
                     ForeachItemsForBuildTypeDefinition(items, @class.Value.Protected, ItemAccessType.Protected);
                     ForeachItemsForBuildTypeDefinition(items, @class.Value.Virtual, ItemAccessType.Virtual);
+                    ForeachItemsForBuildTypeDefinition(items, @class.Value.VirtualUnordered, ItemAccessType.VirtualUnordered);
+
+                    BuildVtable(definition, @class.Value.Virtual);
+
                     this.items.Enqueue((definition, items));
                 }
             }

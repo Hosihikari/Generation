@@ -24,6 +24,9 @@ public struct OriginalData
         public List<Item> Public { get; set; }
         [JsonPropertyName("virtual")]
         public List<Item> Virtual { get; set; }
+
+        [JsonPropertyName("virtual.unordered")]
+        public List<Item> VirtualUnordered { get; set; }
         [JsonPropertyName("vtbl_entry")]
         /// <summary>
         /// 虚表入口，可能有多个
