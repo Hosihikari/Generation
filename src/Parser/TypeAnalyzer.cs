@@ -415,4 +415,21 @@ public sealed class TypeAnalyzer
     {
         return c is >= '0' and <= '9';
     }
+
+    public unsafe static bool IsLegalName(string typeName)
+    {
+        if (string.IsNullOrWhiteSpace(typeName)) return false;
+        fixed (char* ptr = typeName)
+        {
+            if (IsLetterOrUnderline(*ptr) is false)
+                return false;
+
+            for (int i = 1; i < typeName.Length; ++i)
+            {
+                if ((IsLetterOrUnderline(ptr[i]) || IsDigit(ptr[i])) is false)
+                    return false;
+            }
+        }
+        return true;
+    }
 }

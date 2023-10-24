@@ -13,21 +13,22 @@ public readonly struct TypeData
 
     public TypeData(in Class.Item.TypeData type)
     {
+        if (type.Name.Contains('(') || type.Name.Contains(')'))
+            throw new NotSupportedException();
+
         var analyzer = TypeAnalyzer.Analyze(type.Name);
         var handle = analyzer.CppTypeHandle;
 
         if (handle.RootType.IsTemplate)
-            throw new NotSupportedException();
+            throw new NotImplementedException();
 
         Analyzer = analyzer;
 
         if (string.IsNullOrWhiteSpace(Analyzer.CppTypeHandle.RootType.TypeIdentifier))
             throw new InvalidDataException();
-        foreach (var c in Analyzer.CppTypeHandle.RootType.TypeIdentifier!)
-        {
-            if (TypeAnalyzer.IsLetterOrUnderline(c) is false)
-                throw new InvalidDataException();
-        }
+
+        if (TypeAnalyzer.IsLegalName(Analyzer.CppTypeHandle.RootType.TypeIdentifier!) is false)
+            throw new InvalidDataException();
 
         (Type, IsByRef) = BuildManagedType(analyzer);
 
@@ -102,7 +103,8 @@ public readonly struct TypeData
                     }
                     break;
                 case CppTypeEnum.Enum:
-                    throw new NotImplementedException();
+                    builder.Append("int");
+                    break;
 
                 case CppTypeEnum.Class:
                     {

@@ -1,4 +1,4 @@
-﻿global using oc = Mono.Cecil.Cil.OpCodes;
+﻿global using OC = Mono.Cecil.Cil.OpCodes;
 
 using Hosihikari.Generation.Generator;
 using Hosihikari.Utils;
@@ -37,10 +37,11 @@ public partial class AssemblyBuilder
     private readonly AssemblyDefinition assembly;
     private readonly ModuleDefinition module;
     private readonly string outputDir;
-    private readonly Dictionary<string, TypeDefinition> definedTypes;
-    private readonly Queue<(TypeDefinition type, List<(ItemAccessType accessType, Item item)> list)> items;
+    internal readonly Dictionary<string, TypeDefinition> definedTypes;
+    internal readonly Dictionary<TypeDefinition, TypeBuilder> builders;
+    internal readonly Queue<TypeBuilder> typeBuilders;
 
-    private enum ItemAccessType
+    public enum ItemAccessType
     {
         PublicStatic,
         PrivateStatic,
@@ -56,7 +57,8 @@ public partial class AssemblyBuilder
         module = assembly.MainModule;
         this.outputDir = outputDir;
         definedTypes = new();
-        items = new();
+        typeBuilders = new();
+        builders = new();
         this.name = name;
 
         InsertAttributes();
@@ -91,12 +93,12 @@ public partial class AssemblyBuilder
     public void Build(in OriginalData data)
     {
         ForeachClassesAndBuildTypeDefinition(data);
-        BuildFunctionPointer();
+        BuildTypes();
     }
 
-    public bool TryInsertTypeDefinition(in TypeData typeData, ModuleDefinition module, [NotNullWhen(true)] out TypeDefinition? definition)
+    public bool TryCreateTypeBuilder(in TypeData typeData, [NotNullWhen(true)] out TypeBuilder? builder)
     {
-        definition = null;
+        builder = null;
 
         //not impl
         if (typeData.Namespaces.Count is not 0)
@@ -109,16 +111,10 @@ public partial class AssemblyBuilder
             case CppTypeEnum.Struct:
             case CppTypeEnum.Union:
 
-                var typeDef = new TypeDefinition("Hosihikari.Minecraft", typeData.TypeIdentifier, TypeAttributes.Public | TypeAttributes.Class);
-                module.Types.Add(typeDef);
-
-                var internalTypeDef = new TypeDefinition(string.Empty, $"I{typeDef.Name}Original", TypeAttributes.NestedPublic | TypeAttributes.Interface);
-                typeDef.NestedTypes.Add(internalTypeDef);
-
-                definition = typeDef;
-
-                ImplICppInstanceInterfaceForTypeDefinition(definition);
-
+                var definition = new TypeDefinition("Hosihikari.Minecraft", typeData.TypeIdentifier, TypeAttributes.Public | TypeAttributes.Class);
+                builder = new(definedTypes, null, module, definition, null, 0);
+                typeBuilders.Enqueue(builder);
+                builders.Add(definition, builder);
                 return true;
 
             default:
@@ -126,12 +122,13 @@ public partial class AssemblyBuilder
         }
     }
 
-    private void ForeachItemsForBuildTypeDefinition(List<(ItemAccessType, Item)> items, List<Item>? list, ItemAccessType accessType)
+    public void ForeachItemsForBuildTypeDefinition(List<(ItemAccessType, Item, int?)> items, List<Item>? list, ItemAccessType accessType, bool isVirt = false)
     {
         if (list is null) return;
 
-        foreach (var item in list)
+        for (int i = 0; i < list.Count; i++)
         {
+            Item item = list[i];
             try
             {
 
@@ -140,8 +137,11 @@ public partial class AssemblyBuilder
                     var typeData = new TypeData(item.Type);
                     if (definedTypes.ContainsKey(typeData.FullTypeIdentifier) is false)
                     {
-                        if (TryInsertTypeDefinition(typeData, module, out var type))
-                            definedTypes.Add(typeData.FullTypeIdentifier, type);
+                        if (TryCreateTypeBuilder(typeData, out var builder))
+                        {
+                            module.Types.Add(builder.definition);
+                            definedTypes.Add(typeData.FullTypeIdentifier, builder.definition);
+                        }
                     }
                 }
 
@@ -152,19 +152,22 @@ public partial class AssemblyBuilder
                         var typeData = new TypeData(param);
                         if (definedTypes.ContainsKey(typeData.FullTypeIdentifier) is false)
                         {
-                            if (TryInsertTypeDefinition(typeData, module, out var type))
-                                definedTypes.Add(typeData.FullTypeIdentifier, type);
+                            if (TryCreateTypeBuilder(typeData, out var builder))
+                            {
+                                module.Types.Add(builder.definition);
+                                definedTypes.Add(typeData.FullTypeIdentifier, builder.definition);
+                            }
                         }
                     }
                 }
 
-                items.Add((accessType, item));
+                items.Add((accessType, item, isVirt ? i : null));
             }
             catch (Exception) { continue; }
         }
     }
 
-    private void ForeachClassesAndBuildTypeDefinition(in OriginalData data)
+    public void ForeachClassesAndBuildTypeDefinition(in OriginalData data)
     {
         foreach (var @class in data.Classes)
         {
@@ -175,8 +178,12 @@ public partial class AssemblyBuilder
                     var typeData = new TypeData(new() { Name = @class.Key });
                     if (definedTypes.TryGetValue(typeData.FullTypeIdentifier, out var type) is false)
                     {
-                        if (TryInsertTypeDefinition(typeData, module, out type))
+                        if (TryCreateTypeBuilder(typeData, out var builder))
+                        {
+                            type = builder.definition;
+                            module.Types.Add(type);
                             definedTypes.Add(typeData.FullTypeIdentifier, type);
+                        }
                     }
                     definition = type!;
                 }
@@ -194,20 +201,31 @@ public partial class AssemblyBuilder
 
                 if (definition is not null)
                 {
-                    var items = new List<(ItemAccessType, Item)>();
+                    var items = new List<(ItemAccessType, Item, int?)>();
                     ForeachItemsForBuildTypeDefinition(items, @class.Value.PublicStatic, ItemAccessType.PublicStatic);
                     ForeachItemsForBuildTypeDefinition(items, @class.Value.PrivateStatic, ItemAccessType.PrivateStatic);
                     ForeachItemsForBuildTypeDefinition(items, @class.Value.Public, ItemAccessType.Public);
                     ForeachItemsForBuildTypeDefinition(items, @class.Value.Protected, ItemAccessType.Protected);
-                    ForeachItemsForBuildTypeDefinition(items, @class.Value.Virtual, ItemAccessType.Virtual);
+                    ForeachItemsForBuildTypeDefinition(items, @class.Value.Virtual, ItemAccessType.Virtual, true);
                     ForeachItemsForBuildTypeDefinition(items, @class.Value.VirtualUnordered, ItemAccessType.VirtualUnordered);
 
-                    BuildVtable(definition, @class.Value.Virtual);
-
-                    this.items.Enqueue((definition, items));
+                    if (builders.TryGetValue(definition, out var builder))
+                    {
+                        builder.SetItems(items);
+                        builder.SetVirtualFunctrions(@class.Value.Virtual);
+                        builder.SetClassSize(0);
+                    }
                 }
             }
             catch (Exception) { continue; }
+        }
+    }
+
+    public void BuildTypes()
+    {
+        while (typeBuilders.TryDequeue(out var builder))
+        {
+            builder.Build();
         }
     }
 

@@ -1,0 +1,520 @@
+﻿using System.Diagnostics.CodeAnalysis;
+
+using Hosihikari.NativeInterop.Unmanaged;
+
+using Mono.Cecil;
+
+namespace Hosihikari.Generation.AssemblyGeneration;
+
+public class InterfaceImplBuilder
+{
+    public ModuleDefinition module;
+    public InterfaceImplBuilder(ModuleDefinition module)
+    {
+        this.module = module;
+    }
+
+    public MethodDefinition? ctor_Default;
+    public MethodDefinition? ctor_Ptr_Owns;
+
+    public PropertyDefinition? property_Pointer;
+    public FieldDefinition? field_Pointer;
+    public MethodDefinition? property_Pointer_setMethod;
+    public MethodDefinition? property_Pointer_getMethod;
+
+    public PropertyDefinition? property_IsOwner;
+    public FieldDefinition? field_IsOwner;
+    public MethodDefinition? property_IsOwner_getMethod;
+    public MethodDefinition? property_IsOwner_setMethod;
+
+    public PropertyDefinition? property_IsTempStackValue;
+    public FieldDefinition? field_IsTempStackValue;
+    public MethodDefinition? property_IsTempStackValue_getMethod;
+    public MethodDefinition? property_IsTempStackValue_setMethod;
+
+    public PropertyDefinition? property_ClassSize;
+    public MethodDefinition? property_ClassSize_getMethod;
+
+    public MethodDefinition? method_Destruct;
+    public MethodDefinition? method_DestructInstance;
+
+    public MethodDefinition? method_ConstructInstance_object;
+    public MethodDefinition? method_ConstructInstance;
+
+    public MethodDefinition? method_op_Implicit_nint;
+    public MethodDefinition? method_op_Implicit_voidPtr;
+
+    public ulong classSize;
+
+    public const string PointerStorageFieldName = "__pointer_storage";
+    public const string IsOwnerStorageFieldName = "__isOwner_storage";
+    public const string IsTempStackValueStorageFieldName = "__isTempStackValue_storage";
+
+
+    [MemberNotNull(nameof(ctor_Default), nameof(ctor_Ptr_Owns), nameof(method_ConstructInstance_object), nameof(method_ConstructInstance))]
+    [MemberNotNull(
+        nameof(property_Pointer),
+        nameof(field_Pointer),
+        nameof(property_Pointer_setMethod),
+        nameof(property_Pointer_getMethod))]
+    [MemberNotNull(
+        nameof(property_IsOwner),
+        nameof(field_IsOwner),
+        nameof(property_IsOwner_getMethod),
+        nameof(property_IsOwner_setMethod))]
+    [MemberNotNull(
+        nameof(property_IsTempStackValue),
+        nameof(field_IsTempStackValue),
+        nameof(property_IsTempStackValue_getMethod),
+        nameof(property_IsTempStackValue_setMethod))]
+    [MemberNotNull(nameof(method_op_Implicit_nint), nameof(method_op_Implicit_voidPtr))]
+    [MemberNotNull(nameof(property_ClassSize), nameof(property_ClassSize_getMethod))]
+    public void ImplICppInstanceInterfaceForTypeDefinition(
+        TypeDefinition definition,
+        ulong classSize = 0)
+    {
+
+        if (definition.IsClass is false)
+            throw new InvalidOperationException();
+
+        var IcppInstanceType = new GenericInstanceType(module.ImportReference(typeof(ICppInstance<>)));
+        IcppInstanceType.GenericArguments.Add(definition);
+
+        definition.Interfaces.Add(new(IcppInstanceType));
+        definition.Interfaces.Add(new(module.ImportReference(typeof(ICppInstanceNonGeneric))));
+
+        BuildPointerProperty(definition, out var ptr);
+        BuildIsOwnerProperty(definition, out var owns);
+        BuildIsTempStackValueProperty(definition, out var isTempStackValue);
+        BuildDefaultCtor(definition, ptr, owns, isTempStackValue);
+        BuildImplicitOperator(definition);
+        BuildClassSizeProperty(definition, classSize);
+        //BuildDtor(definition, dtor ?? default, false);
+    }
+
+    [MemberNotNull(nameof(ctor_Default), nameof(ctor_Ptr_Owns), nameof(method_ConstructInstance_object), nameof(method_ConstructInstance))]
+    public void BuildDefaultCtor(
+        TypeDefinition definition,
+        FieldDefinition ptr,
+        FieldDefinition owns,
+        FieldDefinition isTempStackValue)
+    {
+        var ctorDefault = new MethodDefinition(
+            ".ctor",
+            MethodAttributes.Public |
+            MethodAttributes.HideBySig |
+            MethodAttributes.SpecialName |
+            MethodAttributes.RTSpecialName,
+            module.TypeSystem.Void);
+        {
+            var il = ctorDefault.Body.GetILProcessor();
+            il.Append(il.Create(OC.Ldarg_0));
+            il.Append(il.Create(OC.Call, module.ImportReference(typeof(object).GetConstructors().First())));
+            il.Append(il.Create(OC.Ldarg_0));
+            il.Append(il.Create(OC.Ldc_I8, 0L));
+            il.Append(il.Create(OC.Conv_Ovf_I));
+            il.Append(il.Create(OC.Stfld, ptr));
+            il.Append(il.Create(OC.Ldarg_0));
+            il.Append(il.Create(OC.Ldc_I4_0));
+            il.Append(il.Create(OC.Stfld, owns));
+            il.Append(il.Create(OC.Ldarg_0));
+            il.Append(il.Create(OC.Ldc_I4_0));
+            il.Append(il.Create(OC.Stfld, isTempStackValue));
+            il.Append(il.Create(OC.Ret));
+        }
+
+        var ctor = new MethodDefinition(
+            ".ctor",
+            MethodAttributes.Public |
+            MethodAttributes.HideBySig |
+            MethodAttributes.SpecialName |
+            MethodAttributes.RTSpecialName,
+            module.TypeSystem.Void);
+        var ptrParameter = new ParameterDefinition("ptr", ParameterAttributes.None, module.ImportReference(typeof(nint)));
+        var ownsParameter = new ParameterDefinition("owns", ParameterAttributes.Optional, module.ImportReference(typeof(bool))) { Constant = false };
+        var isTempStackValueParameter = new ParameterDefinition("isTempStackValue", ParameterAttributes.Optional, module.ImportReference(typeof(bool))) { Constant = true };
+        ctor.Parameters.Add(ptrParameter);
+        ctor.Parameters.Add(ownsParameter);
+        ctor.Parameters.Add(isTempStackValueParameter);
+        {
+            var il = ctor.Body.GetILProcessor();
+            il.Append(il.Create(OC.Ldarg_0));
+            il.Append(il.Create(OC.Call, module.ImportReference(typeof(object).GetConstructors().First())));
+            il.Append(il.Create(OC.Ldarg_0));
+            il.Append(il.Create(OC.Ldarg_1));
+            il.Append(il.Create(OC.Stfld, ptr));
+            il.Append(il.Create(OC.Ldarg_0));
+            il.Append(il.Create(OC.Ldarg_2));
+            il.Append(il.Create(OC.Stfld, owns));
+            il.Append(il.Create(OC.Ldarg_0));
+            il.Append(il.Create(OC.Ldarg_3));
+            il.Append(il.Create(OC.Stfld, isTempStackValue));
+            il.Append(il.Create(OC.Ret));
+        }
+
+        var IcppInstanceType = new GenericInstanceType(module.ImportReference(typeof(ICppInstance<>)));
+        IcppInstanceType.GenericArguments.Add(definition);
+
+        var temp = IcppInstanceType.Resolve();
+
+        var methodRef_ConstructInstance = temp.Methods.First(
+            f => f.Name == "ConstructInstance" &&
+            f.Parameters.Count is 3 &&
+            f.Parameters[0].ParameterType.FullName == module.TypeSystem.IntPtr.FullName &&
+            f.Parameters[1].ParameterType.FullName == module.TypeSystem.Boolean.FullName &&
+            f.Parameters[2].ParameterType.FullName == module.TypeSystem.Boolean.FullName &&
+            f.ReturnType.FullName == "TSelf");
+
+        var ConstructInstanceMethod = new MethodDefinition(
+            "ConstructInstance",
+            MethodAttributes.Public |
+            MethodAttributes.HideBySig |
+            MethodAttributes.Static,
+            definition);
+        ConstructInstanceMethod.Overrides.Add(module.ImportReference(methodRef_ConstructInstance));
+        ConstructInstanceMethod.Parameters.Add(new("ptr", ParameterAttributes.None, module.TypeSystem.IntPtr));
+        ConstructInstanceMethod.Parameters.Add(new("owns", ParameterAttributes.None, module.TypeSystem.Boolean));
+        ConstructInstanceMethod.Parameters.Add(new("isTempStackValue", ParameterAttributes.None, module.TypeSystem.Boolean));
+        {
+            var il = ConstructInstanceMethod.Body.GetILProcessor();
+            il.Append(il.Create(OC.Ldarg_0));
+            il.Append(il.Create(OC.Ldarg_1));
+            il.Append(il.Create(OC.Ldarg_2));
+            il.Append(il.Create(OC.Newobj, ctor));
+            il.Append(il.Create(OC.Ret));
+        }
+
+        var ConstructInstanceNonGenericMethod = new MethodDefinition(
+            "ConstructInstance",
+            MethodAttributes.Public |
+            MethodAttributes.HideBySig |
+            MethodAttributes.Static,
+            module.TypeSystem.Object);
+        ConstructInstanceNonGenericMethod.Overrides.Add(module.ImportReference(
+            typeof(ICppInstanceNonGeneric)
+            .GetMethods()
+            .First(f => f.Name == nameof(ICppInstanceNonGeneric.ConstructInstance))));
+
+        ConstructInstanceNonGenericMethod.Parameters.Add(new("ptr", ParameterAttributes.None, module.TypeSystem.IntPtr));
+        ConstructInstanceNonGenericMethod.Parameters.Add(new("owns", ParameterAttributes.None, module.TypeSystem.Boolean));
+        ConstructInstanceNonGenericMethod.Parameters.Add(new("isTempStackValue", ParameterAttributes.None, module.TypeSystem.Boolean));
+        {
+            var il = ConstructInstanceNonGenericMethod.Body.GetILProcessor();
+            il.Append(il.Create(OC.Ldarg_0));
+            il.Append(il.Create(OC.Ldarg_1));
+            il.Append(il.Create(OC.Ldarg_2));
+            il.Append(il.Create(OC.Call, ConstructInstanceMethod));
+            il.Append(il.Create(OC.Ret));
+        }
+
+        definition.Methods.Add(ctor);
+        definition.Methods.Add(ctorDefault);
+        definition.Methods.Add(ConstructInstanceMethod);
+        definition.Methods.Add(ConstructInstanceNonGenericMethod);
+
+        ctor_Default = ctorDefault;
+        ctor_Ptr_Owns = ctor;
+        method_ConstructInstance = ConstructInstanceMethod;
+        method_ConstructInstance_object = ConstructInstanceNonGenericMethod;
+    }
+
+    [MemberNotNull(
+        nameof(property_Pointer),
+        nameof(field_Pointer),
+        nameof(property_Pointer_setMethod),
+        nameof(property_Pointer_getMethod))]
+    public void BuildPointerProperty(TypeDefinition definition, out FieldDefinition ptr)
+    {
+        var pointerField = new FieldDefinition(
+        PointerStorageFieldName, FieldAttributes.Private, module.ImportReference(typeof(nint)));
+
+        var pointerProperty = new PropertyDefinition(
+            "Pointer", PropertyAttributes.None, module.ImportReference(typeof(nint)));
+
+        var pointerProperty_getMethod = new MethodDefinition(
+            "get_Pointer",
+            MethodAttributes.Public |
+            MethodAttributes.Final |
+            MethodAttributes.HideBySig |
+            MethodAttributes.SpecialName |
+            MethodAttributes.NewSlot |
+            MethodAttributes.Virtual,
+            module.ImportReference(typeof(nint)));
+        pointerProperty_getMethod.Overrides.Add(module.ImportReference(
+            typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "get_Pointer")));
+        pointerProperty_getMethod.Parameters.Add(new(definition));
+        {
+            var il = pointerProperty_getMethod.Body.GetILProcessor();
+            il.Append(il.Create(OC.Ldarg_0));
+            il.Append(il.Create(OC.Ldfld, pointerField));
+            il.Append(il.Create(OC.Ret));
+        }
+        var pointerProperty_setMethod = new MethodDefinition(
+            "set_Pointer",
+            MethodAttributes.Public |
+            MethodAttributes.Final |
+            MethodAttributes.HideBySig |
+            MethodAttributes.SpecialName |
+            MethodAttributes.NewSlot |
+            MethodAttributes.Virtual,
+            module.TypeSystem.Void);
+        pointerProperty_setMethod.Overrides.Add(module.ImportReference(
+            typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "set_Pointer")));
+        pointerProperty_setMethod.Parameters.Add(new(definition));
+        pointerProperty_setMethod.Parameters.Add(new("value", ParameterAttributes.None, module.ImportReference(typeof(nint))));
+        {
+            var il = pointerProperty_setMethod.Body.GetILProcessor();
+            il.Append(il.Create(OC.Ldarg_0));
+            il.Append(il.Create(OC.Ldarg_1));
+            il.Append(il.Create(OC.Stfld, pointerField));
+            il.Append(il.Create(OC.Ret));
+        }
+
+        pointerProperty.GetMethod = pointerProperty_getMethod;
+        pointerProperty.SetMethod = pointerProperty_setMethod;
+
+        definition.Properties.Add(pointerProperty);
+        definition.Methods.Add(pointerProperty_getMethod);
+        definition.Methods.Add(pointerProperty_setMethod);
+        definition.Fields.Add(pointerField);
+        ptr = pointerField;
+
+        property_Pointer = pointerProperty;
+        property_Pointer_getMethod = pointerProperty_getMethod;
+        property_Pointer_setMethod = pointerProperty_setMethod;
+        field_Pointer = pointerField;
+    }
+
+    [MemberNotNull(
+        nameof(property_IsOwner),
+        nameof(field_IsOwner),
+        nameof(property_IsOwner_getMethod),
+        nameof(property_IsOwner_setMethod))]
+    public void BuildIsOwnerProperty(TypeDefinition definition, out FieldDefinition owns)
+    {
+        var isOwnerField = new FieldDefinition(
+        IsOwnerStorageFieldName, FieldAttributes.Private, module.ImportReference(typeof(bool)));
+
+        var isOwnerProperty = new PropertyDefinition(
+            "IsOwner", PropertyAttributes.None, module.ImportReference(typeof(bool)));
+
+        var isOwnerProperty_getMethod = new MethodDefinition(
+            "get_IsOwner",
+            MethodAttributes.Public |
+            MethodAttributes.Final |
+            MethodAttributes.HideBySig |
+            MethodAttributes.SpecialName |
+            MethodAttributes.NewSlot |
+            MethodAttributes.Virtual,
+            module.ImportReference(typeof(bool)));
+        isOwnerProperty_getMethod.Overrides.Add(module.ImportReference(
+            typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "get_IsOwner")));
+        isOwnerProperty_getMethod.Parameters.Add(new(definition));
+        {
+            var il = isOwnerProperty_getMethod.Body.GetILProcessor();
+            il.Append(il.Create(OC.Ldarg_0));
+            il.Append(il.Create(OC.Ldfld, isOwnerField));
+            il.Append(il.Create(OC.Ret));
+        }
+        var isOwnerProperty_setMethod = new MethodDefinition(
+            "set_IsOwner",
+            MethodAttributes.Public |
+            MethodAttributes.Final |
+            MethodAttributes.HideBySig |
+            MethodAttributes.SpecialName |
+            MethodAttributes.NewSlot |
+            MethodAttributes.Virtual,
+            module.TypeSystem.Void);
+        isOwnerProperty_setMethod.Overrides.Add(module.ImportReference(
+            typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "set_IsOwner")));
+        isOwnerProperty_setMethod.Parameters.Add(new(definition));
+        isOwnerProperty_setMethod.Parameters.Add(new("value", ParameterAttributes.None, module.ImportReference(typeof(bool))));
+        {
+            var il = isOwnerProperty_setMethod.Body.GetILProcessor();
+            il.Append(il.Create(OC.Ldarg_0));
+            il.Append(il.Create(OC.Ldarg_1));
+            il.Append(il.Create(OC.Stfld, isOwnerField));
+            il.Append(il.Create(OC.Ret));
+        }
+
+        isOwnerProperty.GetMethod = isOwnerProperty_getMethod;
+        isOwnerProperty.SetMethod = isOwnerProperty_setMethod;
+
+        definition.Properties.Add(isOwnerProperty);
+        definition.Methods.Add(isOwnerProperty_getMethod);
+        definition.Methods.Add(isOwnerProperty_setMethod);
+        definition.Fields.Add(isOwnerField);
+        owns = isOwnerField;
+
+        property_IsOwner = isOwnerProperty;
+        property_IsOwner_getMethod = isOwnerProperty_getMethod;
+        property_IsOwner_setMethod = isOwnerProperty_setMethod;
+        field_IsOwner = isOwnerField;
+    }
+
+    [MemberNotNull(
+        nameof(property_IsTempStackValue),
+        nameof(field_IsTempStackValue),
+        nameof(property_IsTempStackValue_getMethod),
+        nameof(property_IsTempStackValue_setMethod))]
+    public void BuildIsTempStackValueProperty(TypeDefinition definition, out FieldDefinition isTempStackValue)
+    {
+        var isTempStackValueField = new FieldDefinition(
+        IsTempStackValueStorageFieldName, FieldAttributes.Private, module.ImportReference(typeof(bool)));
+
+        var isTempStackValueProperty = new PropertyDefinition(
+            "IsTempStackValue", PropertyAttributes.None, module.ImportReference(typeof(bool)));
+
+        var isTempStackValueProperty_getMethod = new MethodDefinition(
+            "get_IsTempStackValue",
+            MethodAttributes.Public |
+            MethodAttributes.Final |
+            MethodAttributes.HideBySig |
+            MethodAttributes.SpecialName |
+            MethodAttributes.NewSlot |
+            MethodAttributes.Virtual,
+            module.ImportReference(typeof(bool)));
+        isTempStackValueProperty_getMethod.Overrides.Add(module.ImportReference(
+            typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "get_IsTempStackValue")));
+        isTempStackValueProperty_getMethod.Parameters.Add(new(definition));
+        {
+            var il = isTempStackValueProperty_getMethod.Body.GetILProcessor();
+            il.Append(il.Create(OC.Ldarg_0));
+            il.Append(il.Create(OC.Ldfld, isTempStackValueField));
+            il.Append(il.Create(OC.Ret));
+        }
+        var isTempStackValueProperty_setMethod = new MethodDefinition(
+            "set_IsTempStackValue",
+            MethodAttributes.Public |
+            MethodAttributes.Final |
+            MethodAttributes.HideBySig |
+            MethodAttributes.SpecialName |
+            MethodAttributes.NewSlot |
+            MethodAttributes.Virtual,
+            module.TypeSystem.Void);
+        isTempStackValueProperty_setMethod.Overrides.Add(module.ImportReference(
+            typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "set_IsTempStackValue")));
+        isTempStackValueProperty_setMethod.Parameters.Add(new(definition));
+        isTempStackValueProperty_setMethod.Parameters.Add(new("value", ParameterAttributes.None, module.ImportReference(typeof(bool))));
+        {
+            var il = isTempStackValueProperty_setMethod.Body.GetILProcessor();
+            il.Append(il.Create(OC.Ldarg_0));
+            il.Append(il.Create(OC.Ldarg_1));
+            il.Append(il.Create(OC.Stfld, isTempStackValueField));
+            il.Append(il.Create(OC.Ret));
+        }
+
+        isTempStackValueProperty.GetMethod = isTempStackValueProperty_getMethod;
+        isTempStackValueProperty.SetMethod = isTempStackValueProperty_setMethod;
+
+        definition.Properties.Add(isTempStackValueProperty);
+        definition.Methods.Add(isTempStackValueProperty_getMethod);
+        definition.Methods.Add(isTempStackValueProperty_setMethod);
+        definition.Fields.Add(isTempStackValueField);
+        isTempStackValue = isTempStackValueField;
+
+        property_IsTempStackValue = isTempStackValueProperty;
+        property_IsTempStackValue_getMethod = isTempStackValueProperty_getMethod;
+        property_IsTempStackValue_setMethod = isTempStackValueProperty_setMethod;
+        field_IsTempStackValue = isTempStackValueField;
+    }
+
+
+
+    [MemberNotNull(nameof(method_op_Implicit_nint), nameof(method_op_Implicit_voidPtr))]
+    public void BuildImplicitOperator(TypeDefinition definition)
+    {
+        var IcppInstanceType = new GenericInstanceType(module.ImportReference(typeof(ICppInstance<>)));
+        IcppInstanceType.GenericArguments.Add(definition);
+
+        var op_2_nint = new MethodDefinition(
+            "op_Implicit",
+            MethodAttributes.Public |
+            MethodAttributes.HideBySig |
+             MethodAttributes.SpecialName |
+             MethodAttributes.Static,
+            module.TypeSystem.IntPtr);
+        op_2_nint.Parameters.Add(new("ins", ParameterAttributes.None, definition));
+
+        var opMethod_nint = IcppInstanceType.Resolve().Methods.First(
+            f => f.Name == "op_Implicit" &&
+            f.Parameters.Count is 1 &&
+            f.Parameters[0].ParameterType.FullName == "TSelf" &&
+            f.ReturnType.FullName == module.TypeSystem.IntPtr.FullName);
+
+        op_2_nint.Overrides.Add(module.ImportReference(opMethod_nint));
+        {
+            var il = op_2_nint.Body.GetILProcessor();
+            il.Append(il.Create(OC.Ldarg_0));
+            var field = definition.Fields.First(f => f.Name is PointerStorageFieldName);
+            il.Append(il.Create(OC.Ldfld, field));
+            il.Append(il.Create(OC.Ret));
+        }
+
+
+        var op_2_voidPtr = new MethodDefinition(
+            "op_Implicit",
+            MethodAttributes.Public |
+            MethodAttributes.HideBySig |
+             MethodAttributes.SpecialName |
+             MethodAttributes.Static,
+            module.ImportReference(typeof(void).MakePointerType()));
+        op_2_voidPtr.Parameters.Add(new("ins", ParameterAttributes.None, definition));
+
+
+        var opMethod_voidPtr = IcppInstanceType.Resolve().Methods.First(
+            f => f.Name == "op_Implicit" &&
+            f.Parameters.Count is 1 &&
+            f.Parameters[0].ParameterType.FullName == "TSelf" &&
+            f.ReturnType.FullName == module.ImportReference(typeof(void).MakePointerType()).FullName);
+
+        op_2_voidPtr.Overrides.Add(module.ImportReference(opMethod_voidPtr));
+        {
+            var il = op_2_voidPtr.Body.GetILProcessor();
+            il.Append(il.Create(OC.Ldarg_0));
+            var field = definition.Fields.First(f => f.Name is PointerStorageFieldName);
+            il.Append(il.Create(OC.Ldflda, field));
+            il.Append(il.Create(OC.Call, module.ImportReference(typeof(nint).GetMethod(nameof(nint.ToPointer)))));
+            il.Append(il.Create(OC.Ret));
+        }
+
+        definition.Methods.Add(op_2_nint);
+        definition.Methods.Add(op_2_voidPtr);
+
+        method_op_Implicit_nint = op_2_nint;
+        method_op_Implicit_voidPtr = op_2_voidPtr;
+    }
+
+    [MemberNotNull(nameof(property_ClassSize), nameof(property_ClassSize_getMethod))]
+    public void BuildClassSizeProperty(TypeDefinition definition, ulong classSize)
+    {
+        var property = new PropertyDefinition(
+            "ClassSize", PropertyAttributes.None, module.TypeSystem.UInt64);
+
+        var getMethod = new MethodDefinition(
+            "get_ClassSize",
+            MethodAttributes.Public |
+            MethodAttributes.HideBySig |
+            MethodAttributes.SpecialName |
+            MethodAttributes.Static,
+            module.TypeSystem.UInt64);
+        getMethod.Overrides.Add(module.ImportReference(
+            typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "get_ClassSize")));
+        {
+            var il = getMethod.Body.GetILProcessor();
+            il.Append(il.Create(OC.Ldc_I8, (long)classSize));
+            il.Append(il.Create(OC.Conv_U8));
+            il.Append(il.Create(OC.Ret));
+        }
+
+        property.GetMethod = getMethod;
+
+        definition.Properties.Add(property);
+        definition.Methods.Add(getMethod);
+
+        property_ClassSize = property;
+        property_ClassSize_getMethod = getMethod;
+
+        this.classSize = classSize;
+    }
+}

@@ -1,54 +1,58 @@
-﻿using Hosihikari.Generation.Generator;
-using Hosihikari.NativeInterop;
-using Hosihikari.NativeInterop.Unmanaged;
+﻿using Hosihikari.NativeInterop.Unmanaged;
 using Hosihikari.NativeInterop.Unmanaged.Attributes;
-using Hosihikari.Utils;
+
 using Mono.Cecil;
-using Mono.Cecil.Rocks;
-using System;
-using System.Text;
+
 using static Hosihikari.Utils.OriginalData.Class;
+using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 
-
-/// <summary>
-/// ->BuildVtable
-///     ->InsertVirtualCppClassAttribute
-///     ->BuildVtableLengthProperty
-///     ->[foreach]AppendVfunc
-///         ->[if failed]AppendUnknownVfunc
-/// </summary>
-public partial class AssemblyBuilder
+public class VftableStructBuilder
 {
-    private void AppendUnknownVfunc(TypeDefinition definition, int currentIndex, string? funcName = null)
+    public ModuleDefinition module;
+
+    public VftableStructBuilder(ModuleDefinition module)
+    {
+        this.module = module;
+    }
+
+    public void AppendUnknownVfunc(
+        TypeDefinition definition,
+        int currentIndex,
+        string? funcName = null)
     {
         var fieldDef = new FieldDefinition(funcName is null ? $"__UnknownVirtualFunction_{currentIndex}" : funcName, FieldAttributes.Public | FieldAttributes.InitOnly, module.TypeSystem.IntPtr);
         definition.Fields.Add(fieldDef);
     }
 
-    private void AppendVfunc(TypeDefinition definition, int currentIndex, in Item item)
+    public void AppendVfunc(
+        TypeDefinition vfptrStructType,
+        Dictionary<string, TypeDefinition> definedTypes,
+        HashSet<string> fptrFieldNames,
+        int currentIndex,
+        in Item item)
     {
         try
         {
-            var fptrType = BuildFunctionPointerType(ItemAccessType.Virtual, item);
-            var fptrName = BuildFptrName(item, new());
+            var fptrType = Utils.BuildFunctionPointerType(module, definedTypes, ItemAccessType.Virtual, item);
+            var fptrName = Utils.BuildFptrName(fptrFieldNames, item, new());
             var fieldDef = new FieldDefinition($"vfptr_{fptrName}", FieldAttributes.Public | FieldAttributes.InitOnly, fptrType);
-            definition.Fields.Add(fieldDef);
+            vfptrStructType.Fields.Add(fieldDef);
         }
         catch (Exception)
         {
-            AppendUnknownVfunc(definition, currentIndex);
+            AppendUnknownVfunc(vfptrStructType, currentIndex);
         }
     }
 
-    private void InsertVirtualCppClassAttribute(TypeDefinition definition)
+    public void InsertVirtualCppClassAttribute(TypeDefinition definition)
     {
         var attribute = new CustomAttribute(module.ImportReference(typeof(VirtualCppClassAttribute).GetConstructors().First()));
         definition.CustomAttributes.Add(attribute);
     }
 
-    private void BuildVtableLengthProperty(TypeDefinition definition, ulong length)
+    public void BuildVtableLengthProperty(TypeDefinition definition, ulong length)
     {
         var interfaceImpl = new InterfaceImplementation(module.ImportReference(typeof(ICppVtable)));
         definition.Interfaces.Add(interfaceImpl);
@@ -65,16 +69,19 @@ public partial class AssemblyBuilder
             typeof(ICppVtable).GetMethods().First(f => f.Name is "get_VtableLength")));
         {
             var il = getMethod_property_VtableLength.Body.GetILProcessor();
-            il.Append(il.Create(oc.Ldc_I8, (long)length));
-            il.Append(il.Create(oc.Conv_U8));
-            il.Append(il.Create(oc.Ret));
+            il.Append(il.Create(OC.Ldc_I8, (long)length));
+            il.Append(il.Create(OC.Conv_U8));
+            il.Append(il.Create(OC.Ret));
         }
         property_VtableLength.GetMethod = getMethod_property_VtableLength;
         definition.Properties.Add(property_VtableLength);
         definition.Methods.Add(getMethod_property_VtableLength);
     }
 
-    private void BuildVtable(TypeDefinition definition, List<Item>? virtualFunctions)
+    public void BuildVtable(
+        TypeDefinition definition, List<Item>? virtualFunctions,
+        Dictionary<string, TypeDefinition> definedTypes,
+        HashSet<string> fptrFieldNames)
     {
         if (virtualFunctions is null || virtualFunctions.Count is 0)
             return;
@@ -83,9 +90,9 @@ public partial class AssemblyBuilder
 
         var vtableStructType = new TypeDefinition(
             string.Empty,
-            "Vftable", 
+            "Vftable",
             TypeAttributes.NestedPublic |
-            TypeAttributes.SequentialLayout, 
+            TypeAttributes.SequentialLayout,
             module.ImportReference(typeof(ValueType)));
 
         BuildVtableLengthProperty(vtableStructType, (ulong)virtualFunctions.Count);
@@ -94,6 +101,6 @@ public partial class AssemblyBuilder
 
 
         for (int i = 0; i < virtualFunctions.Count; i++)
-            AppendVfunc(vtableStructType, i, virtualFunctions[i]);
+            AppendVfunc(vtableStructType, definedTypes, fptrFieldNames, i, virtualFunctions[i]);
     }
 }
