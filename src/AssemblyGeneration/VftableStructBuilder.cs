@@ -17,6 +17,8 @@ public class VftableStructBuilder
         this.module = module;
     }
 
+    public HashSet<string> vfptrFieldNames = new();
+
     public void AppendUnknownVfunc(
         TypeDefinition definition,
         int currentIndex,
@@ -29,14 +31,13 @@ public class VftableStructBuilder
     public void AppendVfunc(
         TypeDefinition vfptrStructType,
         Dictionary<string, TypeDefinition> definedTypes,
-        HashSet<string> fptrFieldNames,
         int currentIndex,
         in Item item)
     {
         try
         {
             var fptrType = Utils.BuildFunctionPointerType(module, definedTypes, ItemAccessType.Virtual, item);
-            var fptrName = Utils.BuildFptrName(fptrFieldNames, item, new());
+            var fptrName = Utils.BuildFptrName(vfptrFieldNames, item, new());
             var fieldDef = new FieldDefinition($"vfptr_{fptrName}", FieldAttributes.Public | FieldAttributes.InitOnly, fptrType);
             vfptrStructType.Fields.Add(fieldDef);
         }
@@ -78,13 +79,13 @@ public class VftableStructBuilder
         definition.Methods.Add(getMethod_property_VtableLength);
     }
 
-    public void BuildVtable(
-        TypeDefinition definition, List<Item>? virtualFunctions,
-        Dictionary<string, TypeDefinition> definedTypes,
-        HashSet<string> fptrFieldNames)
+    public TypeDefinition? BuildVtable(
+        TypeDefinition definition,
+        List<Item>? virtualFunctions,
+        Dictionary<string, TypeDefinition> definedTypes)
     {
         if (virtualFunctions is null || virtualFunctions.Count is 0)
-            return;
+            return null;
 
         InsertVirtualCppClassAttribute(definition);
 
@@ -97,10 +98,12 @@ public class VftableStructBuilder
 
         BuildVtableLengthProperty(vtableStructType, (ulong)virtualFunctions.Count);
 
-        definition.NestedTypes.Add(vtableStructType);
+        //definition.NestedTypes.Add(vtableStructType);
 
 
         for (int i = 0; i < virtualFunctions.Count; i++)
-            AppendVfunc(vtableStructType, definedTypes, fptrFieldNames, i, virtualFunctions[i]);
+            AppendVfunc(vtableStructType, definedTypes, i, virtualFunctions[i]);
+
+        return vtableStructType;
     }
 }

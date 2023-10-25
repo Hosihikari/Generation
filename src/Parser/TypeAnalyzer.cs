@@ -34,7 +34,8 @@ public enum CppTypeEnum
     Class,
     Struct,
     Union,
-    Array
+    Array,
+    VarArgs
 }
 
 #nullable enable
@@ -186,6 +187,13 @@ public sealed class TypeAnalyzer
     {
         var ret = new CppTypeNode(analyzer);
 
+        if(typeStr is "...")
+        {
+            ret.Type = CppTypeEnum.VarArgs;
+            ret.TypeIdentifier = typeStr;
+            return ret;
+        }
+
         StringBuilder identifierBulider = new();
         uint searchDepth = 0;
         int templateArgsStartIndex = 0, templateArgsEndIndex = 0;
@@ -312,7 +320,21 @@ public sealed class TypeAnalyzer
         }
         ret.TypeIdentifier = new string(identifierBulider.ToString().Reverse().ToArray());
 
-        ret.FundamentalType = ret.TypeIdentifier switch
+
+        string typeId;
+        bool isUnsigned = false, isSigned = false;
+        if (ret.TypeIdentifier.StartsWith("unsigned "))
+            isUnsigned = true;
+        else if (ret.TypeIdentifier.StartsWith("signed "))
+            isSigned = true;
+
+
+        if (isSigned) typeId = ret.TypeIdentifier["signed ".Length..];
+        else if (isUnsigned) typeId = ret.TypeIdentifier["unsigned ".Length..];
+        else typeId = ret.TypeIdentifier;
+
+
+        ret.FundamentalType = typeId switch
         {
             "void" => CppFundamentalType.Void,
             "bool" => CppFundamentalType.Boolean,
@@ -325,6 +347,9 @@ public sealed class TypeAnalyzer
             "__int64" or "long long" or "INT64" => CppFundamentalType.Int64,
             _ => null
         };
+
+        if (isSigned) ret.FundamentalType -= 8;
+        else if (isUnsigned) ret.FundamentalType += 8;
 
         if (ret.FundamentalType != null)
         {

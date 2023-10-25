@@ -60,9 +60,12 @@ public partial class TypeBuilder
 
         var fptrProperties = BuildNativeFunctionPointer(definition, nativeFunctionPointerBuilder);
 
-        vftableStructBuilder.BuildVtable(definition, virtualFunctions, definedTypes, fptrFieldNames);
+        var vtable = vftableStructBuilder.BuildVtable(definition, virtualFunctions, definedTypes);
+        if (vtable is not null) definition.NestedTypes.Add(vtable);
 
         BuildNormalMethods(methodBuilder, fptrProperties);
+
+        BuildVirtualMethods(methodBuilder);
 
         if (dtorType is null)
         {
@@ -82,7 +85,7 @@ public partial class TypeBuilder
     {
         var ret = new List<(ItemAccessType accessType, PropertyDefinition property, FunctionPointerType fptrType, Item item, int? virtIndex)>();
 
-        var originalType = builder.BuildOriginalType(definition);
+        var originalType = NativeFunctionPointerBuilder.BuildOriginalType(definition);
         definition.NestedTypes.Add(originalType);
         originalTypeDefinition = originalType;
 
@@ -159,6 +162,32 @@ public partial class TypeBuilder
                 });
 
             if (method is not null) definition.Methods.Add(method);
+        }
+    }
+
+    public void BuildVirtualMethods(MethodBuilder builder)
+    {
+        if (virtualFunctions is null) return;
+
+        for (int i = 0; i < virtualFunctions.Count; i++)
+        {
+            try
+            {
+                var fptrType = Utils.BuildFunctionPointerType(module, definedTypes, ItemAccessType.Virtual, virtualFunctions[i]);
+                var method = builder.BuildVirtualMethod(fptrType, interfaceImplBuilder.field_Pointer!, i, virtualFunctions[i], () =>
+                {
+                    var (destructMethod, destructInstanceMethod, dtorType) = destructorBuilder.BuildDtor(
+                            DestructorBuilder.DtorType.Virtual,
+                            new DestructorBuilder.DtorArgs() { virtualIndex = i },
+                            interfaceImplBuilder.field_Pointer!);
+                    definition.Methods.Add(destructMethod);
+                    definition.Methods.Add(destructInstanceMethod);
+                    this.dtorType = dtorType;
+                });
+
+                if (method is not null) definition.Methods.Add(method);
+            }
+            catch (Exception) { continue; }
         }
     }
 }

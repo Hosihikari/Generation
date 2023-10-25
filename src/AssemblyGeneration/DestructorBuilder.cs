@@ -1,5 +1,7 @@
 ﻿using Hosihikari.NativeInterop.Unmanaged;
 using Mono.Cecil;
+using Mono.Cecil.Cil;
+
 namespace Hosihikari.Generation.AssemblyGeneration;
 
 public class DestructorBuilder
@@ -50,7 +52,6 @@ public class DestructorBuilder
                 {
                     var il = method_DestructInstance.Body.GetILProcessor();
                     il.Append(il.Create(OC.Ldarg_0));
-                    il.Append(il.Create(OC.Ldflda, field_Pointer));
                     il.Append(il.Create(OC.Call, dtorArgs.propertyDef!.GetMethod));
                     il.Append(il.Create(OC.Calli, callSite));
                     il.Append(il.Create(OC.Ret));
@@ -58,6 +59,9 @@ public class DestructorBuilder
                 break;
             case DtorType.Virtual:
                 {
+                    var fptr = new VariableDefinition(module.TypeSystem.IntPtr);
+                    method_DestructInstance.Body.Variables.Add(fptr);
+
                     var il = method_DestructInstance.Body.GetILProcessor();
                     il.Append(il.Create(OC.Ldarg_0));
                     il.Append(il.Create(OC.Ldflda, field_Pointer));
@@ -66,8 +70,13 @@ public class DestructorBuilder
                         typeof(CppTypeSystem)
                         .GetMethods()
                         .First(f => f.Name is "GetVTable" && f.IsGenericMethodDefinition is false))));
-                    il.Append(il.Create(OC.Add, sizeof(void*) * dtorArgs.virtualIndex!.Value));
+                    il.Append(il.Create(OC.Ldc_I4, sizeof(void*) * dtorArgs.virtualIndex!.Value));
+                    il.Append(il.Create(OC.Add));
                     il.Append(il.Create(OC.Ldind_I));
+                    il.Append(il.Create(OC.Stloc, fptr));
+
+                    il.Append(il.Create(OC.Ldarg_0));
+                    il.Append(il.Create(OC.Ldloc, fptr));
                     il.Append(il.Create(OC.Calli, callSite));
                     il.Append(il.Create(OC.Ret));
                 }

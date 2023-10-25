@@ -4,6 +4,8 @@ using Mono.Cecil;
 using Mono.Cecil.Cil;
 using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
 using static Hosihikari.Utils.OriginalData.Class;
+using static Hosihikari.Utils.OriginalData;
+using static Hosihikari.Generation.AssemblyGeneration.DestructorBuilder;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 
@@ -167,5 +169,66 @@ public class MethodBuilder
         }
 
         return null;
+    }
+
+    public unsafe MethodDefinition? BuildVirtualMethod(
+        FunctionPointerType functionPointer,
+        FieldDefinition field_Pointer,
+        int virtIndex,
+        in Item t,
+        Action ifIsDtor)
+    {
+        if((SymbolType)t.SymbolType is SymbolType.Destructor)
+        {
+            ifIsDtor();
+            return null;
+        }
+
+        if (virtIndex < 0) throw new InvalidOperationException();
+
+        var methodName = t.Name.Contains("operator") ?
+            Utils.SelectOperatorName(t) :
+            t.Name.Length > 1 ? $"{char.ToUpper(t.Name[0])}{t.Name[1..]}" : t.Name.ToUpper();
+
+        var method = new MethodDefinition(methodName, MethodAttributes.Public, functionPointer.ReturnType);
+        for (int i = 1; i < functionPointer.Parameters.Count; i++)
+        {
+            ParameterDefinition param = functionPointer.Parameters[i];
+            method.Parameters.Add(new($"a{i - 1}", ParameterAttributes.None, param.ParameterType));
+        }
+
+        {
+            var fptr = new VariableDefinition(module.ImportReference(typeof(void).MakePointerType()));
+            method.Body.Variables.Add(fptr);
+            var il = method.Body.GetILProcessor();
+
+            var callSite = new CallSite(module.ImportReference(functionPointer.ReturnType))
+            {
+                CallingConvention = MethodCallingConvention.Unmanaged
+            };
+            foreach (var param in functionPointer.Parameters)
+                callSite.Parameters.Add(param);
+
+            il.Append(il.Create(OC.Ldarg_0));
+            il.Append(il.Create(OC.Call, module.ImportReference(typeof(CppTypeSystem)
+                        .GetMethods()
+                        .First(f => f.Name is "GetVTable" && f.IsGenericMethodDefinition is false))));
+            il.Append(il.Create(OC.Ldc_I4, sizeof(void*) * virtIndex));
+            il.Append(il.Create(OC.Add));
+            il.Append(il.Create(OC.Ldind_I));
+            il.Append(il.Create(OC.Stloc, fptr));
+
+            il.Append(il.Create(OC.Ldarg_0));
+            il.Append(il.Create(OC.Ldfld, field_Pointer));
+
+            for (int i = 1; i < functionPointer.Parameters.Count; i++)
+                il.Append(il.Create(OC.Ldarg, i));
+
+            il.Append(il.Create(OC.Ldloc, fptr));
+            il.Append(il.Create(OC.Calli, callSite));
+            il.Append(il.Create(OC.Ret));
+        }
+
+        return method;
     }
 }

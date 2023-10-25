@@ -27,7 +27,9 @@ public readonly struct TypeData
         if (string.IsNullOrWhiteSpace(Analyzer.CppTypeHandle.RootType.TypeIdentifier))
             throw new InvalidDataException();
 
-        if (TypeAnalyzer.IsLegalName(Analyzer.CppTypeHandle.RootType.TypeIdentifier!) is false)
+        if (Analyzer.CppTypeHandle.Type is not CppTypeEnum.VarArgs
+            && Analyzer.CppTypeHandle.RootType.IsFundamentalType is false &&
+            TypeAnalyzer.IsLegalName(Analyzer.CppTypeHandle.RootType.TypeIdentifier!) is false)
             throw new InvalidDataException();
 
         (Type, IsByRef) = BuildManagedType(analyzer);

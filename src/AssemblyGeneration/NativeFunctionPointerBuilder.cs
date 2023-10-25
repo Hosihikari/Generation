@@ -22,7 +22,7 @@ public class NativeFunctionPointerBuilder
         random = new();
     }
 
-    public TypeDefinition BuildOriginalType(TypeDefinition definition) =>
+    public static TypeDefinition BuildOriginalType(TypeDefinition definition) =>
          new(string.Empty, $"I{definition.Name}Original", TypeAttributes.NestedPublic | TypeAttributes.Interface);
 
 

@@ -32,7 +32,8 @@ public static class Utils
             "operator*" => t.Params.Count is 1 ? "operator_Pointer_dereference" : "operator_Multiplication",
             "operator*=" => "operator_Multiplication_assignment",
             "operator+" => "operator_Addition",
-            "operator++" => "operator_Addition_assignment",
+            "operator++" => "operator_Increment",
+            "operator+=" => "operator_Addition_assignment",
             "operator-" => "operator_Subtraction",
             "operator--" => "operator_Decrement",
             "operator-=" => "operator_Subtraction_assignment",
@@ -268,7 +269,14 @@ public static class Utils
         {
             foreach (var param in t.Params)
             {
-                var (reference, _) = BuildReference(definedTypes, module, new(param));
+                var type = new TypeData(param);
+                if (type.Analyzer.CppTypeHandle.Type is CppTypeEnum.VarArgs)
+                {
+                    fptrType.Parameters.Add(new("args", ParameterAttributes.None, new SentinelType(module.TypeSystem.Object)));
+                    continue;
+                }
+
+                var (reference, _) = BuildReference(definedTypes, module, type);
                 fptrType.Parameters.Add(new(reference));
             }
         }
