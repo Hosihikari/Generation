@@ -36,7 +36,7 @@ public class VftableStructBuilder
     {
         try
         {
-            var fptrType = Utils.BuildFunctionPointerType(module, definedTypes, ItemAccessType.Virtual, item);
+            var (fptrType, _) = Utils.BuildFunctionPointerType(module, definedTypes, ItemAccessType.Virtual, item);
             var fptrName = Utils.BuildFptrName(vfptrFieldNames, item, new());
             var fieldDef = new FieldDefinition($"vfptr_{fptrName}", FieldAttributes.Public | FieldAttributes.InitOnly, fptrType);
             vfptrStructType.Fields.Add(fieldDef);

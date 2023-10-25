@@ -244,12 +244,13 @@ public static class Utils
         return (reference!, string.Empty);
     }
 
-    public static FunctionPointerType BuildFunctionPointerType(
+    public static (FunctionPointerType fptrType, bool isVarArg) BuildFunctionPointerType(
         ModuleDefinition module,
         Dictionary<string, TypeDefinition> definedTypes,
         ItemAccessType itemAccessType,
         in Item t)
     {
+        bool isVarArg = false;
         var fptrType = new FunctionPointerType { CallingConvention = MethodCallingConvention.Unmanaged };
         var typeData = (SymbolType)t.SymbolType switch
         {
@@ -264,15 +265,16 @@ public static class Utils
             fptrType.Parameters.Add(new(module.TypeSystem.IntPtr));
 
         if (t.Params is null)
-            return fptrType;
+            return (fptrType, false);
         else
         {
-            foreach (var param in t.Params)
+            for (int i = 0; i < t.Params.Count; i++)
             {
-                var type = new TypeData(param);
-                if (type.Analyzer.CppTypeHandle.Type is CppTypeEnum.VarArgs)
+                var type = new TypeData(t.Params[i]);
+                if (type.Analyzer.CppTypeHandle.Type is CppTypeEnum.VarArgs && i == t.Params.Count - 1)
                 {
-                    fptrType.Parameters.Add(new("args", ParameterAttributes.None, new SentinelType(module.TypeSystem.Object)));
+                    fptrType.Parameters.Add(new("args", ParameterAttributes.None, module.ImportReference(typeof(RuntimeArgumentHandle))));
+                    isVarArg = true;
                     continue;
                 }
 
@@ -280,6 +282,8 @@ public static class Utils
                 fptrType.Parameters.Add(new(reference));
             }
         }
-        return fptrType;
+        return (fptrType, isVarArg);
     }
+
+    public static bool IsVarArg(IMethodSignature self) => (self.CallingConvention & MethodCallingConvention.VarArg) != 0;
 }

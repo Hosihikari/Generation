@@ -89,8 +89,6 @@ public class DestructorBuilder
                 break;
         }
 
-
-
         var method_Destruct = new MethodDefinition(
             "Destruct",
             MethodAttributes.Public |

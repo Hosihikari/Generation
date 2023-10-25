@@ -23,12 +23,16 @@ public class MethodBuilder
         ItemAccessType itemAccessType,
         PropertyDefinition fptrProperty,
         FunctionPointerType functionPointer,
+        bool isVarArg,
         FieldDefinition field_Pointer,
         FieldDefinition field_IsOwner,
         FieldDefinition field_IsTempStackValue,
         ulong classSize,
         in Item t)
     {
+        (int begin, int end) loopRange = (1/*[nint]@this*/, functionPointer.Parameters.Count);
+        if (isVarArg) loopRange.end -= 1;
+
         var ctor = new MethodDefinition(
             ".ctor",
             MethodAttributes.Public |
@@ -36,9 +40,11 @@ public class MethodBuilder
             MethodAttributes.SpecialName |
             MethodAttributes.RTSpecialName,
             module.TypeSystem.Void);
+        if (isVarArg) ctor.CallingConvention |= MethodCallingConvention.VarArg;
+
         if (classSize is 0)
             ctor.Parameters.Add(new("allocSize", ParameterAttributes.None, module.TypeSystem.UInt64));
-        for (int i = 1; i < functionPointer.Parameters.Count; i++)
+        for (int i = loopRange.begin; i < loopRange.end; i++)
         {
             ParameterDefinition param = functionPointer.Parameters[i];
             ctor.Parameters.Add(new($"a{i - 1}", ParameterAttributes.None, param.ParameterType));
@@ -58,7 +64,7 @@ public class MethodBuilder
 
             il.Append(il.Create(OC.Ldarg_0));
             il.Append(il.Create(OC.Ldfld, field_Pointer));
-            for (int i = 1; i < functionPointer.Parameters.Count; i++)
+            for (int i = loopRange.begin; i < loopRange.end; i++)
                 il.Append(il.Create(OC.Ldarg, i + 1));
 
             var callSite = new CallSite(module.ImportReference(module.TypeSystem.Void))
@@ -67,6 +73,8 @@ public class MethodBuilder
             };
             foreach (var param in functionPointer.Parameters)
                 callSite.Parameters.Add(param);
+
+            if (isVarArg) il.Append(il.Create(OC.Arglist));
 
             il.Append(il.Create(OC.Ldloc, fptr));
             il.Append(il.Create(OC.Calli, callSite));
@@ -88,6 +96,7 @@ public class MethodBuilder
         ItemAccessType itemAccessType,
         PropertyDefinition fptrProperty,
         FunctionPointerType functionPointer,
+        bool isVarArg,
         FieldDefinition field_Pointer,
         in Item t)
     {
@@ -100,8 +109,14 @@ public class MethodBuilder
             Utils.SelectOperatorName(t) :
             t.Name.Length > 1 ? $"{char.ToUpper(t.Name[0])}{t.Name[1..]}" : t.Name.ToUpper();
 
+        (int begin, int end) loopRange = (0, functionPointer.Parameters.Count);
+        if (hasThis) loopRange.begin += 1;
+        if (isVarArg) loopRange.end -= 1;
+
         var method = new MethodDefinition(methodName, attributes, functionPointer.ReturnType);
-        for (int i = hasThis ? 1 : 0; i < functionPointer.Parameters.Count; i++)
+        if (isVarArg) method.CallingConvention |= MethodCallingConvention.VarArg;
+
+        for (int i = loopRange.begin; i < loopRange.end; i++)
         {
             ParameterDefinition param = functionPointer.Parameters[i];
             method.Parameters.Add(new($"a{i - (hasThis ? 1 : 0)}", ParameterAttributes.None, param.ParameterType));
@@ -127,8 +142,10 @@ public class MethodBuilder
                 il.Append(il.Create(OC.Ldarg_0));
                 il.Append(il.Create(OC.Ldfld, field_Pointer));
             }
-            for (int i = hasThis ? 1 : 0; i < functionPointer.Parameters.Count; i++)
+            for (int i = loopRange.begin; i < loopRange.end; i++)
                 il.Append(il.Create(OC.Ldarg, i));
+
+            if (isVarArg) il.Append(il.Create(OC.Arglist));
 
             il.Append(il.Create(OC.Ldloc, fptr));
             il.Append(il.Create(OC.Calli, callSite));
@@ -142,6 +159,7 @@ public class MethodBuilder
         ItemAccessType itemAccessType,
         PropertyDefinition fptrProperty,
         FunctionPointerType functionPointer,
+        bool isVarArg,
         FieldDefinition field_Pointer,
         FieldDefinition field_IsOwner,
         FieldDefinition field_IsTempStackValue,
@@ -153,10 +171,10 @@ public class MethodBuilder
         {
             case SymbolType.Function:
             case SymbolType.Operator:
-                return BuildFunction(itemAccessType, fptrProperty, functionPointer, field_Pointer, t);
+                return BuildFunction(itemAccessType, fptrProperty, functionPointer, isVarArg, field_Pointer, t);
 
             case SymbolType.Constructor:
-                return BuildCtor(itemAccessType, fptrProperty, functionPointer, field_Pointer, field_IsOwner,
+                return BuildCtor(itemAccessType, fptrProperty, functionPointer, isVarArg, field_Pointer, field_IsOwner,
                     field_IsTempStackValue, classSize, t);
 
             case SymbolType.Destructor:
@@ -173,12 +191,13 @@ public class MethodBuilder
 
     public unsafe MethodDefinition? BuildVirtualMethod(
         FunctionPointerType functionPointer,
+        bool isVarArg,
         FieldDefinition field_Pointer,
         int virtIndex,
         in Item t,
         Action ifIsDtor)
     {
-        if((SymbolType)t.SymbolType is SymbolType.Destructor)
+        if ((SymbolType)t.SymbolType is SymbolType.Destructor)
         {
             ifIsDtor();
             return null;
@@ -190,8 +209,13 @@ public class MethodBuilder
             Utils.SelectOperatorName(t) :
             t.Name.Length > 1 ? $"{char.ToUpper(t.Name[0])}{t.Name[1..]}" : t.Name.ToUpper();
 
+        (int begin, int end) loopRange = (1/*[nint]@this*/, functionPointer.Parameters.Count);
+        if (isVarArg) loopRange.end -= 1;
+
         var method = new MethodDefinition(methodName, MethodAttributes.Public, functionPointer.ReturnType);
-        for (int i = 1; i < functionPointer.Parameters.Count; i++)
+        if (isVarArg) method.CallingConvention |= MethodCallingConvention.VarArg;
+
+        for (int i = loopRange.begin; i < loopRange.end; i++)
         {
             ParameterDefinition param = functionPointer.Parameters[i];
             method.Parameters.Add(new($"a{i - 1}", ParameterAttributes.None, param.ParameterType));
@@ -221,13 +245,16 @@ public class MethodBuilder
             il.Append(il.Create(OC.Ldarg_0));
             il.Append(il.Create(OC.Ldfld, field_Pointer));
 
-            for (int i = 1; i < functionPointer.Parameters.Count; i++)
+            for (int i = loopRange.begin; i < loopRange.end; i++)
                 il.Append(il.Create(OC.Ldarg, i));
+
+            if (isVarArg) il.Append(il.Create(OC.Arglist));
 
             il.Append(il.Create(OC.Ldloc, fptr));
             il.Append(il.Create(OC.Calli, callSite));
             il.Append(il.Create(OC.Ret));
         }
+
 
         return method;
     }

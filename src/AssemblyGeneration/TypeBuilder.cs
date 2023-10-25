@@ -126,40 +126,44 @@ public partial class TypeBuilder
         MethodBuilder builder,
         List<(ItemAccessType accessType, PropertyDefinition property, FunctionPointerType fptrType, Item item, int? virtIndex)> properties)
     {
+
         foreach (var (accessType, property, fptrType, item, virtIndex) in properties)
         {
+            var isVarArg = fptrType.Parameters.Count > 1 && fptrType.Parameters[^1].ParameterType.FullName == typeof(RuntimeArgumentHandle).FullName;
+
             var method = builder.BuildMethod(
-                accessType,
-                property,
-                fptrType,
-                interfaceImplBuilder!.field_Pointer!,
-                interfaceImplBuilder.field_IsOwner!,
-                interfaceImplBuilder.field_IsTempStackValue!,
-                interfaceImplBuilder.classSize,
-                item,
-                () =>
+            accessType,
+            property,
+            fptrType,
+            isVarArg,
+            interfaceImplBuilder!.field_Pointer!,
+            interfaceImplBuilder.field_IsOwner!,
+            interfaceImplBuilder.field_IsTempStackValue!,
+            interfaceImplBuilder.classSize,
+            item,
+            () =>
+            {
+                if (virtIndex is null)
                 {
-                    if (virtIndex is null)
-                    {
-                        var (destructMethod, destructInstanceMethod, dtorType) = destructorBuilder.BuildDtor(
-                            DestructorBuilder.DtorType.Normal,
-                            new DestructorBuilder.DtorArgs() { propertyDef = property },
-                            interfaceImplBuilder.field_Pointer!);
-                        definition.Methods.Add(destructMethod);
-                        definition.Methods.Add(destructInstanceMethod);
-                        this.dtorType = dtorType;
-                    }
-                    else
-                    {
-                        var (destructMethod, destructInstanceMethod, dtorType) = destructorBuilder.BuildDtor(
-                            DestructorBuilder.DtorType.Virtual,
-                            new DestructorBuilder.DtorArgs() { virtualIndex = virtIndex },
-                            interfaceImplBuilder.field_Pointer!);
-                        definition.Methods.Add(destructMethod);
-                        definition.Methods.Add(destructInstanceMethod);
-                        this.dtorType = dtorType;
-                    }
-                });
+                    var (destructMethod, destructInstanceMethod, dtorType) = destructorBuilder.BuildDtor(
+                        DestructorBuilder.DtorType.Normal,
+                        new DestructorBuilder.DtorArgs() { propertyDef = property },
+                        interfaceImplBuilder.field_Pointer!);
+                    definition.Methods.Add(destructMethod);
+                    definition.Methods.Add(destructInstanceMethod);
+                    this.dtorType = dtorType;
+                }
+                else
+                {
+                    var (destructMethod, destructInstanceMethod, dtorType) = destructorBuilder.BuildDtor(
+                        DestructorBuilder.DtorType.Virtual,
+                        new DestructorBuilder.DtorArgs() { virtualIndex = virtIndex },
+                        interfaceImplBuilder.field_Pointer!);
+                    definition.Methods.Add(destructMethod);
+                    definition.Methods.Add(destructInstanceMethod);
+                    this.dtorType = dtorType;
+                }
+            });
 
             if (method is not null) definition.Methods.Add(method);
         }
@@ -173,8 +177,8 @@ public partial class TypeBuilder
         {
             try
             {
-                var fptrType = Utils.BuildFunctionPointerType(module, definedTypes, ItemAccessType.Virtual, virtualFunctions[i]);
-                var method = builder.BuildVirtualMethod(fptrType, interfaceImplBuilder.field_Pointer!, i, virtualFunctions[i], () =>
+                var (fptrType, isVarArg) = Utils.BuildFunctionPointerType(module, definedTypes, ItemAccessType.Virtual, virtualFunctions[i]);
+                var method = builder.BuildVirtualMethod(fptrType, isVarArg, interfaceImplBuilder.field_Pointer!, i, virtualFunctions[i], () =>
                 {
                     var (destructMethod, destructInstanceMethod, dtorType) = destructorBuilder.BuildDtor(
                             DestructorBuilder.DtorType.Virtual,

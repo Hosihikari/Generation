@@ -64,7 +64,7 @@ public class NativeFunctionPointerBuilder
         var fptrName = Utils.BuildFptrName(fptrFieldNames, t, random);
         fptrFieldNames.Add(fptrName);
 
-        var fptrType = Utils.BuildFunctionPointerType(module, definedTypes, itemAccessType, t);
+        var (fptrType, _) = Utils.BuildFunctionPointerType(module, definedTypes, itemAccessType, t);
 
 
         var fptrPropertyDef = new PropertyDefinition(
