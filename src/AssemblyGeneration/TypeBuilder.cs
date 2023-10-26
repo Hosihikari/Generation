@@ -28,6 +28,7 @@ public partial class TypeBuilder
         this.virtualFunctions = virtualFunctions;
         this.classSize = classSize;
         fptrFieldNames = new();
+        propertyMethods = new();
 
         destructorBuilder = new(module);
         interfaceImplBuilder = new(module);
@@ -52,6 +53,8 @@ public partial class TypeBuilder
     public MethodBuilder methodBuilder;
     public DestructorBuilder destructorBuilder;
 
+    public Dictionary<string, (MethodDefinition? getMethod, MethodDefinition? setMethod)> propertyMethods;
+
 
     public void Build()
     {
@@ -66,6 +69,8 @@ public partial class TypeBuilder
         BuildNormalMethods(methodBuilder, fptrProperties);
 
         BuildVirtualMethods(methodBuilder);
+
+        BuildProperties();
 
         if (dtorType is null)
         {
@@ -165,7 +170,7 @@ public partial class TypeBuilder
                 }
             });
 
-            if (method is not null) definition.Methods.Add(method);
+            PlaceMethod(method);
         }
     }
 
@@ -189,9 +194,126 @@ public partial class TypeBuilder
                     this.dtorType = dtorType;
                 });
 
-                if (method is not null) definition.Methods.Add(method);
+                PlaceMethod(method);
             }
             catch (Exception) { continue; }
+        }
+    }
+
+    public void PlaceMethod(MethodDefinition? method)
+    {
+        if (method is not null)
+        {
+            if (Utils.IsPropertyMethod(method, out var tuple))
+            {
+                if (propertyMethods.TryGetValue(tuple.Value.proeprtyName, out var val))
+                {
+                    switch (tuple.Value.propertyMethodType)
+                    {
+                        case Utils.PropertyMethodType.Get:
+                            
+                            if (val.setMethod is not null && 
+                                method.ReturnType.FullName == val.setMethod.Parameters[0].ParameterType.FullName)
+                            {
+                                method.Name = $"get_{tuple.Value.proeprtyName}";
+                                method.Attributes |=
+                                    MethodAttributes.Final |
+                                    MethodAttributes.HideBySig |
+                                    MethodAttributes.SpecialName |
+                                    MethodAttributes.NewSlot;
+
+                                propertyMethods[tuple.Value.proeprtyName] = (method, val.setMethod);
+                            }
+                            else
+                            {
+                                definition.Methods.Add(method);
+                                return;
+                            }
+                            break;
+
+                        case Utils.PropertyMethodType.Set:
+                            
+                            if (val.getMethod is not null &&
+                                method.Parameters[0].ParameterType.FullName == val.getMethod.ReturnType.FullName)
+                            {
+                                method.Name = $"set_{tuple.Value.proeprtyName}";
+                                method.Attributes |=
+                                    MethodAttributes.Final |
+                                    MethodAttributes.HideBySig |
+                                    MethodAttributes.SpecialName |
+                                    MethodAttributes.NewSlot;
+
+                                propertyMethods[tuple.Value.proeprtyName] = (val.getMethod, method);
+                            }
+                            else
+                            {
+                                definition.Methods.Add(method);
+                                return;
+                            }
+                            break;
+                    }
+                }
+                else
+                {
+                    switch (tuple.Value.propertyMethodType)
+                    {
+                        case Utils.PropertyMethodType.Get:
+                            method.Name = $"get_{tuple.Value.proeprtyName}";
+                            method.Attributes |=
+                                MethodAttributes.Final |
+                                MethodAttributes.HideBySig |
+                                MethodAttributes.SpecialName |
+                                MethodAttributes.NewSlot;
+
+                            propertyMethods.Add(tuple.Value.proeprtyName, (method, null));
+                            break;
+                        case Utils.PropertyMethodType.Set:
+                            method.Name = $"set_{tuple.Value.proeprtyName}";
+                            method.Attributes |=
+                                MethodAttributes.Final |
+                                MethodAttributes.HideBySig |
+                                MethodAttributes.SpecialName |
+                                MethodAttributes.NewSlot;
+
+                            propertyMethods.Add(tuple.Value.proeprtyName, (null, method));
+                            break;
+                    }
+                }
+            }
+            else
+            {
+                definition.Methods.Add(method);
+            }
+        }
+    }
+
+    public void BuildProperties()
+    {
+        foreach (var (name, (getMethod, setMethod)) in propertyMethods)
+        {
+            if (getMethod is null && setMethod is null)
+                continue;
+
+            var property = new PropertyDefinition(
+                name,
+                PropertyAttributes.None,
+                getMethod is null ?
+                    setMethod is null ?
+                        throw new NullReferenceException() :
+                        setMethod.Parameters[0].ParameterType
+                    : getMethod.ReturnType);
+
+            if (getMethod is not null)
+            {
+                property.GetMethod = getMethod;
+                definition.Methods.Add(getMethod);
+            }
+            if (setMethod is not null)
+            {
+                property.SetMethod = setMethod;
+                definition.Methods.Add(setMethod);
+            }
+            definition.Properties.Add(property);
         }
     }
 }

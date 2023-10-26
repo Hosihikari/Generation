@@ -9,7 +9,7 @@ using Mono.Cecil.Rocks;
 
 using static Hosihikari.Utils.OriginalData.Class;
 using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
-
+using System.Diagnostics.CodeAnalysis;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 
@@ -286,4 +286,36 @@ public static class Utils
     }
 
     public static bool IsVarArg(IMethodSignature self) => (self.CallingConvention & MethodCallingConvention.VarArg) != 0;
+
+    [Flags]
+    public enum PropertyMethodType { Get, Set }
+
+
+
+    public static bool IsPropertyMethod(MethodDefinition method, [NotNullWhen(true)] out (PropertyMethodType propertyMethodType, string proeprtyName)? tuple)
+    {
+        tuple = null;
+
+        if (method.Name.Length > 3)
+        {
+            var str = method.Name[..3].ToLower();
+            if (str is "get" && method.Parameters.Count is 0)
+            {
+                tuple = (PropertyMethodType.Get, method.Name[3..]);
+                return true;
+            }
+            else if(str is "set" &&  method.Parameters.Count is 1)
+            {
+                tuple = (PropertyMethodType.Set, method.Name[3..]);
+                return true;
+            }
+        }
+        else if (method.Name.StartsWith("Is"))
+        {
+            tuple = (PropertyMethodType.Get, method.Name);
+            return true;
+        }
+
+        return false;
+    }
 }
