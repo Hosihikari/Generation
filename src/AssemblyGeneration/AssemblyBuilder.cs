@@ -40,6 +40,8 @@ public partial class AssemblyBuilder
     internal readonly Dictionary<string, TypeDefinition> definedTypes;
     internal readonly Dictionary<TypeDefinition, TypeBuilder> builders;
     internal readonly Queue<TypeBuilder> typeBuilders;
+    internal readonly Dictionary<TypeDefinition, PredefinedTypeExtensionBuilder> predefinedBuilders;
+    internal readonly Queue<PredefinedTypeExtensionBuilder> predefinedTypeBuilders;
 
     public enum ItemAccessType
     {
@@ -58,7 +60,9 @@ public partial class AssemblyBuilder
         this.outputDir = outputDir;
         definedTypes = new();
         typeBuilders = new();
+        predefinedBuilders = new();
         builders = new();
+        predefinedTypeBuilders = new();
         this.name = name;
 
         InsertAttributes();
@@ -94,6 +98,12 @@ public partial class AssemblyBuilder
     {
         ForeachClassesAndBuildTypeDefinition(data);
         BuildTypes();
+
+        foreach (var (definition, builder) in predefinedBuilders)
+        {
+            if (builder.IsEmpty is false)
+                module.Types.Add(definition);
+        }
     }
 
     public bool TryCreateTypeBuilder(in TypeData typeData, [NotNullWhen(true)] out TypeBuilder? builder)
@@ -115,10 +125,66 @@ public partial class AssemblyBuilder
                 builder = new(definedTypes, null, module, definition, null, 0);
                 typeBuilders.Enqueue(builder);
                 builders.Add(definition, builder);
+
                 return true;
 
             default:
                 return false;
+        }
+    }
+
+    public bool TryCreatePredefinedTypeBuilder(in TypeData typeData, Type predefinedType, [NotNullWhen(true)] out PredefinedTypeExtensionBuilder? builder)
+    {
+        builder = null;
+
+        var type = typeData.Analyzer.CppTypeHandle.RootType;
+        switch (type.Type)
+        {
+            case CppTypeEnum.Class:
+            case CppTypeEnum.Struct:
+            case CppTypeEnum.Union:
+
+                var definition = new TypeDefinition("Hosihikari.Minecraft.Extension", $"{typeData.TypeIdentifier}Ex",
+                    TypeAttributes.Public | TypeAttributes.Class | TypeAttributes.Sealed | TypeAttributes.Abstract);
+                builder = new(predefinedType, definedTypes, null, module, definition, null);
+                predefinedTypeBuilders.Enqueue(builder);
+                predefinedBuilders.Add(definition, builder);
+
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    public void CreateBuilderAndAddTypeDefinition(in TypeData typeData, out object? builder)
+    {
+        builder = null;
+
+        if (definedTypes.ContainsKey(typeData.FullTypeIdentifier) is false)
+        {
+            var node = typeData.Analyzer.CppTypeHandle.RootType;
+            if (TypeReferenceBuilder.TryGetPredefinedType(node, node.Type is CppTypeEnum.Enum, out var predefinedType))
+            {
+                if (TryCreatePredefinedTypeBuilder(typeData, predefinedType, out var _builder))
+                {
+                    //module.Types.Add(_builder.definition);
+                    //definedTypes.Add(typeData.FullTypeIdentifier, _builder.definition);
+                    builder = _builder;
+                }
+            }
+            else
+            {
+                if (typeData.Analyzer.CppTypeHandle.RootType.IsTemplate)
+                    return;
+
+                if (TryCreateTypeBuilder(typeData, out var _builder))
+                {
+                    module.Types.Add(_builder.definition);
+                    definedTypes.Add(typeData.FullTypeIdentifier, _builder.definition);
+                    builder = _builder;
+                }
+            }
         }
     }
 
@@ -134,30 +200,14 @@ public partial class AssemblyBuilder
 
                 if (string.IsNullOrEmpty(item.Type.Name) is false)
                 {
-                    var typeData = new TypeData(item.Type);
-                    if (definedTypes.ContainsKey(typeData.FullTypeIdentifier) is false)
-                    {
-                        if (TryCreateTypeBuilder(typeData, out var builder))
-                        {
-                            module.Types.Add(builder.definition);
-                            definedTypes.Add(typeData.FullTypeIdentifier, builder.definition);
-                        }
-                    }
+                    CreateBuilderAndAddTypeDefinition(new TypeData(item.Type), out var _);
                 }
 
                 if (item.Params is not null)
                 {
                     foreach (var param in item.Params)
                     {
-                        var typeData = new TypeData(param);
-                        if (definedTypes.ContainsKey(typeData.FullTypeIdentifier) is false)
-                        {
-                            if (TryCreateTypeBuilder(typeData, out var builder))
-                            {
-                                module.Types.Add(builder.definition);
-                                definedTypes.Add(typeData.FullTypeIdentifier, builder.definition);
-                            }
-                        }
+                        CreateBuilderAndAddTypeDefinition(new TypeData(param), out var _);
                     }
                 }
 
@@ -178,12 +228,13 @@ public partial class AssemblyBuilder
                     var typeData = new TypeData(new() { Name = @class.Key });
                     if (definedTypes.TryGetValue(typeData.FullTypeIdentifier, out var type) is false)
                     {
-                        if (TryCreateTypeBuilder(typeData, out var builder))
-                        {
-                            type = builder.definition;
-                            module.Types.Add(type);
-                            definedTypes.Add(typeData.FullTypeIdentifier, type);
-                        }
+                        CreateBuilderAndAddTypeDefinition(typeData, out var builder);
+                        if (builder is TypeBuilder typeBuilder)
+                            type = typeBuilder.definition;
+                        else if (builder is PredefinedTypeExtensionBuilder predefinedBuilder)
+                            type = predefinedBuilder.definition;
+                        else
+                            continue;
                     }
                     definition = type!;
                 }
@@ -215,6 +266,11 @@ public partial class AssemblyBuilder
                         builder.SetVirtualFunctrions(@class.Value.Virtual);
                         builder.SetClassSize(0);
                     }
+                    else if (predefinedBuilders.TryGetValue(definition, out var predefinedBuilder))
+                    {
+                        predefinedBuilder.SetItems(items);
+                        predefinedBuilder.SetVirtualFunctrions(@class.Value.Virtual);
+                    }
                 }
             }
             catch (Exception) { continue; }
@@ -226,6 +282,10 @@ public partial class AssemblyBuilder
         while (typeBuilders.TryDequeue(out var builder))
         {
             builder.Build();
+        }
+        while (predefinedTypeBuilders.TryDequeue(out var predefinedBuilder))
+        {
+            predefinedBuilder.Build();
         }
     }
 

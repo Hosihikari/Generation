@@ -10,6 +10,7 @@ using Mono.Cecil.Rocks;
 using static Hosihikari.Utils.OriginalData.Class;
 using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 
@@ -114,141 +115,13 @@ public static class Utils
         return fptrName;
     }
 
-    public static (TypeReference @ref, string name) BuildReference(
-        Dictionary<string, TypeDefinition> definedTypes,
-        ModuleDefinition module,
-        in TypeData type,
-        bool isResult = false)
-    {
-        var arr = type.Analyzer.CppTypeHandle.ToArray().Reverse();
-
-        TypeReference? reference = null;
-        bool isUnmanagedType = false;
-        bool rootTypeParsed = false;
-
-        foreach (var item in arr)
-        {
-
-            switch (item.Type)
-            {
-                case CppTypeEnum.FundamentalType:
-                    if (rootTypeParsed is true)
-                        throw new InvalidOperationException();
-
-                    switch (item.FundamentalType!)
-                    {
-                        case CppFundamentalType.Void:
-                            reference = module.TypeSystem.Void; goto UNMANAGED_TYPE_EQUALS_TRUE;
-                        case CppFundamentalType.Boolean:
-                            reference = module.TypeSystem.Boolean; goto UNMANAGED_TYPE_EQUALS_TRUE;
-                        case CppFundamentalType.Float:
-                            reference = module.TypeSystem.Single; goto UNMANAGED_TYPE_EQUALS_TRUE;
-                        case CppFundamentalType.Double:
-                            reference = module.TypeSystem.Double; goto UNMANAGED_TYPE_EQUALS_TRUE;
-                        case CppFundamentalType.WChar:
-                            reference = module.TypeSystem.Char; goto UNMANAGED_TYPE_EQUALS_TRUE;
-                        case CppFundamentalType.SChar:
-                            reference = module.TypeSystem.SByte; goto UNMANAGED_TYPE_EQUALS_TRUE;
-                        case CppFundamentalType.Int16:
-                            reference = module.TypeSystem.Int16; goto UNMANAGED_TYPE_EQUALS_TRUE;
-                        case CppFundamentalType.Int32:
-                            reference = module.TypeSystem.Int32; goto UNMANAGED_TYPE_EQUALS_TRUE;
-                        case CppFundamentalType.Int64:
-                            reference = module.TypeSystem.Int64; goto UNMANAGED_TYPE_EQUALS_TRUE;
-                        case CppFundamentalType.Char:
-                            reference = module.TypeSystem.Byte; goto UNMANAGED_TYPE_EQUALS_TRUE;
-                        case CppFundamentalType.UInt16:
-                            reference = module.TypeSystem.UInt16; goto UNMANAGED_TYPE_EQUALS_TRUE;
-                        case CppFundamentalType.UInt32:
-                            reference = module.TypeSystem.UInt32; goto UNMANAGED_TYPE_EQUALS_TRUE;
-                        case CppFundamentalType.UInt64:
-                            reference = module.TypeSystem.UInt64; goto UNMANAGED_TYPE_EQUALS_TRUE;
-
-                        UNMANAGED_TYPE_EQUALS_TRUE:
-                            isUnmanagedType = true;
-                            rootTypeParsed = true;
-                            break;
-                    }
-                    break;
-
-                case CppTypeEnum.Enum:
-                    if (rootTypeParsed is true)
-                        throw new InvalidOperationException();
-
-                    reference = module.TypeSystem.Int32;
-                    isUnmanagedType = true;
-                    break;
-
-                case CppTypeEnum.Array:
-                case CppTypeEnum.Pointer:
-                    if (isUnmanagedType)
-                        reference = reference.MakePointerType();
-                    else
-                    {
-                        var pointerType = new GenericInstanceType(module.ImportReference(typeof(Pointer<>)));
-                        pointerType.GenericArguments.Add(reference);
-                        reference = module.ImportReference(pointerType);
-                        isUnmanagedType = true;
-                    }
-                    break;
-
-                case CppTypeEnum.RValueRef:
-                    if (isUnmanagedType)
-                        return (reference.MakeByReferenceType(), "rvalRef");
-                    else
-                    {
-                        var rvalRefType = new GenericInstanceType(module.ImportReference(typeof(RValueReference<>)));
-                        rvalRefType.GenericArguments.Add(reference);
-                        return (module.ImportReference(rvalRefType), string.Empty);
-                    }
-
-                case CppTypeEnum.Ref:
-                    if (isUnmanagedType)
-                        return (reference.MakeByReferenceType(), string.Empty);
-                    else
-                    {
-                        var refType = new GenericInstanceType(module.ImportReference(typeof(Reference<>)));
-                        refType.GenericArguments.Add(reference);
-                        return (module.ImportReference(refType), string.Empty);
-                    }
-
-                case CppTypeEnum.Class:
-                case CppTypeEnum.Struct:
-                case CppTypeEnum.Union:
-                    if (rootTypeParsed is true)
-                        throw new InvalidOperationException();
-                    {
-                        reference = definedTypes[type.FullTypeIdentifier];
-                        rootTypeParsed = true;
-                    }
-                    break;
-            }
-        }
-
-        if (rootTypeParsed && isUnmanagedType is false)
-        {
-            if (isResult)
-            {
-                var rltType = new GenericInstanceType(module.ImportReference(typeof(Result<>)));
-                rltType.GenericArguments.Add(reference);
-                reference = module.ImportReference(rltType);
-            }
-            else
-            {
-                var refType = new GenericInstanceType(module.ImportReference(typeof(Reference<>)));
-                refType.GenericArguments.Add(reference);
-                reference = module.ImportReference(refType);
-            }
-        }
-
-        return (reference!, string.Empty);
-    }
-
     public static (FunctionPointerType fptrType, bool isVarArg) BuildFunctionPointerType(
         ModuleDefinition module,
         Dictionary<string, TypeDefinition> definedTypes,
         ItemAccessType itemAccessType,
-        in Item t)
+        in Item t,
+        bool isExtension = false,
+        Type? extensionType = null)
     {
         bool isVarArg = false;
         var fptrType = new FunctionPointerType { CallingConvention = MethodCallingConvention.Unmanaged };
@@ -258,11 +131,26 @@ public static class Utils
             _ => new TypeData(t.Type)
         };
 
-        var (@ref, _) = BuildReference(definedTypes, module, typeData, true);
+        var (@ref, _) = TypeReferenceBuilder.BuildReference(definedTypes, module, typeData, true);
         fptrType.ReturnType = @ref;
 
         if (HasThis(itemAccessType))
-            fptrType.Parameters.Add(new(module.TypeSystem.IntPtr));
+        {
+            if (isExtension)
+            {
+                if (extensionType is not null && extensionType.IsValueType)
+                {
+                    var param = new ParameterDefinition(
+                        string.Empty,
+                        ParameterAttributes.None,
+                        module.ImportReference(extensionType).MakeByReferenceType());
+
+                    fptrType.Parameters.Add(param);
+                }
+                else fptrType.Parameters.Add(new(module.TypeSystem.IntPtr));
+            }
+            else fptrType.Parameters.Add(new(module.TypeSystem.IntPtr));
+        }
 
         if (t.Params is null)
             return (fptrType, false);
@@ -278,7 +166,7 @@ public static class Utils
                     continue;
                 }
 
-                var (reference, _) = BuildReference(definedTypes, module, type);
+                var (reference, _) = TypeReferenceBuilder.BuildReference(definedTypes, module, type);
                 fptrType.Parameters.Add(new(reference));
             }
         }
@@ -304,7 +192,7 @@ public static class Utils
                 tuple = (PropertyMethodType.Get, method.Name[3..]);
                 return true;
             }
-            else if(str is "set" &&  method.Parameters.Count is 1)
+            else if (str is "set" && method.Parameters.Count is 1)
             {
                 tuple = (PropertyMethodType.Set, method.Name[3..]);
                 return true;

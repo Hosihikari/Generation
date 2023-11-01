@@ -22,7 +22,7 @@ public class NativeFunctionPointerBuilder
         random = new();
     }
 
-    public static TypeDefinition BuildOriginalType(TypeDefinition definition) =>
+    public static TypeDefinition BuildOriginalType(TypeDefinition definition, bool isExtension = false) =>
          new(string.Empty, $"I{definition.Name}Original", TypeAttributes.NestedPublic | TypeAttributes.Interface);
 
 
@@ -43,10 +43,10 @@ public class NativeFunctionPointerBuilder
         fptrStorageType.Methods.Add(cctor);
         {
             var il = cctor.Body.GetILProcessor();
-            il.Append(il.Create(OC.Ldstr, t.Symbol));
-            il.Append(il.Create(OC.Call, module.ImportReference(typeof(SymbolHelper).GetMethod(nameof(SymbolHelper.DlsymPointer)))));
-            il.Append(il.Create(OC.Stsfld, _fptrField));
-            il.Append(il.Create(OC.Ret));
+            il.Emit(OC.Ldstr, t.Symbol);
+            il.Emit(OC.Call, module.ImportReference(typeof(SymbolHelper).GetMethod(nameof(SymbolHelper.DlsymPointer))));
+            il.Emit(OC.Stsfld, _fptrField);
+            il.Emit(OC.Ret);
         }
 
         fptrField = _fptrField;
@@ -58,13 +58,15 @@ public class NativeFunctionPointerBuilder
         Dictionary<string, TypeDefinition> definedTypes,
         HashSet<string> fptrFieldNames,
         in Item t,
-        FieldDefinition fptrField)
+        FieldDefinition fptrField,
+        bool isExtension = false,
+        Type? extensionType = null)
     {
 
         var fptrName = Utils.BuildFptrName(fptrFieldNames, t, random);
         fptrFieldNames.Add(fptrName);
 
-        var (fptrType, _) = Utils.BuildFunctionPointerType(module, definedTypes, itemAccessType, t);
+        var (fptrType, _) = Utils.BuildFunctionPointerType(module, definedTypes, itemAccessType, t, isExtension, extensionType);
 
 
         var fptrPropertyDef = new PropertyDefinition(
@@ -81,8 +83,8 @@ public class NativeFunctionPointerBuilder
 
         {
             var il = getMethodDef.Body.GetILProcessor();
-            il.Append(il.Create(OC.Ldsfld, fptrField));
-            il.Append(il.Create(OC.Ret));
+            il.Emit(OC.Ldsfld, fptrField);
+            il.Emit(OC.Ret);
         }
 
         fptrPropertyDef.GetMethod = getMethodDef;

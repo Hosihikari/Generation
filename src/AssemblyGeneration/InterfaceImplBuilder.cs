@@ -108,19 +108,19 @@ public class InterfaceImplBuilder
             module.TypeSystem.Void);
         {
             var il = ctorDefault.Body.GetILProcessor();
-            il.Append(il.Create(OC.Ldarg_0));
-            il.Append(il.Create(OC.Call, module.ImportReference(typeof(object).GetConstructors().First())));
-            il.Append(il.Create(OC.Ldarg_0));
-            il.Append(il.Create(OC.Ldc_I8, 0L));
-            il.Append(il.Create(OC.Conv_Ovf_I));
-            il.Append(il.Create(OC.Stfld, ptr));
-            il.Append(il.Create(OC.Ldarg_0));
-            il.Append(il.Create(OC.Ldc_I4_0));
-            il.Append(il.Create(OC.Stfld, owns));
-            il.Append(il.Create(OC.Ldarg_0));
-            il.Append(il.Create(OC.Ldc_I4_0));
-            il.Append(il.Create(OC.Stfld, isTempStackValue));
-            il.Append(il.Create(OC.Ret));
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Call, module.ImportReference(typeof(object).GetConstructors().First()));
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Ldc_I8, 0L);
+            il.Emit(OC.Conv_Ovf_I);
+            il.Emit(OC.Stfld, ptr);
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Ldc_I4_0);
+            il.Emit(OC.Stfld, owns);
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Ldc_I4_0);
+            il.Emit(OC.Stfld, isTempStackValue);
+            il.Emit(OC.Ret);
         }
 
         var ctor = new MethodDefinition(
@@ -138,18 +138,18 @@ public class InterfaceImplBuilder
         ctor.Parameters.Add(isTempStackValueParameter);
         {
             var il = ctor.Body.GetILProcessor();
-            il.Append(il.Create(OC.Ldarg_0));
-            il.Append(il.Create(OC.Call, module.ImportReference(typeof(object).GetConstructors().First())));
-            il.Append(il.Create(OC.Ldarg_0));
-            il.Append(il.Create(OC.Ldarg_1));
-            il.Append(il.Create(OC.Stfld, ptr));
-            il.Append(il.Create(OC.Ldarg_0));
-            il.Append(il.Create(OC.Ldarg_2));
-            il.Append(il.Create(OC.Stfld, owns));
-            il.Append(il.Create(OC.Ldarg_0));
-            il.Append(il.Create(OC.Ldarg_3));
-            il.Append(il.Create(OC.Stfld, isTempStackValue));
-            il.Append(il.Create(OC.Ret));
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Call, module.ImportReference(typeof(object).GetConstructors().First()));
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Ldarg_1);
+            il.Emit(OC.Stfld, ptr);
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Ldarg_2);
+            il.Emit(OC.Stfld, owns);
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Ldarg_3);
+            il.Emit(OC.Stfld, isTempStackValue);
+            il.Emit(OC.Ret);
         }
 
         var IcppInstanceType = new GenericInstanceType(module.ImportReference(typeof(ICppInstance<>)));
@@ -177,11 +177,11 @@ public class InterfaceImplBuilder
         ConstructInstanceMethod.Parameters.Add(new("isTempStackValue", ParameterAttributes.None, module.TypeSystem.Boolean));
         {
             var il = ConstructInstanceMethod.Body.GetILProcessor();
-            il.Append(il.Create(OC.Ldarg_0));
-            il.Append(il.Create(OC.Ldarg_1));
-            il.Append(il.Create(OC.Ldarg_2));
-            il.Append(il.Create(OC.Newobj, ctor));
-            il.Append(il.Create(OC.Ret));
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Ldarg_1);
+            il.Emit(OC.Ldarg_2);
+            il.Emit(OC.Newobj, ctor);
+            il.Emit(OC.Ret);
         }
 
         var ConstructInstanceNonGenericMethod = new MethodDefinition(
@@ -200,11 +200,11 @@ public class InterfaceImplBuilder
         ConstructInstanceNonGenericMethod.Parameters.Add(new("isTempStackValue", ParameterAttributes.None, module.TypeSystem.Boolean));
         {
             var il = ConstructInstanceNonGenericMethod.Body.GetILProcessor();
-            il.Append(il.Create(OC.Ldarg_0));
-            il.Append(il.Create(OC.Ldarg_1));
-            il.Append(il.Create(OC.Ldarg_2));
-            il.Append(il.Create(OC.Call, ConstructInstanceMethod));
-            il.Append(il.Create(OC.Ret));
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Ldarg_1);
+            il.Emit(OC.Ldarg_2);
+            il.Emit(OC.Call, ConstructInstanceMethod);
+            il.Emit(OC.Ret);
         }
 
         definition.Methods.Add(ctor);
@@ -245,9 +245,9 @@ public class InterfaceImplBuilder
         pointerProperty_getMethod.Parameters.Add(new(definition));
         {
             var il = pointerProperty_getMethod.Body.GetILProcessor();
-            il.Append(il.Create(OC.Ldarg_0));
-            il.Append(il.Create(OC.Ldfld, pointerField));
-            il.Append(il.Create(OC.Ret));
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Ldfld, pointerField);
+            il.Emit(OC.Ret);
         }
         var pointerProperty_setMethod = new MethodDefinition(
             "set_Pointer",
@@ -264,10 +264,10 @@ public class InterfaceImplBuilder
         pointerProperty_setMethod.Parameters.Add(new("value", ParameterAttributes.None, module.ImportReference(typeof(nint))));
         {
             var il = pointerProperty_setMethod.Body.GetILProcessor();
-            il.Append(il.Create(OC.Ldarg_0));
-            il.Append(il.Create(OC.Ldarg_1));
-            il.Append(il.Create(OC.Stfld, pointerField));
-            il.Append(il.Create(OC.Ret));
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Ldarg_1);
+            il.Emit(OC.Stfld, pointerField);
+            il.Emit(OC.Ret);
         }
 
         pointerProperty.GetMethod = pointerProperty_getMethod;
@@ -312,9 +312,9 @@ public class InterfaceImplBuilder
         isOwnerProperty_getMethod.Parameters.Add(new(definition));
         {
             var il = isOwnerProperty_getMethod.Body.GetILProcessor();
-            il.Append(il.Create(OC.Ldarg_0));
-            il.Append(il.Create(OC.Ldfld, isOwnerField));
-            il.Append(il.Create(OC.Ret));
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Ldfld, isOwnerField);
+            il.Emit(OC.Ret);
         }
         var isOwnerProperty_setMethod = new MethodDefinition(
             "set_IsOwner",
@@ -331,10 +331,10 @@ public class InterfaceImplBuilder
         isOwnerProperty_setMethod.Parameters.Add(new("value", ParameterAttributes.None, module.ImportReference(typeof(bool))));
         {
             var il = isOwnerProperty_setMethod.Body.GetILProcessor();
-            il.Append(il.Create(OC.Ldarg_0));
-            il.Append(il.Create(OC.Ldarg_1));
-            il.Append(il.Create(OC.Stfld, isOwnerField));
-            il.Append(il.Create(OC.Ret));
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Ldarg_1);
+            il.Emit(OC.Stfld, isOwnerField);
+            il.Emit(OC.Ret);
         }
 
         isOwnerProperty.GetMethod = isOwnerProperty_getMethod;
@@ -379,9 +379,9 @@ public class InterfaceImplBuilder
         isTempStackValueProperty_getMethod.Parameters.Add(new(definition));
         {
             var il = isTempStackValueProperty_getMethod.Body.GetILProcessor();
-            il.Append(il.Create(OC.Ldarg_0));
-            il.Append(il.Create(OC.Ldfld, isTempStackValueField));
-            il.Append(il.Create(OC.Ret));
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Ldfld, isTempStackValueField);
+            il.Emit(OC.Ret);
         }
         var isTempStackValueProperty_setMethod = new MethodDefinition(
             "set_IsTempStackValue",
@@ -398,10 +398,10 @@ public class InterfaceImplBuilder
         isTempStackValueProperty_setMethod.Parameters.Add(new("value", ParameterAttributes.None, module.ImportReference(typeof(bool))));
         {
             var il = isTempStackValueProperty_setMethod.Body.GetILProcessor();
-            il.Append(il.Create(OC.Ldarg_0));
-            il.Append(il.Create(OC.Ldarg_1));
-            il.Append(il.Create(OC.Stfld, isTempStackValueField));
-            il.Append(il.Create(OC.Ret));
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Ldarg_1);
+            il.Emit(OC.Stfld, isTempStackValueField);
+            il.Emit(OC.Ret);
         }
 
         isTempStackValueProperty.GetMethod = isTempStackValueProperty_getMethod;
@@ -445,10 +445,10 @@ public class InterfaceImplBuilder
         op_2_nint.Overrides.Add(module.ImportReference(opMethod_nint));
         {
             var il = op_2_nint.Body.GetILProcessor();
-            il.Append(il.Create(OC.Ldarg_0));
+            il.Emit(OC.Ldarg_0);
             var field = definition.Fields.First(f => f.Name is PointerStorageFieldName);
-            il.Append(il.Create(OC.Ldfld, field));
-            il.Append(il.Create(OC.Ret));
+            il.Emit(OC.Ldfld, field);
+            il.Emit(OC.Ret);
         }
 
 
@@ -471,11 +471,11 @@ public class InterfaceImplBuilder
         op_2_voidPtr.Overrides.Add(module.ImportReference(opMethod_voidPtr));
         {
             var il = op_2_voidPtr.Body.GetILProcessor();
-            il.Append(il.Create(OC.Ldarg_0));
+            il.Emit(OC.Ldarg_0);
             var field = definition.Fields.First(f => f.Name is PointerStorageFieldName);
-            il.Append(il.Create(OC.Ldflda, field));
-            il.Append(il.Create(OC.Call, module.ImportReference(typeof(nint).GetMethod(nameof(nint.ToPointer)))));
-            il.Append(il.Create(OC.Ret));
+            il.Emit(OC.Ldflda, field);
+            il.Emit(OC.Call, module.ImportReference(typeof(nint).GetMethod(nameof(nint.ToPointer))));
+            il.Emit(OC.Ret);
         }
 
         definition.Methods.Add(op_2_nint);
@@ -502,9 +502,9 @@ public class InterfaceImplBuilder
             typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "get_ClassSize")));
         {
             var il = getMethod.Body.GetILProcessor();
-            il.Append(il.Create(OC.Ldc_I8, (long)classSize));
-            il.Append(il.Create(OC.Conv_U8));
-            il.Append(il.Create(OC.Ret));
+            il.Emit(OC.Ldc_I8, (long)classSize);
+            il.Emit(OC.Conv_U8);
+            il.Emit(OC.Ret);
         }
 
         property.GetMethod = getMethod;

@@ -51,11 +51,15 @@ public class CppTypeNode
 
     public string? TypeIdentifier;
 
+    public string? TypeIdentifierWithTemplateArgs;
+
     public CppTypeNode? SubType;
 
     public CppTypeNode[]? TemplateTypes;
 
     public string[]? Namespaces;
+
+    public string? OriginalTypeString;
 
     public bool IsFundamentalType => FundamentalType != null;
 
@@ -65,43 +69,54 @@ public class CppTypeNode
 
     public bool IsTemplate => TemplateTypes != null;
 
-    public string TypeIdentifierWithTemplateArgs
-    {
-        get
-        {
-            if (TemplateTypes is null)
-                return TypeIdentifier ?? throw new NullReferenceException();
 
-            StringBuilder @string = new();
-            @string.Append(TypeIdentifier).Append('<');
-            uint currentTemplateArgIndex = 0;
+    //public string TypeIdentifierWithTemplateArgs
+    //{
+    //    get
+    //    {
+    //        if (TemplateTypes is null)
+    //            return TypeIdentifier ?? throw new NullReferenceException();
 
-            foreach (var type in TemplateTypes)
-            {
-                if (currentTemplateArgIndex > 0)
-                    @string.Append(", ");
+    //        StringBuilder @string = new();
+    //        @string.Append(TypeIdentifier).Append('<');
+    //        uint currentTemplateArgIndex = 0;
 
-                @string.Append(type.TypeIdentifierWithTemplateArgs);
-                ++currentTemplateArgIndex;
+    //        foreach (var type in TemplateTypes)
+    //        {
+    //            if (currentTemplateArgIndex > 0)
+    //                @string.Append(", ");
 
-            }
+    //            @string.Append(type.TypeIdentifierWithTemplateArgs);
+    //            ++currentTemplateArgIndex;
 
-            @string.Append('>');
+    //        }
 
-            return @string.ToString();
-        }
-    }
+    //        @string.Append('>');
+
+    //        return @string.ToString();
+    //    }
+    //}
 
     public CppTypeNode(
-        TypeAnalyzer analyzer, CppTypeNode root, CppTypeEnum type, CppFundamentalType? fundamentalType, string? typeIdentifier, CppTypeNode? subType, string[]? namespaces)
+        TypeAnalyzer analyzer,
+        CppTypeNode root,
+        CppTypeEnum type,
+        CppFundamentalType? fundamentalType,
+        string? typeIdentifier,
+        string? typeIdentifierWithTemplateArgs,
+        CppTypeNode? subType,
+        string[]? namespaces,
+        string? cppTypeString)
     {
         Analyzer = analyzer;
         RootType = root;
         Type = type;
         FundamentalType = fundamentalType;
         TypeIdentifier = typeIdentifier;
+        TypeIdentifierWithTemplateArgs = typeIdentifierWithTemplateArgs;
         SubType = subType;
         Namespaces = namespaces;
+        OriginalTypeString = cppTypeString;
     }
 
     public CppTypeNode(TypeAnalyzer analyzer)
@@ -185,9 +200,12 @@ public sealed class TypeAnalyzer
 
     private static CppTypeNode __AnalyzeCppType(TypeAnalyzer analyzer, string typeStr)
     {
-        var ret = new CppTypeNode(analyzer);
+        var ret = new CppTypeNode(analyzer)
+        {
+            OriginalTypeString = typeStr
+        };
 
-        if(typeStr is "...")
+        if (typeStr is "...")
         {
             ret.Type = CppTypeEnum.VarArgs;
             ret.TypeIdentifier = typeStr;
@@ -382,9 +400,11 @@ public sealed class TypeAnalyzer
             ret.Type = CppTypeEnum.Class;
         }
 
+
+        string templateArgs = string.Empty;
         if (templateArgsStartIndex != 0 || templateArgsEndIndex != 0)
         {
-            var templateArgs = typeStr.Substring(
+            templateArgs = typeStr.Substring(
                 templateArgsStartIndex + 1, templateArgsEndIndex - templateArgsStartIndex - 1);
 
             List<int> indexs = new();
@@ -427,6 +447,11 @@ public sealed class TypeAnalyzer
         var arr = ret.TypeIdentifier.Split("::");
         ret.TypeIdentifier = arr.LastOrDefault();
         ret.Namespaces = arr.Length > 0 ? arr.Take(arr.Length - 1).ToArray() : null;
+
+        ret.TypeIdentifierWithTemplateArgs = ret.TypeIdentifier;
+
+        if (string.IsNullOrEmpty(templateArgs) is false)
+            ret.TypeIdentifierWithTemplateArgs += $"<{templateArgs}>";
 
         return ret;
     }

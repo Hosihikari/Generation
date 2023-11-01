@@ -51,10 +51,10 @@ public class DestructorBuilder
             case DtorType.Normal:
                 {
                     var il = method_DestructInstance.Body.GetILProcessor();
-                    il.Append(il.Create(OC.Ldarg_0));
-                    il.Append(il.Create(OC.Call, dtorArgs.propertyDef!.GetMethod));
-                    il.Append(il.Create(OC.Calli, callSite));
-                    il.Append(il.Create(OC.Ret));
+                    il.Emit(OC.Ldarg_0);
+                    il.Emit(OC.Call, dtorArgs.propertyDef!.GetMethod);
+                    il.Emit(OC.Calli, callSite);
+                    il.Emit(OC.Ret);
                 }
                 break;
             case DtorType.Virtual:
@@ -63,28 +63,28 @@ public class DestructorBuilder
                     method_DestructInstance.Body.Variables.Add(fptr);
 
                     var il = method_DestructInstance.Body.GetILProcessor();
-                    il.Append(il.Create(OC.Ldarg_0));
-                    il.Append(il.Create(OC.Ldflda, field_Pointer));
-                    il.Append(il.Create(OC.Call, module.ImportReference(typeof(nint).GetMethod(nameof(nint.ToPointer)))));
+                    il.Emit(OC.Ldarg_0);
+                    il.Emit(OC.Ldflda, field_Pointer);
+                    il.Emit(OC.Call, module.ImportReference(typeof(nint).GetMethod(nameof(nint.ToPointer))));
                     il.Append(il.Create(OC.Call, module.ImportReference(
                         typeof(CppTypeSystem)
                         .GetMethods()
                         .First(f => f.Name is "GetVTable" && f.IsGenericMethodDefinition is false))));
-                    il.Append(il.Create(OC.Ldc_I4, sizeof(void*) * dtorArgs.virtualIndex!.Value));
-                    il.Append(il.Create(OC.Add));
-                    il.Append(il.Create(OC.Ldind_I));
-                    il.Append(il.Create(OC.Stloc, fptr));
+                    il.Emit(OC.Ldc_I4, sizeof(void*) * dtorArgs.virtualIndex!.Value);
+                    il.Emit(OC.Add);
+                    il.Emit(OC.Ldind_I);
+                    il.Emit(OC.Stloc, fptr);
 
-                    il.Append(il.Create(OC.Ldarg_0));
-                    il.Append(il.Create(OC.Ldloc, fptr));
-                    il.Append(il.Create(OC.Calli, callSite));
-                    il.Append(il.Create(OC.Ret));
+                    il.Emit(OC.Ldarg_0);
+                    il.Emit(OC.Ldloc, fptr);
+                    il.Emit(OC.Calli, callSite);
+                    il.Emit(OC.Ret);
                 }
                 break;
             case DtorType.Empty:
                 {
                     var il = method_DestructInstance.Body.GetILProcessor();
-                    il.Append(il.Create(OC.Ret));
+                    il.Emit(OC.Ret);
                 }
                 break;
         }
@@ -103,10 +103,10 @@ public class DestructorBuilder
             .First(f => f.Name is nameof(ICppInstanceNonGeneric.Destruct))));
         {
             var il = method_Destruct.Body.GetILProcessor();
-            il.Append(il.Create(OC.Ldarg_0));
-            il.Append(il.Create(OC.Ldfld, field_Pointer));
-            il.Append(il.Create(OC.Call, method_DestructInstance));
-            il.Append(il.Create(OC.Ret));
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Ldfld, field_Pointer);
+            il.Emit(OC.Call, method_DestructInstance);
+            il.Emit(OC.Ret);
         }
 
         return (method_Destruct, method_DestructInstance, type);

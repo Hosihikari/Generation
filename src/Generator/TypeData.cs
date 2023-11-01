@@ -19,25 +19,22 @@ public readonly struct TypeData
         var analyzer = TypeAnalyzer.Analyze(type.Name);
         var handle = analyzer.CppTypeHandle;
 
-        if (handle.RootType.IsTemplate)
-            throw new NotImplementedException();
-
         Analyzer = analyzer;
 
-        if (string.IsNullOrWhiteSpace(Analyzer.CppTypeHandle.RootType.TypeIdentifier))
+        if (string.IsNullOrWhiteSpace(handle.RootType.TypeIdentifier))
             throw new InvalidDataException();
 
-        if (Analyzer.CppTypeHandle.Type is not CppTypeEnum.VarArgs
-            && Analyzer.CppTypeHandle.RootType.IsFundamentalType is false &&
-            TypeAnalyzer.IsLegalName(Analyzer.CppTypeHandle.RootType.TypeIdentifier!) is false)
+        if (handle.Type is not CppTypeEnum.VarArgs
+            && handle.RootType.IsFundamentalType is false &&
+            TypeAnalyzer.IsLegalName(handle.RootType.TypeIdentifier!) is false)
             throw new InvalidDataException();
 
         (Type, IsByRef) = BuildManagedType(analyzer);
 
-        var namespaces = Analyzer.CppTypeHandle.RootType.Namespaces;
+        var namespaces = handle.RootType.Namespaces;
 
         Namespaces = namespaces ?? Array.Empty<string>();
-        TypeIdentifier = Analyzer.CppTypeHandle.RootType.TypeIdentifier!;
+        TypeIdentifier = handle.RootType.TypeIdentifier!;
         FullTypeIdentifier = $"{string.Join('.', Namespaces)}{Utils.StrIfTrue(".", Namespaces.Count is not 0)}{TypeIdentifier}";
     }
 

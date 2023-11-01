@@ -148,26 +148,13 @@ public partial class TypeBuilder
             item,
             () =>
             {
-                if (virtIndex is null)
-                {
-                    var (destructMethod, destructInstanceMethod, dtorType) = destructorBuilder.BuildDtor(
-                        DestructorBuilder.DtorType.Normal,
-                        new DestructorBuilder.DtorArgs() { propertyDef = property },
-                        interfaceImplBuilder.field_Pointer!);
-                    definition.Methods.Add(destructMethod);
-                    definition.Methods.Add(destructInstanceMethod);
-                    this.dtorType = dtorType;
-                }
-                else
-                {
-                    var (destructMethod, destructInstanceMethod, dtorType) = destructorBuilder.BuildDtor(
-                        DestructorBuilder.DtorType.Virtual,
-                        new DestructorBuilder.DtorArgs() { virtualIndex = virtIndex },
-                        interfaceImplBuilder.field_Pointer!);
-                    definition.Methods.Add(destructMethod);
-                    definition.Methods.Add(destructInstanceMethod);
-                    this.dtorType = dtorType;
-                }
+                var (destructMethod, destructInstanceMethod, dtorType) = destructorBuilder.BuildDtor(
+                    DestructorBuilder.DtorType.Normal,
+                    new DestructorBuilder.DtorArgs() { propertyDef = property },
+                    interfaceImplBuilder.field_Pointer!);
+                definition.Methods.Add(destructMethod);
+                definition.Methods.Add(destructInstanceMethod);
+                this.dtorType = dtorType;
             });
 
             PlaceMethod(method);
@@ -211,8 +198,8 @@ public partial class TypeBuilder
                     switch (tuple.Value.propertyMethodType)
                     {
                         case Utils.PropertyMethodType.Get:
-                            
-                            if (val.setMethod is not null && 
+
+                            if (val.setMethod is not null &&
                                 method.ReturnType.FullName == val.setMethod.Parameters[0].ParameterType.FullName)
                             {
                                 method.Name = $"get_{tuple.Value.proeprtyName}";
@@ -232,7 +219,7 @@ public partial class TypeBuilder
                             break;
 
                         case Utils.PropertyMethodType.Set:
-                            
+
                             if (val.getMethod is not null &&
                                 method.Parameters[0].ParameterType.FullName == val.getMethod.ReturnType.FullName)
                             {

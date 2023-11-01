@@ -70,9 +70,9 @@ public class VftableStructBuilder
             typeof(ICppVtable).GetMethods().First(f => f.Name is "get_VtableLength")));
         {
             var il = getMethod_property_VtableLength.Body.GetILProcessor();
-            il.Append(il.Create(OC.Ldc_I8, (long)length));
-            il.Append(il.Create(OC.Conv_U8));
-            il.Append(il.Create(OC.Ret));
+            il.Emit(OC.Ldc_I8, (long)length);
+            il.Emit(OC.Conv_U8);
+            il.Emit(OC.Ret);
         }
         property_VtableLength.GetMethod = getMethod_property_VtableLength;
         definition.Properties.Add(property_VtableLength);
