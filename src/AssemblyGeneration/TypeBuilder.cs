@@ -55,11 +55,13 @@ public partial class TypeBuilder
 
     public Dictionary<string, (MethodDefinition? getMethod, MethodDefinition? setMethod)> propertyMethods;
 
+    public bool IsEmpty => items is null && virtualFunctions is null;
 
     public void Build()
     {
-
         interfaceImplBuilder.ImplICppInstanceInterfaceForTypeDefinition(definition, classSize ?? 0);
+
+        if (IsEmpty) return;
 
         var fptrProperties = BuildNativeFunctionPointer(definition, nativeFunctionPointerBuilder);
 

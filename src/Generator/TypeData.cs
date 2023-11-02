@@ -1,14 +1,10 @@
-﻿using Hosihikari.Utils;
-using Mono.Cecil;
-using System.Diagnostics.CodeAnalysis;
-using System.Text;
+﻿using System.Text;
 using static Hosihikari.Utils.OriginalData;
 
 namespace Hosihikari.Generation.Generator;
 
 public readonly struct TypeData
 {
-
     public bool IsVoid => Analyzer.CppTypeHandle.FundamentalType is CppFundamentalType.Void;
 
     public TypeData(in Class.Item.TypeData type)

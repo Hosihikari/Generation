@@ -33,15 +33,111 @@ namespace Hosihikari.Generation.AssemblyGeneration;
 /// </summary>
 public partial class AssemblyBuilder
 {
-    private readonly string name;
-    private readonly AssemblyDefinition assembly;
-    private readonly ModuleDefinition module;
-    private readonly string outputDir;
-    internal readonly Dictionary<string, TypeDefinition> definedTypes;
-    internal readonly Dictionary<TypeDefinition, TypeBuilder> builders;
-    internal readonly Queue<TypeBuilder> typeBuilders;
-    internal readonly Dictionary<TypeDefinition, PredefinedTypeExtensionBuilder> predefinedBuilders;
-    internal readonly Queue<PredefinedTypeExtensionBuilder> predefinedTypeBuilders;
+    public const string RootNamespace = "Hosihikari.Minecraft";
+
+    public readonly string name;
+    public readonly AssemblyDefinition assembly;
+    public readonly ModuleDefinition module;
+    public readonly string outputDir;
+    public readonly Dictionary<string, TypeDefinition> definedTypes;
+    public readonly Dictionary<TypeDefinition, (TypeData typData, TypeBuilder builder)> builders;
+    public readonly Queue<TypeBuilder> typeBuilders;
+    public readonly Dictionary<TypeDefinition, PredefinedTypeExtensionBuilder> predefinedBuilders;
+    public readonly Queue<PredefinedTypeExtensionBuilder> predefinedTypeBuilders;
+
+    public readonly NamespaceNode rootNamespace;
+
+    public class NamespaceNode
+    {
+        public string Namespace { get; private set; }
+
+        public Dictionary<string, NamespaceNode> SubNamespaces { get; private set; }
+
+        public NamespaceNode? Parent { get; private set; }
+
+        public HashSet<TypeDefinition> Types { get; private set; }
+
+        public TypeDefinition? NamespaceType { get; set; }
+
+        protected readonly ModuleDefinition Module;
+
+        public NamespaceNode(ModuleDefinition module, string @namespace, NamespaceNode? parent, TypeDefinition? namespaceType)
+        {
+            Module = module;
+            Namespace = @namespace;
+            Parent = parent;
+            NamespaceType = namespaceType;
+            SubNamespaces = new();
+            Types = new();
+        }
+
+        public virtual void AddType(TypeDefinition definition)
+        {
+            definition.Attributes |= TypeAttributes.NestedPublic;
+            NamespaceType!.NestedTypes.Add(definition);
+        }
+    }
+
+    public class RootNamespaceNode : NamespaceNode
+    {
+        public RootNamespaceNode(ModuleDefinition module) : base(module, string.Empty, null, null!)
+        {
+        }
+
+        public override void AddType(TypeDefinition definition)
+        {
+            definition.Namespace = RootNamespace;
+            definition.Attributes |= TypeAttributes.Public;
+            Module.Types.Add(definition);
+        }
+    }
+
+    public void InsertTypeIntoNamespaces(in TypeData typeData, TypeDefinition definition)
+    {
+        if (typeData.Namespaces.Count is not 0)
+        {
+            NamespaceNode namespaceNode = rootNamespace;
+
+            for (int i = 0; i < typeData.Namespaces.Count; i++)
+            {
+                var @namespace = typeData.Namespaces[i];
+
+                if (namespaceNode.SubNamespaces.TryGetValue(@namespace, out var node) is false)
+                {
+                    var typeStr = $"{string.Join('.', typeData.Namespaces.Take(i))}{(i > 0 ? "." : "")}{@namespace}";
+                    if (definedTypes.TryGetValue(typeStr, out TypeDefinition? definedType) is false)
+                    {
+                        if (TryCreateTypeBuilder(
+                            new(new() { Name = $"{string.Join("::", typeData.Namespaces.Take(i))}{(i > 0 ? "." : "")}{@namespace}" }),
+                            out var builder))
+                        {
+                            definedType = builder.definition;
+                        }
+                        else throw new Exception("QAQ");
+                    }
+
+                    node = new NamespaceNode(module, @namespace, namespaceNode, definedType);
+                    namespaceNode.SubNamespaces.Add(@namespace, node);
+                }
+
+                namespaceNode = node;
+
+                if (i != typeData.Namespaces.Count - 1)
+                {
+                    continue;
+                }
+                else
+                {
+                    node.Types.Add(definition);
+                    return;
+                }
+            }
+        }
+        else
+        {
+            rootNamespace.Types.Add(definition);
+        }
+    }
 
     public enum ItemAccessType
     {
@@ -64,6 +160,8 @@ public partial class AssemblyBuilder
         builders = new();
         predefinedTypeBuilders = new();
         this.name = name;
+#pragma warning disable CS8625
+        rootNamespace = new RootNamespaceNode(module);
 
         InsertAttributes();
     }
@@ -97,12 +195,27 @@ public partial class AssemblyBuilder
     public void Build(in OriginalData data)
     {
         ForeachClassesAndBuildTypeDefinition(data);
+        ForeachNamespacesForBuildNestedTypes();
         BuildTypes();
 
-        foreach (var (definition, builder) in predefinedBuilders)
+        //foreach (var (definition, builder) in predefinedBuilders)
+        //{
+        //    if (builder.IsEmpty is false)
+        //        module.Types.Add(definition);
+        //}
+    }
+
+    public void ForeachNamespacesForBuildNestedTypes() => ForeachNamespacesForBuildNestedTypesInternal(rootNamespace);
+
+    public void ForeachNamespacesForBuildNestedTypesInternal(NamespaceNode node)
+    {
+        foreach (var (_, subNode) in node.SubNamespaces)
         {
-            if (builder.IsEmpty is false)
-                module.Types.Add(definition);
+            ForeachNamespacesForBuildNestedTypesInternal(subNode);
+        }
+        foreach (var type in node.Types)
+        {
+            node.AddType(type);
         }
     }
 
@@ -110,9 +223,11 @@ public partial class AssemblyBuilder
     {
         builder = null;
 
-        //not impl
-        if (typeData.Namespaces.Count is not 0)
-            return false;
+        ////not impl
+        //if (typeData.Namespaces.Count is not 0)
+        //{
+        //    Console.WriteLine("QAQ");
+        //}
 
         var type = typeData.Analyzer.CppTypeHandle.RootType;
         switch (type.Type)
@@ -121,10 +236,13 @@ public partial class AssemblyBuilder
             case CppTypeEnum.Struct:
             case CppTypeEnum.Union:
 
-                var definition = new TypeDefinition("Hosihikari.Minecraft", typeData.TypeIdentifier, TypeAttributes.Public | TypeAttributes.Class);
+                var definition = new TypeDefinition(string.Empty, typeData.TypeIdentifier, /*TypeAttributes.Public | */TypeAttributes.Class);
                 builder = new(definedTypes, null, module, definition, null, 0);
                 typeBuilders.Enqueue(builder);
-                builders.Add(definition, builder);
+                builders.Add(definition, (typeData, builder));
+
+                InsertTypeIntoNamespaces(typeData, definition);
+                definedTypes.Add(typeData.FullTypeIdentifier, definition);
 
                 return true;
 
@@ -180,8 +298,6 @@ public partial class AssemblyBuilder
 
                 if (TryCreateTypeBuilder(typeData, out var _builder))
                 {
-                    module.Types.Add(_builder.definition);
-                    definedTypes.Add(typeData.FullTypeIdentifier, _builder.definition);
                     builder = _builder;
                 }
             }
@@ -260,8 +376,10 @@ public partial class AssemblyBuilder
                     ForeachItemsForBuildTypeDefinition(items, @class.Value.Virtual, ItemAccessType.Virtual, true);
                     ForeachItemsForBuildTypeDefinition(items, @class.Value.VirtualUnordered, ItemAccessType.VirtualUnordered);
 
-                    if (builders.TryGetValue(definition, out var builder))
+                    if (builders.TryGetValue(definition, out var pair))
                     {
+                        var (typeData, builder) = pair;
+
                         builder.SetItems(items);
                         builder.SetVirtualFunctrions(@class.Value.Virtual);
                         builder.SetClassSize(0);

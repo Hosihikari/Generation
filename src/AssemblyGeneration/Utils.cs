@@ -1,6 +1,6 @@
 ﻿using System.Text;
+using System.Diagnostics.CodeAnalysis;
 
-using Hosihikari.NativeInterop.Unmanaged;
 using Hosihikari.Utils;
 using Hosihikari.Generation.Generator;
 
@@ -9,8 +9,6 @@ using Mono.Cecil.Rocks;
 
 using static Hosihikari.Utils.OriginalData.Class;
 using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
-using System.Diagnostics.CodeAnalysis;
-using System.Runtime.InteropServices;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 
@@ -29,8 +27,8 @@ public static class Utils
             "operator&" => t.Params.Count is 1 ? "operator_Address_of" : "operator_Bitwise_AND",
             "operator&&" => "operator_Logical_AND",
             "operator&=" => "operator_Bitwise_AND_assignment",
-            "operator()" => t.Params.Count is 1 ? "operator_Cast" : "operator_Function_call",
-            "operator*" => t.Params.Count is 1 ? "operator_Pointer_dereference" : "operator_Multiplication",
+            "operator()" => t.Params is null ? "operator_Function_call" : t.Params.Count is 1 ? "operator_Cast" : "operator_Function_call",
+            "operator*" => t.Params is null ? "operator_Pointer_dereference" : t.Params.Count is 1 ? "operator_Pointer_dereference" : "operator_Multiplication",
             "operator*=" => "operator_Multiplication_assignment",
             "operator+" => "operator_Addition",
             "operator++" => "operator_Increment",
@@ -89,6 +87,16 @@ public static class Utils
     public static string BuildFptrName(HashSet<string> fptrFieldNames, in Item t, Random random)
     {
         var fptrName = t.Name;
+
+        if (fptrName.Contains("operator"))
+            fptrName = $"cpp_{SelectOperatorName(t)}";
+
+        if ((SymbolType)t.SymbolType is SymbolType.Destructor)
+            fptrName = $"destructor_{fptrName[1..]}";
+        if ((SymbolType)t.SymbolType is SymbolType.Constructor)
+            fptrName = $"constructor_{fptrName}";
+
+
         if (fptrFieldNames.Contains(fptrName))
         {
             if (t.Params is null)
@@ -101,16 +109,8 @@ public static class Utils
                 foreach (var c in param.Name)
                     builder.Append(TypeAnalyzer.IsLetterOrUnderline(c) ? c : '_');
             }
-            return builder.ToString();
+            fptrName = builder.ToString();
         }
-
-        if (fptrName.Contains("operator"))
-            fptrName = $"cpp_{SelectOperatorName(t)}";
-
-        if ((SymbolType)t.SymbolType is SymbolType.Destructor)
-            fptrName = $"destructor_{fptrName[1..]}";
-        if ((SymbolType)t.SymbolType is SymbolType.Constructor)
-            fptrName = $"constructor_{fptrName}";
 
         return fptrName;
     }

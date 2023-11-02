@@ -247,7 +247,15 @@ public static class TypeReferenceBuilder
                     break;
 
                 TYPE_DEFAULT_PARSE:
-                    reference = definedTypes[type.FullTypeIdentifier];
+                    if(definedTypes.TryGetValue(type.FullTypeIdentifier,out var t) is false)
+                    {
+                        reference = module.TypeSystem.IntPtr;
+                        isUnmanagedType = true;
+                    }
+                    else
+                    {
+                        reference = t;
+                    }
                     rootTypeParsed = true;
                     break;
             }

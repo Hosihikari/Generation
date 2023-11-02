@@ -254,7 +254,7 @@ public class MethodBuilder
             il.Emit(OC.Ldfld, field_Pointer);
 
             for (int i = loopRange.begin; i < loopRange.end; i++)
-                il.Emit(OC.Ldarg_S, i);
+                il.Emit(OC.Ldarg, i);
 
             if (isVarArg) il.Emit(OC.Arglist);
 

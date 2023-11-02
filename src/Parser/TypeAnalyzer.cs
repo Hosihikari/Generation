@@ -476,7 +476,7 @@ public sealed class TypeAnalyzer
 
             for (int i = 1; i < typeName.Length; ++i)
             {
-                if ((IsLetterOrUnderline(ptr[i]) || IsDigit(ptr[i])) is false)
+                if ((IsLetterOrUnderline(ptr[i]) || IsDigit(ptr[i]) || ptr[i] is '.') is false)
                     return false;
             }
         }
