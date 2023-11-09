@@ -262,7 +262,7 @@ public partial class AssemblyBuilder
             case CppTypeEnum.Struct:
             case CppTypeEnum.Union:
 
-                var definition = new TypeDefinition("Hosihikari.Minecraft.Extension", $"{typeData.TypeIdentifier}Ex",
+                var definition = new TypeDefinition("Hosihikari.Minecraft.Extension", $"{predefinedType.Name}EX",
                     TypeAttributes.Public | TypeAttributes.Class | TypeAttributes.Sealed | TypeAttributes.Abstract);
                 builder = new(predefinedType, definedTypes, null, module, definition, null);
                 predefinedTypeBuilders.Enqueue(builder);
@@ -286,8 +286,8 @@ public partial class AssemblyBuilder
             {
                 if (TryCreatePredefinedTypeBuilder(typeData, predefinedType, out var _builder))
                 {
-                    //module.Types.Add(_builder.definition);
-                    //definedTypes.Add(typeData.FullTypeIdentifier, _builder.definition);
+                    module.Types.Add(_builder.definition);
+                    definedTypes.Add(typeData.FullTypeIdentifier, _builder.definition);
                     builder = _builder;
                 }
             }

@@ -20,7 +20,7 @@ public static class TypeReferenceBuilder
     {
         var assemblies = new List<Assembly>()
         {
-            typeof(Minecraft.Foundation._Handle).Assembly,
+            typeof(Minecraft.Foundation.AABB).Assembly,
             typeof(NativeInterop.SymbolHelper).Assembly,
         };
 
@@ -28,6 +28,9 @@ public static class TypeReferenceBuilder
         {
             foreach (var type in assembly.GetExportedTypes())
             {
+                if (type.IsGenericTypeDefinition)
+                    continue;
+
                 Dictionary<string, Type> keyValues;
                 var attribute = type.GetCustomAttribute<PredefinedTypeAttribute>();
                 if (attribute is not null)
@@ -247,7 +250,7 @@ public static class TypeReferenceBuilder
                     break;
 
                 TYPE_DEFAULT_PARSE:
-                    if(definedTypes.TryGetValue(type.FullTypeIdentifier,out var t) is false)
+                    if (definedTypes.TryGetValue(type.FullTypeIdentifier, out var t) is false)
                     {
                         reference = module.TypeSystem.IntPtr;
                         isUnmanagedType = true;

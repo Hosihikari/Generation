@@ -111,8 +111,8 @@ public partial class TypeBuilder
 
                     var (proeprty, methood, fptrType) = builder.BuildFptrProperty(accessType, definedTypes, fptrFieldNames, item, fptrField);
                     ret.Add((accessType, proeprty, fptrType, item, virtIndex));
-                    definition.Properties.Add(proeprty);
-                    definition.Methods.Add(methood);
+                    originalType.Properties.Add(proeprty);
+                    originalType.Methods.Add(methood);
                 }
                 catch (Exception)
                 {
