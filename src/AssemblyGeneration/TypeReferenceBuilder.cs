@@ -238,6 +238,7 @@ public static class TypeReferenceBuilder
                         {
                             reference = @ref;
                             isUnmanagedType = @ref.IsValueType;
+                            rootTypeParsed = true;
                             break;
                         }
                         else
