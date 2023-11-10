@@ -83,19 +83,19 @@ public static class TypeReferenceBuilder
     {
         return node.FundamentalType! switch
         {
-            CppFundamentalType.Void => module.TypeSystem.Void,
-            CppFundamentalType.Boolean => module.TypeSystem.Boolean,
-            CppFundamentalType.Float => module.TypeSystem.Single,
-            CppFundamentalType.Double => module.TypeSystem.Double,
-            CppFundamentalType.WChar => module.TypeSystem.Char,
-            CppFundamentalType.SChar => module.TypeSystem.SByte,
-            CppFundamentalType.Int16 => module.TypeSystem.Int16,
-            CppFundamentalType.Int32 => module.TypeSystem.Int32,
-            CppFundamentalType.Int64 => module.TypeSystem.Int64,
-            CppFundamentalType.Char => module.TypeSystem.Byte,
-            CppFundamentalType.UInt16 => module.TypeSystem.UInt16,
-            CppFundamentalType.UInt32 => module.TypeSystem.UInt32,
-            CppFundamentalType.UInt64 => module.TypeSystem.UInt64,
+            CppFundamentalType.Void => module.ImportReference(typeof(void)),
+            CppFundamentalType.Boolean => module.ImportReference(typeof(bool)),
+            CppFundamentalType.Float => module.ImportReference(typeof(float)),
+            CppFundamentalType.Double => module.ImportReference(typeof(double)),
+            CppFundamentalType.WChar => module.ImportReference(typeof(char)),
+            CppFundamentalType.SChar => module.ImportReference(typeof(sbyte)),
+            CppFundamentalType.Int16 => module.ImportReference(typeof(short)),
+            CppFundamentalType.Int32 => module.ImportReference(typeof(int)),
+            CppFundamentalType.Int64 => module.ImportReference(typeof(long)),
+            CppFundamentalType.Char => module.ImportReference(typeof(byte)),
+            CppFundamentalType.UInt16 => module.ImportReference(typeof(ushort)),
+            CppFundamentalType.UInt32 => module.ImportReference(typeof(uint)),
+            CppFundamentalType.UInt64 => module.ImportReference(typeof(ulong)),
             _ => throw new InvalidOperationException(),
         };
     }
@@ -246,14 +246,14 @@ public static class TypeReferenceBuilder
                     }
 
                 ENUM_DEFAULT_PARSE:
-                    reference = module.TypeSystem.Int32;
+                    reference = module.ImportReference(typeof(int));
                     isUnmanagedType = true;
                     break;
 
                 TYPE_DEFAULT_PARSE:
                     if (definedTypes.TryGetValue(type.FullTypeIdentifier, out var t) is false)
                     {
-                        reference = module.TypeSystem.IntPtr;
+                        reference = module.ImportReference(typeof(nint));
                         isUnmanagedType = true;
                     }
                     else
@@ -280,6 +280,9 @@ public static class TypeReferenceBuilder
                 reference = module.ImportReference(refType);
             }
         }
+
+        if (reference is not null && reference.Module.Assembly.Name.Name is "System.Private.CoreLib")
+            Console.WriteLine($"{reference} {reference.Module.Assembly}");
 
         return (reference!, string.Empty);
     }

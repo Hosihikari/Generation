@@ -9,11 +9,37 @@ using Mono.Cecil.Rocks;
 
 using static Hosihikari.Utils.OriginalData.Class;
 using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
+using Assembly = System.Reflection.Assembly;
+using System.Runtime.Loader;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 
 public static class Utils
 {
+    static Utils()
+    {
+        var file = File.OpenRead("System.Runtime.dll");
+        var asm = AssemblyDefinition.ReadAssembly(file);
+        file.Close();
+
+        foreach (var module in asm.Modules)
+        {
+            foreach (var type in module.Types)
+            {
+                if (type.Name is "Object") Object = type;
+                if (type.Name is "String") String = type;
+                if (type.Name is nameof(System.IDisposable)) IDisposable = type;
+            }
+        }
+
+        if (Object is null || String is null || IDisposable is null)
+            throw new NullReferenceException();
+    }
+
+    public static TypeDefinition Object { get; private set; }
+    public static TypeDefinition String { get; private set; }
+    public static TypeDefinition IDisposable { get; private set; }
+
     public static string SelectOperatorName(in Item t)
     {
         //https://learn.microsoft.com/en-us/cpp/cpp/operator-overloading?view=msvc-170
@@ -147,9 +173,9 @@ public static class Utils
 
                     fptrType.Parameters.Add(param);
                 }
-                else fptrType.Parameters.Add(new(module.TypeSystem.IntPtr));
+                else fptrType.Parameters.Add(new(module.ImportReference(typeof(nint))));
             }
-            else fptrType.Parameters.Add(new(module.TypeSystem.IntPtr));
+            else fptrType.Parameters.Add(new(module.ImportReference(typeof(nint))));
         }
 
         if (t.Params is null)

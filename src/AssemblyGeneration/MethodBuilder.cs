@@ -40,11 +40,11 @@ public class MethodBuilder
             MethodAttributes.HideBySig |
             MethodAttributes.SpecialName |
             MethodAttributes.RTSpecialName,
-            module.TypeSystem.Void);
+            module.ImportReference(typeof(void)));
         if (isVarArg) ctor.CallingConvention |= MethodCallingConvention.VarArg;
 
         if (classSize is 0)
-            ctor.Parameters.Add(new("allocSize", ParameterAttributes.None, module.TypeSystem.UInt64));
+            ctor.Parameters.Add(new("allocSize", ParameterAttributes.None, module.ImportReference(typeof(ulong))));
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
             ParameterDefinition param = functionPointer.Parameters[i];
@@ -55,6 +55,10 @@ public class MethodBuilder
             var fptr = new VariableDefinition(module.ImportReference(typeof(void).MakePointerType()));
             ctor.Body.Variables.Add(fptr);
             var il = ctor.Body.GetILProcessor();
+
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Call, module.ImportReference(Utils.Object.GetConstructors().First()));
+
             il.Emit(OC.Ldarg_0);
 
             if (classSize is 0)
@@ -75,7 +79,7 @@ public class MethodBuilder
             for (int i = classSize is 0 ? 1 : 0; i < ctor.Parameters.Count - (isVarArg ? 1 : 0); i++)
                 il.Emit(OC.Ldarg_S, ctor.Parameters[i]);
 
-            var callSite = new CallSite(module.ImportReference(module.TypeSystem.Void))
+            var callSite = new CallSite(module.ImportReference(module.ImportReference(typeof(void))))
             {
                 CallingConvention = MethodCallingConvention.Unmanaged
             };
@@ -444,7 +448,7 @@ public class MethodBuilder
 
 
             if (classSize is 0)
-                method.Parameters.Add(new("allocSize", ParameterAttributes.None, module.TypeSystem.UInt64));
+                method.Parameters.Add(new("allocSize", ParameterAttributes.None, module.ImportReference(typeof(ulong))));
 
             for (int i = loopRange.begin; i < loopRange.end; i++)
             {
@@ -470,7 +474,7 @@ public class MethodBuilder
                 if (isVarArg)
                     il.Emit(OC.Arglist);
 
-                var callSite = new CallSite(module.ImportReference(module.TypeSystem.Void))
+                var callSite = new CallSite(module.ImportReference(module.ImportReference(typeof(void))))
                 {
                     CallingConvention = MethodCallingConvention.Unmanaged
                 };
@@ -530,7 +534,7 @@ public class MethodBuilder
             if (isVarArg)
                 il.Emit(OC.Arglist);
 
-            var callSite = new CallSite(module.ImportReference(module.TypeSystem.Void))
+            var callSite = new CallSite(module.ImportReference(module.ImportReference(typeof(void))))
             {
                 CallingConvention = MethodCallingConvention.Unmanaged
             };

@@ -169,6 +169,7 @@ public partial class AssemblyBuilder
     public static AssemblyBuilder Create(string name, Version version, string outputDir, string? moduleName = null)
     {
         var assemblyDef = AssemblyDefinition.CreateAssembly(new(name, version), moduleName ?? name, ModuleKind.Dll);
+
         return new(assemblyDef, outputDir, name);
     }
 
@@ -176,8 +177,8 @@ public partial class AssemblyBuilder
     {
         module.Runtime = TargetRuntime.Net_4_0;
 
-        CustomAttributeArgument arg = new(module.TypeSystem.String, ".NETCoreApp,Version=v7.0");
-        CustomAttributeArgument frameworkDisplayName = new(module.TypeSystem.String, ".NET 7.0");
+        CustomAttributeArgument arg = new(module.ImportReference(Utils.String), ".NETCoreApp,Version=v7.0");
+        CustomAttributeArgument frameworkDisplayName = new(module.ImportReference(Utils.String), ".NET 7.0");
         CustomAttributeNamedArgument namedArgument = new("FrameworkDisplayName", frameworkDisplayName);
 
         CustomAttribute attribute = new(
@@ -236,7 +237,7 @@ public partial class AssemblyBuilder
             case CppTypeEnum.Struct:
             case CppTypeEnum.Union:
 
-                var definition = new TypeDefinition(string.Empty, typeData.TypeIdentifier, /*TypeAttributes.Public | */TypeAttributes.Class);
+                var definition = new TypeDefinition(string.Empty, typeData.TypeIdentifier, /*TypeAttributes.Public | */TypeAttributes.Class, module.ImportReference(Utils.Object));
                 builder = new(definedTypes, null, module, definition, null, 0);
                 typeBuilders.Enqueue(builder);
                 builders.Add(definition, (typeData, builder));
@@ -263,7 +264,7 @@ public partial class AssemblyBuilder
             case CppTypeEnum.Union:
 
                 var definition = new TypeDefinition("Hosihikari.Minecraft.Extension", $"{predefinedType.Name}EX",
-                    TypeAttributes.Public | TypeAttributes.Class | TypeAttributes.Sealed | TypeAttributes.Abstract);
+                    TypeAttributes.Public | TypeAttributes.Class | TypeAttributes.Sealed | TypeAttributes.Abstract, module.ImportReference(Utils.Object));
                 builder = new(predefinedType, definedTypes, null, module, definition, null);
                 predefinedTypeBuilders.Enqueue(builder);
                 predefinedBuilders.Add(definition, builder);

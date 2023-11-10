@@ -24,7 +24,7 @@ public class VftableStructBuilder
         int currentIndex,
         string? funcName = null)
     {
-        var fieldDef = new FieldDefinition(funcName is null ? $"__UnknownVirtualFunction_{currentIndex}" : funcName, FieldAttributes.Public | FieldAttributes.InitOnly, module.TypeSystem.IntPtr);
+        var fieldDef = new FieldDefinition(funcName is null ? $"__UnknownVirtualFunction_{currentIndex}" : funcName, FieldAttributes.Public | FieldAttributes.InitOnly, module.ImportReference(typeof(nint)));
         definition.Fields.Add(fieldDef);
     }
 
@@ -58,14 +58,14 @@ public class VftableStructBuilder
         var interfaceImpl = new InterfaceImplementation(module.ImportReference(typeof(ICppVtable)));
         definition.Interfaces.Add(interfaceImpl);
         var property_VtableLength = new PropertyDefinition(
-            "VtableLength", PropertyAttributes.None, module.TypeSystem.UInt64);
+            "VtableLength", PropertyAttributes.None, module.ImportReference(typeof(ulong)));
         var getMethod_property_VtableLength = new MethodDefinition(
             "get_VtableLength",
             MethodAttributes.Public |
             MethodAttributes.HideBySig |
             MethodAttributes.SpecialName |
             MethodAttributes.Static,
-            module.TypeSystem.UInt64);
+            module.ImportReference(typeof(ulong)));
         getMethod_property_VtableLength.Overrides.Add(module.ImportReference(
             typeof(ICppVtable).GetMethods().First(f => f.Name is "get_VtableLength")));
         {

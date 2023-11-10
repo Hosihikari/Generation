@@ -38,7 +38,7 @@ public class NativeFunctionPointerBuilder
 
         var cctor = new MethodDefinition(".cctor",
             MethodAttributes.Static | MethodAttributes.Private | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName,
-            module.TypeSystem.Void);
+            module.ImportReference(typeof(void)));
 
         fptrStorageType.Methods.Add(cctor);
         {

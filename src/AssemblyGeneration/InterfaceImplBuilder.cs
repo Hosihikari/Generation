@@ -3,6 +3,8 @@
 using Hosihikari.NativeInterop.Unmanaged;
 
 using Mono.Cecil;
+using Mono.Cecil.Rocks;
+using Mono.Collections.Generic;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 
@@ -50,7 +52,6 @@ public class InterfaceImplBuilder
     public const string IsOwnerStorageFieldName = "__isOwner_storage";
     public const string IsTempStackValueStorageFieldName = "__isTempStackValue_storage";
 
-
     [MemberNotNull(nameof(ctor_Default), nameof(ctor_Ptr_Owns), nameof(method_ConstructInstance_object), nameof(method_ConstructInstance))]
     [MemberNotNull(
         nameof(property_Pointer),
@@ -82,6 +83,23 @@ public class InterfaceImplBuilder
 
         definition.Interfaces.Add(new(IcppInstanceType));
         definition.Interfaces.Add(new(module.ImportReference(typeof(ICppInstanceNonGeneric))));
+        definition.Interfaces.Add(new(module.ImportReference(Utils.IDisposable)));
+
+        var disposeMethod = new MethodDefinition(
+                nameof(IDisposable.Dispose),
+                MethodAttributes.Public |
+                MethodAttributes.Final |
+                MethodAttributes.HideBySig |
+                MethodAttributes.NewSlot |
+                MethodAttributes.Virtual,
+                module.ImportReference(typeof(void)));
+        {
+            var il = disposeMethod.Body.GetILProcessor();
+            il.Emit(OC.Nop);
+            il.Emit(OC.Ret);
+        }
+
+        definition.Methods.Add(disposeMethod);
 
         BuildPointerProperty(definition, out var ptr);
         BuildIsOwnerProperty(definition, out var owns);
@@ -89,7 +107,6 @@ public class InterfaceImplBuilder
         BuildDefaultCtor(definition, ptr, owns, isTempStackValue);
         BuildImplicitOperator(definition);
         BuildClassSizeProperty(definition, classSize);
-        //BuildDtor(definition, dtor ?? default, false);
     }
 
     [MemberNotNull(nameof(ctor_Default), nameof(ctor_Ptr_Owns), nameof(method_ConstructInstance_object), nameof(method_ConstructInstance))]
@@ -105,11 +122,11 @@ public class InterfaceImplBuilder
             MethodAttributes.HideBySig |
             MethodAttributes.SpecialName |
             MethodAttributes.RTSpecialName,
-            module.TypeSystem.Void);
+            module.ImportReference(typeof(void)));
         {
             var il = ctorDefault.Body.GetILProcessor();
             il.Emit(OC.Ldarg_0);
-            il.Emit(OC.Call, module.ImportReference(typeof(object).GetConstructors().First()));
+            il.Emit(OC.Call, module.ImportReference(Utils.Object.GetConstructors().First()));
             il.Emit(OC.Ldarg_0);
             il.Emit(OC.Ldc_I8, 0L);
             il.Emit(OC.Conv_Ovf_I);
@@ -124,12 +141,12 @@ public class InterfaceImplBuilder
         }
 
         var ctor = new MethodDefinition(
-            ".ctor",
-            MethodAttributes.Public |
-            MethodAttributes.HideBySig |
-            MethodAttributes.SpecialName |
-            MethodAttributes.RTSpecialName,
-            module.TypeSystem.Void);
+                ".ctor",
+                MethodAttributes.Public |
+                MethodAttributes.HideBySig |
+                MethodAttributes.SpecialName |
+                MethodAttributes.RTSpecialName,
+                module.ImportReference(typeof(void)));
         var ptrParameter = new ParameterDefinition("ptr", ParameterAttributes.None, module.ImportReference(typeof(nint)));
         var ownsParameter = new ParameterDefinition("owns", ParameterAttributes.Optional, module.ImportReference(typeof(bool))) { Constant = false };
         var isTempStackValueParameter = new ParameterDefinition("isTempStackValue", ParameterAttributes.Optional, module.ImportReference(typeof(bool))) { Constant = true };
@@ -139,7 +156,7 @@ public class InterfaceImplBuilder
         {
             var il = ctor.Body.GetILProcessor();
             il.Emit(OC.Ldarg_0);
-            il.Emit(OC.Call, module.ImportReference(typeof(object).GetConstructors().First()));
+            il.Emit(OC.Call, module.ImportReference(Utils.Object.GetConstructors().First()));
             il.Emit(OC.Ldarg_0);
             il.Emit(OC.Ldarg_1);
             il.Emit(OC.Stfld, ptr);
@@ -155,15 +172,10 @@ public class InterfaceImplBuilder
         var IcppInstanceType = new GenericInstanceType(module.ImportReference(typeof(ICppInstance<>)));
         IcppInstanceType.GenericArguments.Add(definition);
 
-        var temp = IcppInstanceType.Resolve();
-
-        var methodRef_ConstructInstance = temp.Methods.First(
-            f => f.Name == "ConstructInstance" &&
-            f.Parameters.Count is 3 &&
-            f.Parameters[0].ParameterType.FullName == module.TypeSystem.IntPtr.FullName &&
-            f.Parameters[1].ParameterType.FullName == module.TypeSystem.Boolean.FullName &&
-            f.Parameters[2].ParameterType.FullName == module.TypeSystem.Boolean.FullName &&
-            f.ReturnType.FullName == "TSelf");
+        var methodReference = new MethodReference("ConstructInstance", IcppInstanceType.Resolve().GenericParameters[0], IcppInstanceType);
+        methodReference.Parameters.Add(new(module.ImportReference(typeof(nint))));
+        methodReference.Parameters.Add(new(module.ImportReference(typeof(bool))));
+        methodReference.Parameters.Add(new(module.ImportReference(typeof(bool))));
 
         var ConstructInstanceMethod = new MethodDefinition(
             "ConstructInstance",
@@ -171,10 +183,11 @@ public class InterfaceImplBuilder
             MethodAttributes.HideBySig |
             MethodAttributes.Static,
             definition);
-        ConstructInstanceMethod.Overrides.Add(module.ImportReference(methodRef_ConstructInstance));
-        ConstructInstanceMethod.Parameters.Add(new("ptr", ParameterAttributes.None, module.TypeSystem.IntPtr));
-        ConstructInstanceMethod.Parameters.Add(new("owns", ParameterAttributes.None, module.TypeSystem.Boolean));
-        ConstructInstanceMethod.Parameters.Add(new("isTempStackValue", ParameterAttributes.None, module.TypeSystem.Boolean));
+
+        ConstructInstanceMethod.Overrides.Add(module.ImportReference(methodReference));
+        ConstructInstanceMethod.Parameters.Add(new("ptr", ParameterAttributes.None, module.ImportReference(typeof(nint))));
+        ConstructInstanceMethod.Parameters.Add(new("owns", ParameterAttributes.None, module.ImportReference(typeof(bool))));
+        ConstructInstanceMethod.Parameters.Add(new("isTempStackValue", ParameterAttributes.None, module.ImportReference(typeof(bool))));
         {
             var il = ConstructInstanceMethod.Body.GetILProcessor();
             il.Emit(OC.Ldarg_0);
@@ -185,19 +198,19 @@ public class InterfaceImplBuilder
         }
 
         var ConstructInstanceNonGenericMethod = new MethodDefinition(
-            "ConstructInstance",
-            MethodAttributes.Public |
+            $"{typeof(ICppInstanceNonGeneric).FullName}.ConstructInstance",
+            MethodAttributes.Private |
             MethodAttributes.HideBySig |
             MethodAttributes.Static,
-            module.TypeSystem.Object);
+            module.ImportReference(Utils.Object));
         ConstructInstanceNonGenericMethod.Overrides.Add(module.ImportReference(
             typeof(ICppInstanceNonGeneric)
             .GetMethods()
             .First(f => f.Name == nameof(ICppInstanceNonGeneric.ConstructInstance))));
 
-        ConstructInstanceNonGenericMethod.Parameters.Add(new("ptr", ParameterAttributes.None, module.TypeSystem.IntPtr));
-        ConstructInstanceNonGenericMethod.Parameters.Add(new("owns", ParameterAttributes.None, module.TypeSystem.Boolean));
-        ConstructInstanceNonGenericMethod.Parameters.Add(new("isTempStackValue", ParameterAttributes.None, module.TypeSystem.Boolean));
+        ConstructInstanceNonGenericMethod.Parameters.Add(new("ptr", ParameterAttributes.None, module.ImportReference(typeof(nint))));
+        ConstructInstanceNonGenericMethod.Parameters.Add(new("owns", ParameterAttributes.None, module.ImportReference(typeof(bool))));
+        ConstructInstanceNonGenericMethod.Parameters.Add(new("isTempStackValue", ParameterAttributes.None, module.ImportReference(typeof(bool))));
         {
             var il = ConstructInstanceNonGenericMethod.Body.GetILProcessor();
             il.Emit(OC.Ldarg_0);
@@ -240,9 +253,6 @@ public class InterfaceImplBuilder
             MethodAttributes.NewSlot |
             MethodAttributes.Virtual,
             module.ImportReference(typeof(nint)));
-        pointerProperty_getMethod.Overrides.Add(module.ImportReference(
-            typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "get_Pointer")));
-        pointerProperty_getMethod.Parameters.Add(new(definition));
         {
             var il = pointerProperty_getMethod.Body.GetILProcessor();
             il.Emit(OC.Ldarg_0);
@@ -257,10 +267,7 @@ public class InterfaceImplBuilder
             MethodAttributes.SpecialName |
             MethodAttributes.NewSlot |
             MethodAttributes.Virtual,
-            module.TypeSystem.Void);
-        pointerProperty_setMethod.Overrides.Add(module.ImportReference(
-            typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "set_Pointer")));
-        pointerProperty_setMethod.Parameters.Add(new(definition));
+            module.ImportReference(typeof(void)));
         pointerProperty_setMethod.Parameters.Add(new("value", ParameterAttributes.None, module.ImportReference(typeof(nint))));
         {
             var il = pointerProperty_setMethod.Body.GetILProcessor();
@@ -307,9 +314,6 @@ public class InterfaceImplBuilder
             MethodAttributes.NewSlot |
             MethodAttributes.Virtual,
             module.ImportReference(typeof(bool)));
-        isOwnerProperty_getMethod.Overrides.Add(module.ImportReference(
-            typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "get_IsOwner")));
-        isOwnerProperty_getMethod.Parameters.Add(new(definition));
         {
             var il = isOwnerProperty_getMethod.Body.GetILProcessor();
             il.Emit(OC.Ldarg_0);
@@ -324,10 +328,7 @@ public class InterfaceImplBuilder
             MethodAttributes.SpecialName |
             MethodAttributes.NewSlot |
             MethodAttributes.Virtual,
-            module.TypeSystem.Void);
-        isOwnerProperty_setMethod.Overrides.Add(module.ImportReference(
-            typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "set_IsOwner")));
-        isOwnerProperty_setMethod.Parameters.Add(new(definition));
+            module.ImportReference(typeof(void)));
         isOwnerProperty_setMethod.Parameters.Add(new("value", ParameterAttributes.None, module.ImportReference(typeof(bool))));
         {
             var il = isOwnerProperty_setMethod.Body.GetILProcessor();
@@ -374,9 +375,6 @@ public class InterfaceImplBuilder
             MethodAttributes.NewSlot |
             MethodAttributes.Virtual,
             module.ImportReference(typeof(bool)));
-        isTempStackValueProperty_getMethod.Overrides.Add(module.ImportReference(
-            typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "get_IsTempStackValue")));
-        isTempStackValueProperty_getMethod.Parameters.Add(new(definition));
         {
             var il = isTempStackValueProperty_getMethod.Body.GetILProcessor();
             il.Emit(OC.Ldarg_0);
@@ -391,10 +389,7 @@ public class InterfaceImplBuilder
             MethodAttributes.SpecialName |
             MethodAttributes.NewSlot |
             MethodAttributes.Virtual,
-            module.TypeSystem.Void);
-        isTempStackValueProperty_setMethod.Overrides.Add(module.ImportReference(
-            typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "set_IsTempStackValue")));
-        isTempStackValueProperty_setMethod.Parameters.Add(new(definition));
+            module.ImportReference(typeof(void)));
         isTempStackValueProperty_setMethod.Parameters.Add(new("value", ParameterAttributes.None, module.ImportReference(typeof(bool))));
         {
             var il = isTempStackValueProperty_setMethod.Body.GetILProcessor();
@@ -433,16 +428,15 @@ public class InterfaceImplBuilder
             MethodAttributes.HideBySig |
              MethodAttributes.SpecialName |
              MethodAttributes.Static,
-            module.TypeSystem.IntPtr);
+            module.ImportReference(typeof(nint)));
         op_2_nint.Parameters.Add(new("ins", ParameterAttributes.None, definition));
 
-        var opMethod_nint = IcppInstanceType.Resolve().Methods.First(
-            f => f.Name == "op_Implicit" &&
-            f.Parameters.Count is 1 &&
-            f.Parameters[0].ParameterType.FullName == "TSelf" &&
-            f.ReturnType.FullName == module.TypeSystem.IntPtr.FullName);
 
-        op_2_nint.Overrides.Add(module.ImportReference(opMethod_nint));
+        op_2_nint.Overrides.Add(
+            new MethodReference("op_Implicit", module.ImportReference(typeof(nint)), IcppInstanceType)
+            {
+                Parameters = { new(IcppInstanceType.Resolve().GenericParameters[0]) }
+            });
         {
             var il = op_2_nint.Body.GetILProcessor();
             il.Emit(OC.Ldarg_0);
@@ -462,13 +456,11 @@ public class InterfaceImplBuilder
         op_2_voidPtr.Parameters.Add(new("ins", ParameterAttributes.None, definition));
 
 
-        var opMethod_voidPtr = IcppInstanceType.Resolve().Methods.First(
-            f => f.Name == "op_Implicit" &&
-            f.Parameters.Count is 1 &&
-            f.Parameters[0].ParameterType.FullName == "TSelf" &&
-            f.ReturnType.FullName == module.ImportReference(typeof(void).MakePointerType()).FullName);
-
-        op_2_voidPtr.Overrides.Add(module.ImportReference(opMethod_voidPtr));
+        op_2_voidPtr.Overrides.Add(
+            new MethodReference("op_Implicit", module.ImportReference(typeof(void).MakePointerType()), IcppInstanceType)
+            {
+                Parameters = { new(IcppInstanceType.Resolve().GenericParameters[0]) }
+            });
         {
             var il = op_2_voidPtr.Body.GetILProcessor();
             il.Emit(OC.Ldarg_0);
@@ -489,7 +481,7 @@ public class InterfaceImplBuilder
     public void BuildClassSizeProperty(TypeDefinition definition, ulong classSize)
     {
         var property = new PropertyDefinition(
-            "ClassSize", PropertyAttributes.None, module.TypeSystem.UInt64);
+            "ClassSize", PropertyAttributes.None, module.ImportReference(typeof(ulong)));
 
         var getMethod = new MethodDefinition(
             "get_ClassSize",
@@ -497,7 +489,7 @@ public class InterfaceImplBuilder
             MethodAttributes.HideBySig |
             MethodAttributes.SpecialName |
             MethodAttributes.Static,
-            module.TypeSystem.UInt64);
+            module.ImportReference(typeof(ulong)));
         getMethod.Overrides.Add(module.ImportReference(
             typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "get_ClassSize")));
         {

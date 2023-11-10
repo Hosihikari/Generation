@@ -34,17 +34,17 @@ public class DestructorBuilder
             MethodAttributes.Public |
             MethodAttributes.HideBySig |
             MethodAttributes.Static,
-            module.TypeSystem.Void);
+            module.ImportReference(typeof(void)));
         method_DestructInstance.Overrides.Add(module.ImportReference(
             typeof(ICppInstanceNonGeneric)
             .GetMethods()
             .First(f => f.Name is nameof(ICppInstanceNonGeneric.DestructInstance))));
-        method_DestructInstance.Parameters.Add(new("ptr", ParameterAttributes.None, module.TypeSystem.IntPtr));
+        method_DestructInstance.Parameters.Add(new("ptr", ParameterAttributes.None, module.ImportReference(typeof(nint))));
 
-        var callSite = new CallSite(module.TypeSystem.Void)
+        var callSite = new CallSite(module.ImportReference(typeof(void)))
         {
             CallingConvention = MethodCallingConvention.Unmanaged,
-            Parameters = { new(module.TypeSystem.IntPtr) }
+            Parameters = { new(module.ImportReference(typeof(nint))) }
         };
         switch (type)
         {
@@ -59,7 +59,7 @@ public class DestructorBuilder
                 break;
             case DtorType.Virtual:
                 {
-                    var fptr = new VariableDefinition(module.TypeSystem.IntPtr);
+                    var fptr = new VariableDefinition(module.ImportReference(typeof(nint)));
                     method_DestructInstance.Body.Variables.Add(fptr);
 
                     var il = method_DestructInstance.Body.GetILProcessor();
@@ -96,11 +96,7 @@ public class DestructorBuilder
             MethodAttributes.HideBySig |
             MethodAttributes.NewSlot |
             MethodAttributes.Virtual,
-            module.TypeSystem.Void);
-        method_Destruct.Overrides.Add(module.ImportReference(
-            typeof(ICppInstanceNonGeneric)
-            .GetMethods()
-            .First(f => f.Name is nameof(ICppInstanceNonGeneric.Destruct))));
+            module.ImportReference(typeof(void)));
         {
             var il = method_Destruct.Body.GetILProcessor();
             il.Emit(OC.Ldarg_0);
