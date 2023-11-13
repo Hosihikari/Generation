@@ -238,7 +238,7 @@ public partial class AssemblyBuilder
             case CppTypeEnum.Struct:
             case CppTypeEnum.Union:
 
-                var definition = new TypeDefinition(string.Empty, typeData.TypeIdentifier, /*TypeAttributes.Public | */TypeAttributes.Class, module.ImportReference(typeof(CppTypeBase)));
+                var definition = new TypeDefinition(string.Empty, typeData.TypeIdentifier, /*TypeAttributes.Public | */TypeAttributes.Class, module.ImportReference(Utils.Object));
                 builder = new(definedTypes, null, module, definition, null, 0);
                 typeBuilders.Enqueue(builder);
                 builders.Add(definition, (typeData, builder));
