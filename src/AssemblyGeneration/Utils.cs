@@ -16,7 +16,9 @@ namespace Hosihikari.Generation.AssemblyGeneration;
 
 public static class Utils
 {
+#pragma warning disable CS8618 // 在退出构造函数时，不可为 null 的字段必须包含非 null 值。请考虑声明为可以为 null。
     static Utils()
+#pragma warning restore CS8618 // 在退出构造函数时，不可为 null 的字段必须包含非 null 值。请考虑声明为可以为 null。
     {
         var file = File.OpenRead("System.Runtime.dll");
         var asm = AssemblyDefinition.ReadAssembly(file);
@@ -29,16 +31,15 @@ public static class Utils
                 if (type.Name is "Object") Object = type;
                 if (type.Name is "String") String = type;
                 if (type.Name is nameof(System.IDisposable)) IDisposable = type;
+                if (type.Name is "GC") GC = type;
             }
         }
-
-        if (Object is null || String is null || IDisposable is null)
-            throw new NullReferenceException();
     }
 
     public static TypeDefinition Object { get; private set; }
     public static TypeDefinition String { get; private set; }
     public static TypeDefinition IDisposable { get; private set; }
+    public static TypeDefinition GC { get; private set; }
 
     public static string SelectOperatorName(in Item t)
     {

@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 
 using Hosihikari.NativeInterop;
+using Hosihikari.NativeInterop.Unmanaged.Attributes;
 
 using Mono.Cecil;
 
@@ -73,6 +74,14 @@ public class NativeFunctionPointerBuilder
             $"FunctionPointer_{fptrName}",
             PropertyAttributes.None,
             fptrType);
+
+        var attr = new CustomAttribute(module.ImportReference(typeof(SymbolAttribute).GetConstructors().First()));
+        attr.ConstructorArguments.Add(new(Utils.String, t.Symbol));
+        fptrPropertyDef.CustomAttributes.Add(attr);
+
+        attr = new CustomAttribute(module.ImportReference(typeof(RVAAttribute).GetConstructors().First()));
+        attr.ConstructorArguments.Add(new(module.ImportReference(typeof(ulong)), t.RVA));
+        fptrPropertyDef.CustomAttributes.Add(attr);
 
         var getMethodDef = new MethodDefinition($"get_FunctionPointer_{fptrName}",
             MethodAttributes.Public |

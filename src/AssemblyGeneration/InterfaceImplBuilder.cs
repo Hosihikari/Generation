@@ -83,23 +83,6 @@ public class InterfaceImplBuilder
 
         definition.Interfaces.Add(new(IcppInstanceType));
         definition.Interfaces.Add(new(module.ImportReference(typeof(ICppInstanceNonGeneric))));
-        definition.Interfaces.Add(new(module.ImportReference(Utils.IDisposable)));
-
-        var disposeMethod = new MethodDefinition(
-                nameof(IDisposable.Dispose),
-                MethodAttributes.Public |
-                MethodAttributes.Final |
-                MethodAttributes.HideBySig |
-                MethodAttributes.NewSlot |
-                MethodAttributes.Virtual,
-                module.ImportReference(typeof(void)));
-        {
-            var il = disposeMethod.Body.GetILProcessor();
-            il.Emit(OC.Nop);
-            il.Emit(OC.Ret);
-        }
-
-        definition.Methods.Add(disposeMethod);
 
         BuildPointerProperty(definition, out var ptr);
         BuildIsOwnerProperty(definition, out var owns);

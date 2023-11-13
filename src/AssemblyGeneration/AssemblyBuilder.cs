@@ -1,6 +1,7 @@
 ﻿global using OC = Mono.Cecil.Cil.OpCodes;
 
 using Hosihikari.Generation.Generator;
+using Hosihikari.NativeInterop.Unmanaged;
 using Hosihikari.Utils;
 using Mono.Cecil;
 using System.Diagnostics.CodeAnalysis;
@@ -237,7 +238,7 @@ public partial class AssemblyBuilder
             case CppTypeEnum.Struct:
             case CppTypeEnum.Union:
 
-                var definition = new TypeDefinition(string.Empty, typeData.TypeIdentifier, /*TypeAttributes.Public | */TypeAttributes.Class, module.ImportReference(Utils.Object));
+                var definition = new TypeDefinition(string.Empty, typeData.TypeIdentifier, /*TypeAttributes.Public | */TypeAttributes.Class, module.ImportReference(typeof(CppTypeBase)));
                 builder = new(definedTypes, null, module, definition, null, 0);
                 typeBuilders.Enqueue(builder);
                 builders.Add(definition, (typeData, builder));

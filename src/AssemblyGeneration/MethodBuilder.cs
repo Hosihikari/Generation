@@ -7,6 +7,7 @@ using static Hosihikari.Utils.OriginalData.Class;
 using Mono.Cecil.Rocks;
 using ExtensionAttribute = System.Runtime.CompilerServices.ExtensionAttribute;
 using System.Runtime.InteropServices;
+using Hosihikari.NativeInterop.Unmanaged.Attributes;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 
@@ -179,26 +180,41 @@ public class MethodBuilder
         in Item t,
         Action ifIsDtor)
     {
+        MethodDefinition? ret = null;
+
         switch ((SymbolType)t.SymbolType)
         {
             case SymbolType.Function:
             case SymbolType.Operator:
-                return BuildFunction(itemAccessType, fptrProperty, functionPointer, isVarArg, field_Pointer, t);
+                ret = BuildFunction(itemAccessType, fptrProperty, functionPointer, isVarArg, field_Pointer, t);
+                break;
 
             case SymbolType.Constructor:
-                return BuildCtor(itemAccessType, fptrProperty, functionPointer, isVarArg, field_Pointer, field_IsOwner,
+                ret = BuildCtor(itemAccessType, fptrProperty, functionPointer, isVarArg, field_Pointer, field_IsOwner,
                     field_IsTempStackValue, classSize, t);
+                break;
 
             case SymbolType.Destructor:
                 ifIsDtor();
-                return null;
+                break;
 
             case SymbolType.StaticField:
             case SymbolType.UnknownFunction:
-                return null;
+                break;
         }
 
-        return null;
+        if (ret is not null)
+        {
+            var attr = new CustomAttribute(module.ImportReference(typeof(SymbolAttribute).GetConstructors().First()));
+            attr.ConstructorArguments.Add(new(Utils.String, t.Symbol));
+            ret.CustomAttributes.Add(attr);
+
+            attr = new CustomAttribute(module.ImportReference(typeof(RVAAttribute).GetConstructors().First()));
+            attr.ConstructorArguments.Add(new(module.ImportReference(typeof(ulong)), t.RVA));
+            ret.CustomAttributes.Add(attr);
+        }
+
+        return ret;
     }
 
     public unsafe MethodDefinition? BuildVirtualMethod(
@@ -280,25 +296,40 @@ public class MethodBuilder
         Type extensionType,
         Action ifIsDtor)
     {
+        MethodDefinition? ret = null;
+
         switch ((SymbolType)t.SymbolType)
         {
             case SymbolType.Function:
             case SymbolType.Operator:
-                return BuildExtensionFunction(itemAccessType, fptrProperty, functionPointer, isVarArg, extensionType, t);
+                ret = BuildExtensionFunction(itemAccessType, fptrProperty, functionPointer, isVarArg, extensionType, t);
+                break;
 
             case SymbolType.Constructor:
-                return BuildExtensionCtor(itemAccessType, fptrProperty, functionPointer, isVarArg, extensionType, t);
+                ret = BuildExtensionCtor(itemAccessType, fptrProperty, functionPointer, isVarArg, extensionType, t);
+                break;
 
             case SymbolType.Destructor:
                 ifIsDtor();
-                return null;
+                break;
 
             case SymbolType.StaticField:
             case SymbolType.UnknownFunction:
-                return null;
+                break;
         }
 
-        return null;
+        if (ret is not null)
+        {
+            var attr = new CustomAttribute(module.ImportReference(typeof(SymbolAttribute).GetConstructors().First()));
+            attr.ConstructorArguments.Add(new(Utils.String, t.Symbol));
+            ret.CustomAttributes.Add(attr);
+
+            attr = new CustomAttribute(module.ImportReference(typeof(RVAAttribute).GetConstructors().First()));
+            attr.ConstructorArguments.Add(new(module.ImportReference(typeof(ulong)), t.RVA));
+            ret.CustomAttributes.Add(attr);
+        }
+
+        return ret;
     }
 
     public MethodDefinition? BuildExtensionFunction(
