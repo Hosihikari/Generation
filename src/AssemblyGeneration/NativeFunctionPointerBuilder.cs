@@ -24,7 +24,7 @@ public class NativeFunctionPointerBuilder
     }
 
     public static TypeDefinition BuildOriginalType(TypeDefinition definition, bool isExtension = false) =>
-         new(string.Empty, $"I{definition.Name}Original", TypeAttributes.NestedPublic | TypeAttributes.Interface);
+         new(string.Empty, $"Original", TypeAttributes.NestedPublic | TypeAttributes.Interface);
 
 
     public TypeDefinition BuildFptrStorageType(string fptrId, in Item t, out FieldDefinition fptrField)
@@ -54,7 +54,7 @@ public class NativeFunctionPointerBuilder
         return fptrStorageType;
     }
 
-    public (PropertyDefinition property, MethodDefinition getMethod, FunctionPointerType fptrType) BuildFptrProperty(
+    public (PropertyDefinition property, MethodDefinition getMethod, FunctionPointerType fptrType, MethodDefinition staticMethod) BuildFptrProperty(
         ItemAccessType itemAccessType,
         Dictionary<string, TypeDefinition> definedTypes,
         HashSet<string> fptrFieldNames,
@@ -75,14 +75,6 @@ public class NativeFunctionPointerBuilder
             PropertyAttributes.None,
             fptrType);
 
-        var attr = new CustomAttribute(module.ImportReference(typeof(SymbolAttribute).GetConstructors().First()));
-        attr.ConstructorArguments.Add(new(Utils.String, t.Symbol));
-        fptrPropertyDef.CustomAttributes.Add(attr);
-
-        attr = new CustomAttribute(module.ImportReference(typeof(RVAAttribute).GetConstructors().First()));
-        attr.ConstructorArguments.Add(new(module.ImportReference(typeof(ulong)), t.RVA));
-        fptrPropertyDef.CustomAttributes.Add(attr);
-
         var getMethodDef = new MethodDefinition($"get_FunctionPointer_{fptrName}",
             MethodAttributes.Public |
             MethodAttributes.SpecialName |
@@ -98,6 +90,38 @@ public class NativeFunctionPointerBuilder
 
         fptrPropertyDef.GetMethod = getMethodDef;
 
-        return (fptrPropertyDef, getMethodDef, fptrType);
+        var methodName = t.Name.Contains("operator") ?
+            Utils.SelectOperatorName(t) :
+            t.Name.Length > 1 ? $"{char.ToUpper(t.Name[0])}{t.Name[1..]}" : t.Name.ToUpper();
+        var method = new MethodDefinition(methodName, MethodAttributes.Public | MethodAttributes.Static, fptrType.ReturnType);
+        var callSite = new CallSite(module.ImportReference(fptrType.ReturnType));
+        for (int i = 0; i < fptrType.Parameters.Count; i++)
+        {
+            callSite.Parameters.Add(fptrType.Parameters[i]);
+            method.Parameters.Add(new($"a{i}", fptrType.Parameters[i].Attributes, fptrType.Parameters[i].ParameterType));
+        }
+        {
+            var il = method.Body.GetILProcessor();
+
+            foreach (var param in method.Parameters)
+                il.Emit(OC.Ldarg, param);
+
+            il.Emit(OC.Ldsfld, fptrField);
+
+            il.Emit(OC.Calli, callSite);
+            il.Emit(OC.Ret);
+        }
+
+        var attr = new CustomAttribute(module.ImportReference(typeof(SymbolAttribute).GetConstructors().First()));
+        attr.ConstructorArguments.Add(new(Utils.String, t.Symbol));
+        fptrPropertyDef.CustomAttributes.Add(attr);
+        method.CustomAttributes.Add(attr);
+
+        attr = new CustomAttribute(module.ImportReference(typeof(RVAAttribute).GetConstructors().First()));
+        attr.ConstructorArguments.Add(new(module.ImportReference(typeof(ulong)), t.RVA));
+        fptrPropertyDef.CustomAttributes.Add(attr);
+        method.CustomAttributes.Add(attr);
+
+        return (fptrPropertyDef, getMethodDef, fptrType, method);
     }
 }

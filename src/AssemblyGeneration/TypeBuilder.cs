@@ -110,10 +110,11 @@ public partial class TypeBuilder
 
                     originalType.NestedTypes.Add(storageType);
 
-                    var (proeprty, methood, fptrType) = builder.BuildFptrProperty(accessType, definedTypes, fptrFieldNames, item, fptrField);
+                    var (proeprty, method, fptrType, staticMethod) = builder.BuildFptrProperty(accessType, definedTypes, fptrFieldNames, item, fptrField);
                     ret.Add((accessType, proeprty, fptrType, item, virtIndex));
                     originalType.Properties.Add(proeprty);
-                    originalType.Methods.Add(methood);
+                    originalType.Methods.Add(method);
+                    originalType.Methods.Add(staticMethod);
                 }
                 catch (Exception)
                 {
