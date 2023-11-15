@@ -178,8 +178,8 @@ public partial class AssemblyBuilder
     {
         module.Runtime = TargetRuntime.Net_4_0;
 
-        CustomAttributeArgument arg = new(module.ImportReference(Utils.String), ".NETCoreApp,Version=v7.0");
-        CustomAttributeArgument frameworkDisplayName = new(module.ImportReference(Utils.String), ".NET 7.0");
+        CustomAttributeArgument arg = new(module.ImportReference(Utils.String), ".NETCoreApp,Version=v8.0");
+        CustomAttributeArgument frameworkDisplayName = new(module.ImportReference(Utils.String), ".NET 8.0");
         CustomAttributeNamedArgument namedArgument = new("FrameworkDisplayName", frameworkDisplayName);
 
         CustomAttribute attribute = new(
