@@ -262,6 +262,7 @@ public class MethodBuilder
                 callSite.Parameters.Add(param);
 
             il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Ldfld, field_Pointer);
             il.Append(il.Create(OC.Call, module.ImportReference(typeof(CppTypeSystem)
                         .GetMethods()
                         .First(f => f.Name is nameof(CppTypeSystem.GetVTable) && f.IsGenericMethodDefinition is false))));

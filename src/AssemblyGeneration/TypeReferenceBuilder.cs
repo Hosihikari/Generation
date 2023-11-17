@@ -20,7 +20,7 @@ public static class TypeReferenceBuilder
     {
         var assemblies = new List<Assembly>()
         {
-            typeof(Minecraft.Foundation.AABB).Assembly,
+            typeof(Minecraft.AABB).Assembly,
             typeof(NativeInterop.SymbolHelper).Assembly,
         };
 
@@ -255,6 +255,7 @@ public static class TypeReferenceBuilder
                     {
                         reference = module.ImportReference(typeof(nint));
                         isUnmanagedType = true;
+                        return (reference!, string.Empty);
                     }
                     else
                     {

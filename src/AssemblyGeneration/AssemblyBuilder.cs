@@ -109,7 +109,7 @@ public partial class AssemblyBuilder
                     if (definedTypes.TryGetValue(typeStr, out TypeDefinition? definedType) is false)
                     {
                         if (TryCreateTypeBuilder(
-                            new(new() { Name = $"{string.Join("::", typeData.Namespaces.Take(i))}{(i > 0 ? "." : "")}{@namespace}" }),
+                            new(new() { Name = $"{string.Join("::", typeData.Namespaces.Take(i))}{(i > 0 ? "::" : "")}{@namespace}" }),
                             out var builder))
                         {
                             definedType = builder.definition;
@@ -238,7 +238,16 @@ public partial class AssemblyBuilder
             case CppTypeEnum.Struct:
             case CppTypeEnum.Union:
 
-                var definition = new TypeDefinition(string.Empty, typeData.TypeIdentifier, /*TypeAttributes.Public | */TypeAttributes.Class, module.ImportReference(Utils.Object));
+                var typeIdentifier = typeData.TypeIdentifier;
+                if (typeData.Analyzer.CppTypeHandle.RootType.IsTemplate)
+                {
+                    foreach (var templateType in typeData.Analyzer.CppTypeHandle.RootType.TemplateTypes!)
+                    {
+                        typeIdentifier += $"_{templateType.RootType.TypeIdentifier}";
+                    }
+                }
+
+                var definition = new TypeDefinition(string.Empty, typeIdentifier, /*TypeAttributes.Public | */TypeAttributes.Class, module.ImportReference(Utils.Object));
                 builder = new(definedTypes, null, module, definition, null, 0);
                 typeBuilders.Enqueue(builder);
                 builders.Add(definition, (typeData, builder));
@@ -295,8 +304,8 @@ public partial class AssemblyBuilder
             }
             else
             {
-                if (typeData.Analyzer.CppTypeHandle.RootType.IsTemplate)
-                    return;
+                //if (typeData.Analyzer.CppTypeHandle.RootType.IsTemplate)
+                //    return;
 
                 if (TryCreateTypeBuilder(typeData, out var _builder))
                 {

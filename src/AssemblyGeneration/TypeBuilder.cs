@@ -8,6 +8,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Collections.Generic;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using System.Text;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 
@@ -29,6 +30,7 @@ public partial class TypeBuilder
         this.classSize = classSize;
         fptrFieldNames = new();
         propertyMethods = new();
+        functionSig = new();
 
         destructorBuilder = new(module);
         interfaceImplBuilder = new(module);
@@ -53,6 +55,8 @@ public partial class TypeBuilder
     public MethodBuilder methodBuilder;
     public DestructorBuilder destructorBuilder;
 
+    public HashSet<string> functionSig;
+
     public Dictionary<string, (MethodDefinition? getMethod, MethodDefinition? setMethod)> propertyMethods;
 
     public bool IsEmpty => items is null && virtualFunctions is null;
@@ -68,9 +72,9 @@ public partial class TypeBuilder
         var vtable = vftableStructBuilder.BuildVtable(definition, virtualFunctions, definedTypes);
         if (vtable is not null) definition.NestedTypes.Add(vtable);
 
-        BuildNormalMethods(methodBuilder, fptrProperties);
-
         BuildVirtualMethods(methodBuilder);
+
+        BuildNormalMethods(methodBuilder, fptrProperties);
 
         BuildProperties();
 
@@ -100,6 +104,10 @@ public partial class TypeBuilder
         if (items is not null)
             foreach (var (accessType, item, virtIndex) in items)
             {
+                ////skip virt functions
+                //if (virtIndex is not null)
+                //    continue;
+
                 if ((SymbolType)item.SymbolType is SymbolType.StaticField or SymbolType.UnknownFunction)
                     continue;
 
@@ -198,6 +206,15 @@ public partial class TypeBuilder
     {
         if (method is not null)
         {
+            string sig;
+            StringBuilder builder = new(method.Name);
+            foreach (var param in method.Parameters)
+                builder.Append('+').Append(param.ParameterType.ToString());
+            sig = builder.ToString();
+
+            if (functionSig.Add(sig) is false)
+                return;
+
             if (Utils.IsPropertyMethod(method, out var tuple))
             {
                 if (propertyMethods.TryGetValue(tuple.Value.proeprtyName, out var val))

@@ -93,8 +93,11 @@ public class VftableStructBuilder
             string.Empty,
             "Vftable",
             TypeAttributes.NestedPublic |
+            TypeAttributes.Sealed |
+            TypeAttributes.AnsiClass |
+            TypeAttributes.BeforeFieldInit |
             TypeAttributes.SequentialLayout,
-            module.ImportReference(typeof(ValueType)));
+            module.ImportReference(Utils.ValueType));
 
         BuildVtableLengthProperty(vtableStructType, (ulong)virtualFunctions.Count);
 

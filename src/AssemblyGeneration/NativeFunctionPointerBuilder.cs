@@ -24,16 +24,21 @@ public class NativeFunctionPointerBuilder
     }
 
     public static TypeDefinition BuildOriginalType(TypeDefinition definition, bool isExtension = false) =>
-         new(string.Empty, $"Original", TypeAttributes.NestedPublic | TypeAttributes.Interface);
+         new(string.Empty, $"Original",
+             TypeAttributes.Interface |
+             TypeAttributes.NestedPublic |
+             TypeAttributes.AutoClass |
+             TypeAttributes.AnsiClass |
+             TypeAttributes.Abstract);
 
 
     public TypeDefinition BuildFptrStorageType(string fptrId, in Item t, out FieldDefinition fptrField)
     {
         var fptrStorageType = new TypeDefinition(string.Empty, $"__FptrStorageType_{fptrId}",
-                    TypeAttributes.NestedPrivate | TypeAttributes.Sealed | TypeAttributes.Abstract | TypeAttributes.Class);
+                    TypeAttributes.NestedPrivate | TypeAttributes.Sealed | TypeAttributes.Abstract | TypeAttributes.Class, module.ImportReference(Utils.Object));
 
         var _fptrField = new FieldDefinition(
-            $"__Field_{fptrId}", FieldAttributes.Public | FieldAttributes.Static | FieldAttributes.InitOnly, module.ImportReference(typeof(void).MakePointerType()));
+            "funcPointer", FieldAttributes.Public | FieldAttributes.Static | FieldAttributes.InitOnly, module.ImportReference(typeof(void).MakePointerType()));
 
         fptrStorageType.Fields.Add(_fptrField);
 
@@ -90,9 +95,8 @@ public class NativeFunctionPointerBuilder
 
         fptrPropertyDef.GetMethod = getMethodDef;
 
-        var methodName = t.Name.Contains("operator") ?
-            Utils.SelectOperatorName(t) :
-            t.Name.Length > 1 ? $"{char.ToUpper(t.Name[0])}{t.Name[1..]}" : t.Name.ToUpper();
+        var methodName = fptrName.Length > 1 ? $"{char.ToUpper(fptrName[0])}{fptrName[1..]}" : fptrName.ToUpper();
+
         var method = new MethodDefinition(methodName, MethodAttributes.Public | MethodAttributes.Static, fptrType.ReturnType);
         var callSite = new CallSite(module.ImportReference(fptrType.ReturnType));
         for (int i = 0; i < fptrType.Parameters.Count; i++)
