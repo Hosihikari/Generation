@@ -133,16 +133,16 @@ public class DestructorBuilder
             il.Append(instruction_test_IsOwner);
             il.Emit(OC.Ldfld, field_IsOwner);
 
-            var instruction_test_IsTempStackValue_is_false = il.Create(OC.Ldarg_0);
-            il.Emit(OC.Brfalse_S, instruction_test_IsTempStackValue_is_false);
+            var instruction_disposedValue_equals_true = il.Create(OC.Ldarg_0);
+            il.Emit(OC.Brfalse_S, instruction_disposedValue_equals_true);
 
             il.Emit(OC.Ldarg_0);
             il.Emit(OC.Call, method_Destruct);
 
-            il.Append(instruction_test_IsTempStackValue_is_false);
+            il.Emit(OC.Ldarg_0);
             il.Emit(OC.Ldfld, field_IsTempStackValue);
 
-            var instruction_disposedValue_equals_true = il.Create(OC.Ldarg_0);
+            
             il.Emit(OC.Brtrue_S, instruction_disposedValue_equals_true);
 
             il.Emit(OC.Ldarg_0);
