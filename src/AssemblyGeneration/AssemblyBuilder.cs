@@ -298,24 +298,20 @@ public class AssemblyBuilder
         for (int i = 0; i < list.Count; i++)
         {
             Item item = list[i];
-            try
+            if (string.IsNullOrEmpty(item.Type.Name) is false)
             {
-                if (string.IsNullOrEmpty(item.Type.Name) is false)
-                {
-                    CreateBuilderAndAddTypeDefinition(new(item.Type), out object? _);
-                }
+                CreateBuilderAndAddTypeDefinition(new(item.Type), out object? _);
+            }
 
+            if (item.Params is not null)
+            {
                 foreach (Item.TypeData param in item.Params)
                 {
                     CreateBuilderAndAddTypeDefinition(new(param), out object? _);
                 }
+            }
 
-                items.Add((accessType, item, isVirt ? i : null));
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-            }
+            items.Add((accessType, item, isVirt ? i : null));
         }
     }
 
@@ -325,27 +321,24 @@ public class AssemblyBuilder
         {
             try
             {
-                TypeDefinition definition;
+                TypeData typeData = new(new() { Name = @class.Key });
+                if (definedTypes.TryGetValue(typeData.FullTypeIdentifier, out TypeDefinition? type) is false)
                 {
-                    TypeData typeData = new(new() { Name = @class.Key });
-                    if (definedTypes.TryGetValue(typeData.FullTypeIdentifier, out TypeDefinition? type) is false)
+                    CreateBuilderAndAddTypeDefinition(typeData, out object? builder);
+                    switch (builder)
                     {
-                        CreateBuilderAndAddTypeDefinition(typeData, out object? builder);
-                        switch (builder)
-                        {
-                            case TypeBuilder typeBuilder:
-                                type = typeBuilder.definition;
-                                break;
-                            case PredefinedTypeExtensionBuilder predefinedBuilder:
-                                type = predefinedBuilder.definition;
-                                break;
-                            default:
-                                continue;
-                        }
+                        case TypeBuilder typeBuilder:
+                            type = typeBuilder.definition;
+                            break;
+                        case PredefinedTypeExtensionBuilder predefinedBuilder:
+                            type = predefinedBuilder.definition;
+                            break;
+                        default:
+                            continue;
                     }
-
-                    definition = type;
                 }
+
+                TypeDefinition definition = type;
 
 
                 List<(ItemAccessType, Item, int?)> items = [];
@@ -372,9 +365,9 @@ public class AssemblyBuilder
                     predefinedBuilder.SetVirtualFunctrions(@class.Value.Virtual);
                 }
             }
-            catch (Exception e)
+            catch
             {
-                Console.WriteLine(e);
+                // ignored
             }
         }
     }

@@ -57,6 +57,11 @@ public static class Utils
     public static string SelectOperatorName(in Item t)
     {
         //https://learn.microsoft.com/en-us/cpp/cpp/operator-overloading?view=msvc-170
+        if (t.Params is null)
+        {
+            throw new InvalidDataException();
+        }
+
         return t.Name switch
         {
             "operator," => "operator_Comma",
@@ -153,12 +158,15 @@ public static class Utils
         }
 
         StringBuilder builder = new(fptrName);
-        foreach (Item.TypeData param in t.Params)
+        if (t.Params is not null)
         {
-            builder.Append('_');
-            foreach (char c in param.Name)
+            foreach (Item.TypeData param in t.Params)
             {
-                builder.Append(TypeAnalyzer.IsLetterOrUnderline(c) ? c : '_');
+                builder.Append('_');
+                foreach (char c in param.Name)
+                {
+                    builder.Append(TypeAnalyzer.IsLetterOrUnderline(c) ? c : '_');
+                }
             }
         }
 
@@ -208,6 +216,11 @@ public static class Utils
             {
                 fptrType.Parameters.Add(new(module.ImportReference(typeof(nint))));
             }
+        }
+
+        if (t.Params is null)
+        {
+            return (fptrType, isVarArg);
         }
 
         for (int i = 0; i < t.Params.Count; i++)

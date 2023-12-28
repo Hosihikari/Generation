@@ -17,6 +17,7 @@ public class TypeBuilder(
 {
     public readonly TypeDefinition definition = definition;
     private readonly DestructorBuilder destructorBuilder = new(module);
+    private readonly HashSet<string> fptrFieldNames = [];
 
     private readonly HashSet<string> functionSig = [];
 
@@ -28,10 +29,10 @@ public class TypeBuilder(
     private readonly Dictionary<string, (MethodDefinition? getMethod, MethodDefinition? setMethod)> propertyMethods =
         new();
 
-    private DestructorBuilder.DtorType? dtorType;
-    private readonly HashSet<string> fptrFieldNames = [];
-    public TypeDefinition? originalTypeDefinition;
     private readonly VftableStructBuilder vftableStructBuilder = new(module);
+
+    private DestructorBuilder.DtorType? dtorType;
+    public TypeDefinition? originalTypeDefinition;
 
     private bool IsEmpty => items is null && functions is null;
 
@@ -114,9 +115,9 @@ public class TypeBuilder(
                 originalType.Methods.Add(method);
                 originalType.Methods.Add(staticMethod);
             }
-            catch (Exception e)
+            catch
             {
-                Console.WriteLine(e);
+                // ignored
             }
         }
 
@@ -205,9 +206,9 @@ public class TypeBuilder(
 
                 PlaceMethod(method);
             }
-            catch (Exception e)
+            catch
             {
-                Console.WriteLine(e);
+                // ignored
             }
         }
     }

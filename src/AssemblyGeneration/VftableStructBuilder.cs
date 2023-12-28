@@ -44,9 +44,8 @@ public class VftableStructBuilder
                 FieldAttributes.Public | FieldAttributes.InitOnly, fptrType);
             vfptrStructType.Fields.Add(fieldDef);
         }
-        catch (Exception e)
+        catch
         {
-            Console.WriteLine(e);
             AppendUnknownVfunc(vfptrStructType, currentIndex);
         }
     }

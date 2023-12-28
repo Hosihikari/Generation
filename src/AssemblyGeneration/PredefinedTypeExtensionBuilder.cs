@@ -10,16 +10,16 @@ public class PredefinedTypeExtensionBuilder
 {
     private readonly Dictionary<string, TypeDefinition> definedTypes;
     public readonly TypeDefinition definition;
+    private readonly HashSet<string> fptrFieldNames;
     private readonly MethodBuilder methodBuilder;
 
     private readonly ModuleDefinition module;
 
     private readonly NativeFunctionPointerBuilder nativeFunctionPointerBuilder;
     private readonly Type predefinedType;
-    private readonly HashSet<string> fptrFieldNames;
+    private readonly VftableStructBuilder vftableStructBuilder;
     private List<(ItemAccessType accessType, Item item, int? virtIndex)>? items;
     public TypeDefinition? originalTypeDefinition;
-    private readonly VftableStructBuilder vftableStructBuilder;
     private List<Item>? virtualFunctions;
 
     public PredefinedTypeExtensionBuilder(
@@ -117,9 +117,9 @@ public class PredefinedTypeExtensionBuilder
                 originalType.Methods.Add(method);
                 originalType.Methods.Add(staticMethod);
             }
-            catch (Exception e)
+            catch
             {
-                Console.WriteLine(e);
+                // ignored
             }
         }
 
@@ -184,29 +184,22 @@ public class PredefinedTypeExtensionBuilder
 
         for (int i = 0; i < virtualFunctions.Count; i++)
         {
-            try
-            {
-                (FunctionPointerType fptrType, bool isVarArg) = Utils.BuildFunctionPointerType(module, definedTypes,
-                    ItemAccessType.Virtual, virtualFunctions[i]);
-                MethodDefinition? method;
-                int i1 = i;
-                method = builder.BuildExtensionVirtualMethod(fptrType, isVarArg, predefinedType, i, virtualFunctions[i],
-                    () =>
-                    {
-                        Item temp = virtualFunctions[i1];
-                        temp.Name = $"Destructor_{temp.Name[1..]}";
-                        temp.SymbolType = (int)SymbolType.Function;
+            (FunctionPointerType fptrType, bool isVarArg) = Utils.BuildFunctionPointerType(module, definedTypes,
+                ItemAccessType.Virtual, virtualFunctions[i]);
+            MethodDefinition? method;
+            int i1 = i;
+            method = builder.BuildExtensionVirtualMethod(fptrType, isVarArg, predefinedType, i, virtualFunctions[i],
+                () =>
+                {
+                    Item temp = virtualFunctions[i1];
+                    temp.Name = $"Destructor_{temp.Name[1..]}";
+                    temp.SymbolType = (int)SymbolType.Function;
 
-                        method = builder.BuildExtensionVirtualMethod(fptrType, isVarArg, predefinedType, i1,
-                            virtualFunctions[i1], default!);
-                    });
+                    method = builder.BuildExtensionVirtualMethod(fptrType, isVarArg, predefinedType, i1,
+                        virtualFunctions[i1], default!);
+                });
 
-                PlaceMethod(method);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-            }
+            PlaceMethod(method);
         }
     }
 }
