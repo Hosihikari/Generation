@@ -1,6 +1,6 @@
 ﻿using System.Text;
 
-namespace Hosihikari.Generation;
+namespace Hosihikari.Generation.Parser;
 
 public enum CppFundamentalType
 {
@@ -38,92 +38,34 @@ public enum CppTypeEnum
     VarArgs
 }
 
-#nullable enable
 public class CppTypeNode
 {
-    public TypeAnalyzer Analyzer;
-
-    public CppTypeNode RootType;
-
-    public CppTypeEnum Type;
-
     public CppFundamentalType? FundamentalType;
-
-    public string? TypeIdentifier;
-
-    public string? TypeIdentifierWithTemplateArgs;
-
-    public CppTypeNode? SubType;
-
-    public CppTypeNode[]? TemplateTypes;
 
     public string[]? Namespaces;
 
     public string? OriginalTypeString;
 
-    public bool IsFundamentalType => FundamentalType != null;
+    public CppTypeNode RootType;
 
-    public bool HasTypeIdentifier => TypeIdentifier != null;
+    public CppTypeNode? SubType;
 
-    public bool HasSubType => SubType != null;
+    public CppTypeNode[]? TemplateTypes;
 
-    public bool IsTemplate => TemplateTypes != null;
+    public CppTypeEnum Type;
 
+    public string? TypeIdentifier;
 
-    //public string TypeIdentifierWithTemplateArgs
-    //{
-    //    get
-    //    {
-    //        if (TemplateTypes is null)
-    //            return TypeIdentifier ?? throw new NullReferenceException();
+    public string? TypeIdentifierWithTemplateArgs;
 
-    //        StringBuilder @string = new();
-    //        @string.Append(TypeIdentifier).Append('<');
-    //        uint currentTemplateArgIndex = 0;
-
-    //        foreach (var type in TemplateTypes)
-    //        {
-    //            if (currentTemplateArgIndex > 0)
-    //                @string.Append(", ");
-
-    //            @string.Append(type.TypeIdentifierWithTemplateArgs);
-    //            ++currentTemplateArgIndex;
-
-    //        }
-
-    //        @string.Append('>');
-
-    //        return @string.ToString();
-    //    }
-    //}
-
-    public CppTypeNode(
-        TypeAnalyzer analyzer,
-        CppTypeNode root,
-        CppTypeEnum type,
-        CppFundamentalType? fundamentalType,
-        string? typeIdentifier,
-        string? typeIdentifierWithTemplateArgs,
-        CppTypeNode? subType,
-        string[]? namespaces,
-        string? cppTypeString)
+    public CppTypeNode()
     {
-        Analyzer = analyzer;
-        RootType = root;
-        Type = type;
-        FundamentalType = fundamentalType;
-        TypeIdentifier = typeIdentifier;
-        TypeIdentifierWithTemplateArgs = typeIdentifierWithTemplateArgs;
-        SubType = subType;
-        Namespaces = namespaces;
-        OriginalTypeString = cppTypeString;
-    }
-
-    public CppTypeNode(TypeAnalyzer analyzer)
-    {
-        Analyzer = analyzer;
         RootType = this;
     }
+
+    public bool IsFundamentalType => FundamentalType is not null;
+
+    public bool IsTemplate => TemplateTypes is not null;
 
     public override string ToString()
     {
@@ -132,12 +74,12 @@ public class CppTypeNode
             CppTypeEnum.FundamentalType => FundamentalType.ToString()!,
             CppTypeEnum.Pointer => "*",
             CppTypeEnum.Ref => "&",
-            CppTypeEnum.Array => $"[]",
+            CppTypeEnum.Array => "[]",
             CppTypeEnum.Enum => $"enum {string.Join(".", Namespaces ?? Array.Empty<string>())} {TypeIdentifier}",
             CppTypeEnum.Class => $"class {string.Join(".", Namespaces ?? Array.Empty<string>())} {TypeIdentifier}",
             CppTypeEnum.Struct => $"struct {string.Join(".", Namespaces ?? Array.Empty<string>())} {TypeIdentifier}",
             CppTypeEnum.Union => $"union {string.Join(".", Namespaces ?? Array.Empty<string>())} {TypeIdentifier}",
-            _ => "",
+            _ => string.Empty
         };
     }
 
@@ -155,52 +97,49 @@ public class CppTypeNode
 
     public IEnumerable<CppTypeNode> ToArray()
     {
-        List<CppTypeNode> nodes = new();
+        List<CppTypeNode> nodes = [];
         ForEach((node, _, _) => nodes.Add(node));
         return nodes.ToArray();
     }
 }
 
-#nullable enable
 public sealed class TypeAnalyzer
 {
-
-
-    public string OriginalType { get; private set; }
-
-    public CppTypeNode CppTypeHandle { get; private set; }
-
     private TypeAnalyzer(string type)
     {
         OriginalType = type;
-        CppTypeHandle = AnalyzeCppType(this, OriginalType);
+        CppTypeHandle = AnalyzeCppType(OriginalType);
     }
+
+
+    private string OriginalType { get; }
+
+    public CppTypeNode CppTypeHandle { get; private set; }
 
     public static TypeAnalyzer Analyze(string type)
     {
-        return new TypeAnalyzer(type);
+        return new(type);
     }
 
-    private static CppTypeNode AnalyzeCppType(TypeAnalyzer analyzer, string typeStr)
+    private static CppTypeNode AnalyzeCppType(string typeStr)
     {
-        var ret = __AnalyzeCppType(analyzer, typeStr);
+        CppTypeNode ret = __AnalyzeCppType(typeStr);
 
         CppTypeNode? root = null;
-        ret.ForEach((node, index, isroot) =>
+        ret.ForEach((node, _, isroot) =>
         {
             if (isroot)
+            {
                 root = node;
+            }
         });
-        ret.ForEach((node, _, _) =>
-        {
-            node.RootType = root!;
-        });
+        ret.ForEach((node, _, _) => { node.RootType = root!; });
         return ret;
     }
 
-    private static CppTypeNode __AnalyzeCppType(TypeAnalyzer analyzer, string typeStr)
+    private static CppTypeNode __AnalyzeCppType(string typeStr)
     {
-        var ret = new CppTypeNode(analyzer)
+        CppTypeNode ret = new()
         {
             OriginalTypeString = typeStr
         };
@@ -219,137 +158,168 @@ public sealed class TypeAnalyzer
 
         for (int i = typeStr.Length - 1; i >= 0; --i)
         {
-            var c = typeStr[i];
+            char c = typeStr[i];
 
             switch (c)
             {
                 case '*':
+                {
+                    if (searchDepth is 0)
                     {
-                        if (searchDepth == 0)
+                        ret.Type = CppTypeEnum.Pointer;
+                        string subTypeStr = typeStr[..i].Trim();
+                        if (subTypeStr.Length > 0)
                         {
-                            ret.Type = CppTypeEnum.Pointer;
-                            var subTypeStr = typeStr[..i].Trim();
-                            if (subTypeStr.Length > 0)
-                            {
-                                ret.SubType = __AnalyzeCppType(analyzer, subTypeStr);
-                            }
-                            return ret;
+                            ret.SubType = __AnalyzeCppType(subTypeStr);
                         }
+
+                        return ret;
                     }
+                }
                     goto default;
 
                 case '&':
+                {
+                    if (searchDepth is 0)
                     {
-                        if (searchDepth == 0)
+                        if (typeStr[i - 1] is '&')
                         {
-                            if (typeStr[i - 1] is '&')
-                            {
-                                ret.Type = CppTypeEnum.RValueRef;
-                                --i;
-                            }
-                            else
-                                ret.Type = CppTypeEnum.Ref;
-
-
-                            var subTypeStr = typeStr[..i].Trim();
-                            if (subTypeStr.Length > 0)
-                            {
-                                ret.SubType = __AnalyzeCppType(analyzer, subTypeStr);
-                            }
-                            return ret;
+                            ret.Type = CppTypeEnum.RValueRef;
+                            --i;
                         }
+                        else
+                        {
+                            ret.Type = CppTypeEnum.Ref;
+                        }
+
+
+                        string subTypeStr = typeStr[..i].Trim();
+                        if (subTypeStr.Length > 0)
+                        {
+                            ret.SubType = __AnalyzeCppType(subTypeStr);
+                        }
+
+                        return ret;
                     }
+                }
                     goto default;
 
                 case '[':
+                {
+                    if (searchDepth is 0)
                     {
-                        if (searchDepth == 0)
+                        if (ret.Type is not CppTypeEnum.Array)
                         {
-                            if (ret.Type is not CppTypeEnum.Array)
-                                throw new InvalidDataException();
+                            throw new InvalidDataException();
                         }
                     }
+                }
                     goto default;
 
                 case ']':
+                {
+                    if (searchDepth is 0)
                     {
-                        if (searchDepth == 0)
+                        if (typeStr[i - 1] is not '[')
                         {
-                            if (typeStr[i - 1] is not '[')
-                                throw new InvalidDataException();
-
-                            ret.Type = CppTypeEnum.Array;
-                            var subTypeStr = typeStr[..(i - 1)].Trim();
-                            if (subTypeStr.Length > 0)
-                            {
-                                ret.SubType = __AnalyzeCppType(analyzer, subTypeStr);
-                            }
-                            return ret;
+                            throw new InvalidDataException();
                         }
+
+                        ret.Type = CppTypeEnum.Array;
+                        string subTypeStr = typeStr[..(i - 1)].Trim();
+                        if (subTypeStr.Length > 0)
+                        {
+                            ret.SubType = __AnalyzeCppType(subTypeStr);
+                        }
+
+                        return ret;
                     }
+                }
                     goto default;
 
                 case '>':
+                {
+                    if (searchDepth is 0)
                     {
-                        if (searchDepth == 0)
-                            templateArgsEndIndex = i;
-                        ++searchDepth;
+                        templateArgsEndIndex = i;
                     }
+
+                    ++searchDepth;
+                }
                     continue;
 
                 case '<':
+                {
+                    --searchDepth;
+                    if (searchDepth is 0)
                     {
-                        --searchDepth;
-                        if (searchDepth == 0)
-                            templateArgsStartIndex = i;
+                        templateArgsStartIndex = i;
                     }
+                }
                     continue;
 
                 case 'c':
+                {
+                    if (searchDepth is 0)
                     {
-                        if (searchDepth == 0)
+                        if ((i > 0 && IsLetterOrUnderline(typeStr[i - 1])) || i is 0)
                         {
-                            if (i > 0 && IsLetterOrUnderline(typeStr[i - 1]) || i == 0)
-                                goto default;
-                            else
-                            {
-                                if (typeStr.Length - i >= 5 && typeStr[i..(i + 5)] is "const")
-                                {
-                                    typeStr = typeStr.Remove(i, 5).Trim();
-                                    identifierBulider.Clear();
+                            goto default;
+                        }
 
-                                    i = typeStr.Length;
-                                }
-                                else goto default;
-                            }
+                        if (typeStr.Length - i >= 5 && typeStr[i..(i + 5)] is "const")
+                        {
+                            typeStr = typeStr.Remove(i, 5).Trim();
+                            identifierBulider.Clear();
+
+                            i = typeStr.Length;
+                        }
+                        else
+                        {
+                            goto default;
                         }
                     }
+                }
                     continue;
 
                 default:
+                {
+                    if (searchDepth is 0)
                     {
-                        if (searchDepth == 0)
-                        {
-                            identifierBulider.Append(c);
-                        }
+                        identifierBulider.Append(c);
                     }
+                }
                     continue;
             }
         }
-        ret.TypeIdentifier = new string(identifierBulider.ToString().Reverse().ToArray());
+
+        ret.TypeIdentifier = new(identifierBulider.ToString().Reverse().ToArray());
 
 
         string typeId;
         bool isUnsigned = false, isSigned = false;
         if (ret.TypeIdentifier.StartsWith("unsigned "))
+        {
             isUnsigned = true;
+        }
         else if (ret.TypeIdentifier.StartsWith("signed "))
+        {
             isSigned = true;
+        }
 
 
-        if (isSigned) typeId = ret.TypeIdentifier["signed ".Length..];
-        else if (isUnsigned) typeId = ret.TypeIdentifier["unsigned ".Length..];
-        else typeId = ret.TypeIdentifier;
+        if (isSigned)
+        {
+            typeId = ret.TypeIdentifier["signed ".Length..];
+        }
+        else if (isUnsigned)
+        {
+            typeId = ret.TypeIdentifier["unsigned ".Length..];
+        }
+        else
+        {
+            typeId = ret.TypeIdentifier;
+        }
 
 
         ret.FundamentalType = typeId switch
@@ -366,10 +336,16 @@ public sealed class TypeAnalyzer
             _ => null
         };
 
-        if (isSigned) ret.FundamentalType -= 8;
-        else if (isUnsigned) ret.FundamentalType += 8;
+        if (isSigned)
+        {
+            ret.FundamentalType -= 8;
+        }
+        else if (isUnsigned)
+        {
+            ret.FundamentalType += 8;
+        }
 
-        if (ret.FundamentalType != null)
+        if (ret.FundamentalType is not null)
         {
             ret.Type = CppTypeEnum.FundamentalType;
             return ret;
@@ -393,7 +369,8 @@ public sealed class TypeAnalyzer
         else if (ret.TypeIdentifier.StartsWith("enum "))
         {
             ret.Type = CppTypeEnum.Enum;
-            ret.TypeIdentifier = ret.TypeIdentifier.Remove(0, ret.TypeIdentifier.StartsWith("enum class ") ? "enum class ".Length : "enum ".Length);
+            ret.TypeIdentifier = ret.TypeIdentifier.Remove(0,
+                ret.TypeIdentifier.StartsWith("enum class ") ? "enum class ".Length : "enum ".Length);
         }
         else
         {
@@ -402,12 +379,12 @@ public sealed class TypeAnalyzer
 
 
         string templateArgs = string.Empty;
-        if (templateArgsStartIndex != 0 || templateArgsEndIndex != 0)
+        if (templateArgsStartIndex is not 0 || templateArgsEndIndex is not 0)
         {
             templateArgs = typeStr.Substring(
                 templateArgsStartIndex + 1, templateArgsEndIndex - templateArgsStartIndex - 1);
 
-            List<int> indexs = new();
+            List<int> indexs = [];
 
             uint _searchDepth = 0;
 
@@ -422,10 +399,11 @@ public sealed class TypeAnalyzer
                         --_searchDepth;
                         break;
                     case ',':
-                        if (_searchDepth == 0)
+                        if (_searchDepth is 0)
                         {
                             indexs.Add(i);
                         }
+
                         break;
                     default: continue;
                 }
@@ -439,19 +417,22 @@ public sealed class TypeAnalyzer
 
             for (int i = 0; i < indexs.Count; ++i)
             {
-                ret.TemplateTypes[i] = __AnalyzeCppType(analyzer, templateArgs.Substring(currentIndex + 2, indexs[i] - currentIndex - 2).Trim());
+                ret.TemplateTypes[i] =
+                    __AnalyzeCppType(templateArgs.Substring(currentIndex + 2, indexs[i] - currentIndex - 2).Trim());
                 currentIndex = indexs[i];
             }
         }
 
-        var arr = ret.TypeIdentifier.Split("::");
+        string[] arr = ret.TypeIdentifier.Split("::");
         ret.TypeIdentifier = arr.LastOrDefault();
         ret.Namespaces = arr.Length > 0 ? arr.Take(arr.Length - 1).ToArray() : null;
 
         ret.TypeIdentifierWithTemplateArgs = ret.TypeIdentifier;
 
         if (string.IsNullOrEmpty(templateArgs) is false)
+        {
             ret.TypeIdentifierWithTemplateArgs += $"<{templateArgs}>";
+        }
 
         return ret;
     }
@@ -461,25 +442,34 @@ public sealed class TypeAnalyzer
         return c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or '_';
     }
 
-    public static bool IsDigit(char c)
+    private static bool IsDigit(char c)
     {
         return c is >= '0' and <= '9';
     }
 
-    public unsafe static bool IsLegalName(string typeName)
+    public static unsafe bool IsLegalName(string typeName)
     {
-        if (string.IsNullOrWhiteSpace(typeName)) return false;
+        if (string.IsNullOrWhiteSpace(typeName))
+        {
+            return false;
+        }
+
         fixed (char* ptr = typeName)
         {
             if (IsLetterOrUnderline(*ptr) is false)
+            {
                 return false;
+            }
 
             for (int i = 1; i < typeName.Length; ++i)
             {
                 if ((IsLetterOrUnderline(ptr[i]) || IsDigit(ptr[i]) || ptr[i] is '.') is false)
+                {
                     return false;
+                }
             }
         }
+
         return true;
     }
 }

@@ -1,24 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-  </PropertyGroup>
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Mono.Cecil" Version="0.11.5" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Hosihikari.NativeInterop" Version="1.0.5"/>
+        <PackageReference Include="Mono.Cecil" Version="0.11.5"/>
+    </ItemGroup>
 
-  <ItemGroup>
-    <Reference Include="Hosihikari.Minecraft.Foundation">
-      <HintPath>..\..\MinecraftFoundation\src\bin\Release\net8.0\Hosihikari.Minecraft.Foundation.dll</HintPath>
-    </Reference>
-    <Reference Include="Hosihikari.NativeInterop">
-      <HintPath>..\..\NativeInterop\src\bin\Release\net8.0\Hosihikari.NativeInterop.dll</HintPath>
-    </Reference>
-  </ItemGroup>
+    <ItemGroup>
+        <Reference Include="Hosihikari.Minecraft.Foundation">
+            <HintPath>..\..\MinecraftFoundation\src\bin\Release\net8.0\Hosihikari.Minecraft.Foundation.dll</HintPath>
+        </Reference>
+    </ItemGroup>
 
 </Project>

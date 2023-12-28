@@ -1,4 +1,4 @@
-﻿namespace Hosihikari.Utils;
+﻿namespace Hosihikari.Generation.Utils;
 
 public enum SymbolType
 {
@@ -8,12 +8,4 @@ public enum SymbolType
     Operator = 3,
     StaticField = 4,
     UnknownFunction = 5
-}
-
-public enum AccessType
-{
-    Public,
-    Private,
-    Protected,
-    Empty
 }

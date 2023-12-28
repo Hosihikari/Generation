@@ -1,19 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿namespace Hosihikari.Generation;
 
-namespace Hosihikari.Generation;
-
-public class Config
+public class Config(string originalDataPath, string assemblyOutputDir)
 {
-    public string OriginalDataPath;
-    public string AssemblyOutputDir;
-
-    public Config(string originalDataPath, string assemblyOutputDir)
-    {
-        OriginalDataPath = originalDataPath;
-        AssemblyOutputDir = assemblyOutputDir;
-    }
+    public readonly string AssemblyOutputDir = assemblyOutputDir;
+    public readonly string OriginalDataPath = originalDataPath;
 }

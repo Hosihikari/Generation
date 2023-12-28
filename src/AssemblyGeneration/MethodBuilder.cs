@@ -1,51 +1,50 @@
-﻿using Hosihikari.Utils;
+﻿using System.Runtime.CompilerServices;
+using Hosihikari.Generation.Utils;
 using Hosihikari.NativeInterop.Unmanaged;
+using Hosihikari.NativeInterop.Unmanaged.Attributes;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
-using static Hosihikari.Utils.OriginalData.Class;
 using Mono.Cecil.Rocks;
+using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
+using static Hosihikari.Generation.Utils.OriginalData.Class;
+using CallSite = Mono.Cecil.CallSite;
 using ExtensionAttribute = System.Runtime.CompilerServices.ExtensionAttribute;
-using System.Runtime.InteropServices;
-using Hosihikari.NativeInterop.Unmanaged.Attributes;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 
-public class MethodBuilder
+public class MethodBuilder(ModuleDefinition module)
 {
-
-    public readonly ModuleDefinition module;
-
-    public MethodBuilder(ModuleDefinition module)
-    {
-        this.module = module;
-    }
-
-    public MethodDefinition BuildCtor(
-        ItemAccessType itemAccessType,
-        PropertyDefinition fptrProperty,
-        FunctionPointerType functionPointer,
+    private MethodDefinition BuildCtor(PropertyDefinition fptrProperty,
+        IMethodSignature functionPointer,
         bool isVarArg,
-        FieldDefinition field_Pointer,
-        FieldDefinition field_IsOwner,
-        FieldDefinition field_IsTempStackValue,
-        ulong classSize,
-        in Item t)
+        FieldReference field_Pointer,
+        FieldReference field_IsOwner,
+        FieldReference field_IsTempStackValue,
+        ulong classSize)
     {
-        (int begin, int end) loopRange = (1/*[nint]@this*/, functionPointer.Parameters.Count);
-        if (isVarArg) loopRange.end -= 1;
+        (int begin, int end) loopRange = (1, functionPointer.Parameters.Count);
+        if (isVarArg)
+        {
+            loopRange.end -= 1;
+        }
 
-        var ctor = new MethodDefinition(
+        MethodDefinition ctor = new(
             ".ctor",
             MethodAttributes.Public |
             MethodAttributes.HideBySig |
             MethodAttributes.SpecialName |
             MethodAttributes.RTSpecialName,
             module.ImportReference(typeof(void)));
-        if (isVarArg) ctor.CallingConvention |= MethodCallingConvention.VarArg;
+        if (isVarArg)
+        {
+            ctor.CallingConvention |= MethodCallingConvention.VarArg;
+        }
 
         if (classSize is 0)
+        {
             ctor.Parameters.Add(new("allocSize", ParameterAttributes.None, module.ImportReference(typeof(ulong))));
+        }
+
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
             ParameterDefinition param = functionPointer.Parameters[i];
@@ -53,9 +52,9 @@ public class MethodBuilder
         }
 
         {
-            var fptr = new VariableDefinition(module.ImportReference(typeof(void).MakePointerType()));
+            VariableDefinition fptr = new(module.ImportReference(typeof(void).MakePointerType()));
             ctor.Body.Variables.Add(fptr);
-            var il = ctor.Body.GetILProcessor();
+            ILProcessor? il = ctor.Body.GetILProcessor();
 
             il.Emit(OC.Ldarg_0);
             il.Emit(OC.Call, module.ImportReference(Utils.Object.GetConstructors().First()));
@@ -63,12 +62,15 @@ public class MethodBuilder
             il.Emit(OC.Ldarg_0);
 
             if (classSize is 0)
+            {
                 il.Emit(OC.Ldarg_1);
+            }
             else
             {
                 il.Emit(OC.Ldc_I8, classSize);
                 il.Emit(OC.Conv_U8);
             }
+
             il.Emit(OC.Call, module.ImportReference(typeof(HeapAlloc).GetMethod(nameof(HeapAlloc.New))));
             il.Emit(OC.Stfld, field_Pointer);
 
@@ -78,16 +80,23 @@ public class MethodBuilder
             il.Emit(OC.Ldarg_0);
             il.Emit(OC.Ldfld, field_Pointer);
             for (int i = classSize is 0 ? 1 : 0; i < ctor.Parameters.Count - (isVarArg ? 1 : 0); i++)
+            {
                 il.Emit(OC.Ldarg_S, ctor.Parameters[i]);
+            }
 
-            var callSite = new CallSite(module.ImportReference(module.ImportReference(typeof(void))))
+            CallSite callSite = new(module.ImportReference(module.ImportReference(typeof(void))))
             {
                 CallingConvention = MethodCallingConvention.Unmanaged
             };
-            foreach (var param in functionPointer.Parameters)
+            foreach (ParameterDefinition? param in functionPointer.Parameters)
+            {
                 callSite.Parameters.Add(param);
+            }
 
-            if (isVarArg) il.Emit(OC.Arglist);
+            if (isVarArg)
+            {
+                il.Emit(OC.Arglist);
+            }
 
             il.Emit(OC.Ldloc, fptr);
             il.Emit(OC.Calli, callSite);
@@ -105,29 +114,41 @@ public class MethodBuilder
         return ctor;
     }
 
-    public MethodDefinition BuildFunction(
+    private MethodDefinition BuildFunction(
         ItemAccessType itemAccessType,
         PropertyDefinition fptrProperty,
-        FunctionPointerType functionPointer,
+        IMethodSignature functionPointer,
         bool isVarArg,
-        FieldDefinition field_Pointer,
+        FieldReference field_Pointer,
         in Item t)
     {
-        var hasThis = Utils.HasThis(itemAccessType);
+        bool hasThis = Utils.HasThis(itemAccessType);
 
-        var attributes = MethodAttributes.Public;
-        if (Utils.HasThis(itemAccessType) is false) attributes |= MethodAttributes.Static;
+        MethodAttributes attributes = MethodAttributes.Public;
+        if (Utils.HasThis(itemAccessType) is false)
+        {
+            attributes |= MethodAttributes.Static;
+        }
 
-        var methodName = t.Name.Contains("operator") ?
-            Utils.SelectOperatorName(t) :
+        string methodName = t.Name.Contains("operator") ? Utils.SelectOperatorName(t) :
             t.Name.Length > 1 ? $"{char.ToUpper(t.Name[0])}{t.Name[1..]}" : t.Name.ToUpper();
 
         (int begin, int end) loopRange = (0, functionPointer.Parameters.Count);
-        if (hasThis) loopRange.begin += 1;
-        if (isVarArg) loopRange.end -= 1;
+        if (hasThis)
+        {
+            loopRange.begin += 1;
+        }
 
-        var method = new MethodDefinition(methodName, attributes, functionPointer.ReturnType);
-        if (isVarArg) method.CallingConvention |= MethodCallingConvention.VarArg;
+        if (isVarArg)
+        {
+            loopRange.end -= 1;
+        }
+
+        MethodDefinition method = new(methodName, attributes, functionPointer.ReturnType);
+        if (isVarArg)
+        {
+            method.CallingConvention |= MethodCallingConvention.VarArg;
+        }
 
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
@@ -136,16 +157,18 @@ public class MethodBuilder
         }
 
         {
-            var fptr = new VariableDefinition(module.ImportReference(typeof(void).MakePointerType()));
+            VariableDefinition fptr = new(module.ImportReference(typeof(void).MakePointerType()));
             method.Body.Variables.Add(fptr);
-            var il = method.Body.GetILProcessor();
+            ILProcessor? il = method.Body.GetILProcessor();
 
-            var callSite = new CallSite(module.ImportReference(functionPointer.ReturnType))
+            CallSite callSite = new(module.ImportReference(functionPointer.ReturnType))
             {
                 CallingConvention = MethodCallingConvention.Unmanaged
             };
-            foreach (var param in functionPointer.Parameters)
+            foreach (ParameterDefinition? param in functionPointer.Parameters)
+            {
                 callSite.Parameters.Add(param);
+            }
 
             il.Emit(OC.Call, fptrProperty.GetMethod);
             il.Emit(OC.Stloc, fptr);
@@ -155,10 +178,16 @@ public class MethodBuilder
                 il.Emit(OC.Ldarg_0);
                 il.Emit(OC.Ldfld, field_Pointer);
             }
-            for (int i = loopRange.begin; i < loopRange.end; i++)
-                il.Emit(OC.Ldarg, i);
 
-            if (isVarArg) il.Emit(OC.Arglist);
+            for (int i = loopRange.begin; i < loopRange.end; i++)
+            {
+                il.Emit(OC.Ldarg, i);
+            }
+
+            if (isVarArg)
+            {
+                il.Emit(OC.Arglist);
+            }
 
             il.Emit(OC.Ldloc, fptr);
             il.Emit(OC.Calli, callSite);
@@ -190,8 +219,8 @@ public class MethodBuilder
                 break;
 
             case SymbolType.Constructor:
-                ret = BuildCtor(itemAccessType, fptrProperty, functionPointer, isVarArg, field_Pointer, field_IsOwner,
-                    field_IsTempStackValue, classSize, t);
+                ret = BuildCtor(fptrProperty, functionPointer, isVarArg, field_Pointer, field_IsOwner,
+                    field_IsTempStackValue, classSize);
                 break;
 
             case SymbolType.Destructor:
@@ -201,18 +230,22 @@ public class MethodBuilder
             case SymbolType.StaticField:
             case SymbolType.UnknownFunction:
                 break;
+            default:
+                throw new ArgumentOutOfRangeException();
         }
 
-        if (ret is not null)
+        if (ret is null)
         {
-            var attr = new CustomAttribute(module.ImportReference(typeof(SymbolAttribute).GetConstructors().First()));
-            attr.ConstructorArguments.Add(new(Utils.String, t.Symbol));
-            ret.CustomAttributes.Add(attr);
-
-            attr = new CustomAttribute(module.ImportReference(typeof(RVAAttribute).GetConstructors().First()));
-            attr.ConstructorArguments.Add(new(module.ImportReference(typeof(ulong)), t.RVA));
-            ret.CustomAttributes.Add(attr);
+            return ret;
         }
+
+        CustomAttribute attr = new(module.ImportReference(typeof(SymbolAttribute).GetConstructors().First()));
+        attr.ConstructorArguments.Add(new(Utils.String, t.Symbol));
+        ret.CustomAttributes.Add(attr);
+
+        attr = new(module.ImportReference(typeof(RVAAttribute).GetConstructors().First()));
+        attr.ConstructorArguments.Add(new(module.ImportReference(typeof(ulong)), t.RVA));
+        ret.CustomAttributes.Add(attr);
 
         return ret;
     }
@@ -231,17 +264,25 @@ public class MethodBuilder
             return null;
         }
 
-        if (virtIndex < 0) throw new InvalidOperationException();
+        if (virtIndex < 0)
+        {
+            throw new InvalidOperationException();
+        }
 
-        var methodName = t.Name.Contains("operator") ?
-            Utils.SelectOperatorName(t) :
+        string methodName = t.Name.Contains("operator") ? Utils.SelectOperatorName(t) :
             t.Name.Length > 1 ? $"{char.ToUpper(t.Name[0])}{t.Name[1..]}" : t.Name.ToUpper();
 
-        (int begin, int end) loopRange = (1/*[nint]@this*/, functionPointer.Parameters.Count);
-        if (isVarArg) loopRange.end -= 1;
+        (int begin, int end) loopRange = (1, functionPointer.Parameters.Count);
+        if (isVarArg)
+        {
+            loopRange.end -= 1;
+        }
 
-        var method = new MethodDefinition(methodName, MethodAttributes.Public, functionPointer.ReturnType);
-        if (isVarArg) method.CallingConvention |= MethodCallingConvention.VarArg;
+        MethodDefinition method = new(methodName, MethodAttributes.Public, functionPointer.ReturnType);
+        if (isVarArg)
+        {
+            method.CallingConvention |= MethodCallingConvention.VarArg;
+        }
 
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
@@ -250,22 +291,24 @@ public class MethodBuilder
         }
 
         {
-            var fptr = new VariableDefinition(module.ImportReference(typeof(void).MakePointerType()));
+            VariableDefinition fptr = new(module.ImportReference(typeof(void).MakePointerType()));
             method.Body.Variables.Add(fptr);
-            var il = method.Body.GetILProcessor();
+            ILProcessor? il = method.Body.GetILProcessor();
 
-            var callSite = new CallSite(module.ImportReference(functionPointer.ReturnType))
+            CallSite callSite = new(module.ImportReference(functionPointer.ReturnType))
             {
                 CallingConvention = MethodCallingConvention.Unmanaged
             };
-            foreach (var param in functionPointer.Parameters)
+            foreach (ParameterDefinition? param in functionPointer.Parameters)
+            {
                 callSite.Parameters.Add(param);
+            }
 
             il.Emit(OC.Ldarg_0);
             il.Emit(OC.Ldfld, field_Pointer);
             il.Append(il.Create(OC.Call, module.ImportReference(typeof(CppTypeSystem)
-                        .GetMethods()
-                        .First(f => f.Name is nameof(CppTypeSystem.GetVTable) && f.IsGenericMethodDefinition is false))));
+                .GetMethods()
+                .First(f => f is { Name: nameof(CppTypeSystem.GetVTable), IsGenericMethodDefinition: false }))));
             il.Emit(OC.Ldc_I4, sizeof(void*) * virtIndex);
             il.Emit(OC.Add);
             il.Emit(OC.Ldind_I);
@@ -275,9 +318,14 @@ public class MethodBuilder
             il.Emit(OC.Ldfld, field_Pointer);
 
             for (int i = loopRange.begin; i < loopRange.end; i++)
+            {
                 il.Emit(OC.Ldarg, i);
+            }
 
-            if (isVarArg) il.Emit(OC.Arglist);
+            if (isVarArg)
+            {
+                il.Emit(OC.Arglist);
+            }
 
             il.Emit(OC.Ldloc, fptr);
             il.Emit(OC.Calli, callSite);
@@ -307,7 +355,7 @@ public class MethodBuilder
                 break;
 
             case SymbolType.Constructor:
-                ret = BuildExtensionCtor(itemAccessType, fptrProperty, functionPointer, isVarArg, extensionType, t);
+                ret = BuildExtensionCtor(fptrProperty, functionPointer, isVarArg, extensionType);
                 break;
 
             case SymbolType.Destructor:
@@ -317,235 +365,220 @@ public class MethodBuilder
             case SymbolType.StaticField:
             case SymbolType.UnknownFunction:
                 break;
+            default:
+                throw new ArgumentOutOfRangeException();
         }
 
-        if (ret is not null)
+        if (ret is null)
         {
-            var attr = new CustomAttribute(module.ImportReference(typeof(SymbolAttribute).GetConstructors().First()));
-            attr.ConstructorArguments.Add(new(Utils.String, t.Symbol));
-            ret.CustomAttributes.Add(attr);
-
-            attr = new CustomAttribute(module.ImportReference(typeof(RVAAttribute).GetConstructors().First()));
-            attr.ConstructorArguments.Add(new(module.ImportReference(typeof(ulong)), t.RVA));
-            ret.CustomAttributes.Add(attr);
+            return ret;
         }
+
+        CustomAttribute attr = new(module.ImportReference(typeof(SymbolAttribute).GetConstructors().First()));
+        attr.ConstructorArguments.Add(new(Utils.String, t.Symbol));
+        ret.CustomAttributes.Add(attr);
+
+        attr = new(module.ImportReference(typeof(RVAAttribute).GetConstructors().First()));
+        attr.ConstructorArguments.Add(new(module.ImportReference(typeof(ulong)), t.RVA));
+        ret.CustomAttributes.Add(attr);
 
         return ret;
     }
 
-    public MethodDefinition? BuildExtensionFunction(
+    private MethodDefinition BuildExtensionFunction(
         ItemAccessType itemAccessType,
         PropertyDefinition fptrProperty,
-        FunctionPointerType functionPointer,
+        IMethodSignature functionPointer,
         bool isVarArg,
         Type extensionType,
         in Item t)
     {
         if (extensionType.IsValueType)
-            return BuildExtensionFunctionValueType(itemAccessType, fptrProperty, functionPointer, isVarArg, extensionType, t);
+        {
+            return BuildExtensionFunctionValueType(itemAccessType, fptrProperty, functionPointer, isVarArg,
+                extensionType, t);
+        }
 
-        var hasThis = Utils.HasThis(itemAccessType);
+        bool hasThis = Utils.HasThis(itemAccessType);
 
         (int begin, int end) loopRange = (1, functionPointer.Parameters.Count);
-        if (isVarArg) loopRange.end -= 1;
+        if (isVarArg)
+        {
+            loopRange.end -= 1;
+        }
 
-        var methodName = t.Name.Contains("operator") ?
-            Utils.SelectOperatorName(t) :
+        string methodName = t.Name.Contains("operator") ? Utils.SelectOperatorName(t) :
             t.Name.Length > 1 ? $"{char.ToUpper(t.Name[0])}{t.Name[1..]}" : t.Name.ToUpper();
 
-        var method = new MethodDefinition(methodName, MethodAttributes.Public | MethodAttributes.Static, functionPointer.ReturnType);
-        if (isVarArg) method.CallingConvention |= MethodCallingConvention.VarArg;
+        MethodDefinition method = new(methodName, MethodAttributes.Public | MethodAttributes.Static,
+            functionPointer.ReturnType);
+        if (isVarArg)
+        {
+            method.CallingConvention |= MethodCallingConvention.VarArg;
+        }
 
         if (hasThis)
         {
             method.Parameters.Add(new("this", ParameterAttributes.None, module.ImportReference(extensionType)));
-            var attr = new CustomAttribute(module.ImportReference(typeof(ExtensionAttribute).GetConstructors().First()));
+            CustomAttribute attr = new(module.ImportReference(typeof(ExtensionAttribute).GetConstructors().First()));
             method.CustomAttributes.Add(attr);
         }
 
         for (int i = loopRange.begin; i < loopRange.end; i++)
-            method.Parameters.Add(new($"a{i - 1}", functionPointer.Parameters[i].Attributes, functionPointer.Parameters[i].ParameterType));
-
-
-
         {
-            var il = method.Body.GetILProcessor();
-
-            il.Emit(OC.Ldarg_0);
-            il.Emit(OC.Callvirt, module.ImportReference(extensionType.GetProperty(nameof(ICppInstanceNonGeneric.Pointer))!.GetMethod));
-
-            for (int i = loopRange.begin; i < loopRange.end; i++)
-                il.Emit(OC.Ldarg_S, method.Parameters[i]);
-            if (isVarArg)
-                il.Emit(OC.Arglist);
-
-            var callSite = new CallSite(module.ImportReference(functionPointer.ReturnType))
-            {
-                CallingConvention = MethodCallingConvention.Unmanaged
-            };
-            foreach (var param in functionPointer.Parameters)
-                callSite.Parameters.Add(param);
-
-            il.Emit(OC.Call, fptrProperty.GetMethod);
-            il.Emit(OC.Calli, callSite);
-
-            il.Emit(OC.Ret);
+            method.Parameters.Add(new($"a{i - 1}", functionPointer.Parameters[i].Attributes,
+                functionPointer.Parameters[i].ParameterType));
         }
-        return method;
-    }
 
-    public MethodDefinition? BuildExtensionFunctionValueType(
-    ItemAccessType itemAccessType,
-    PropertyDefinition fptrProperty,
-    FunctionPointerType functionPointer,
-    bool isVarArg,
-    Type extensionType,
-    in Item t)
-    {
-        var hasThis = Utils.HasThis(itemAccessType);
 
-        (int begin, int end) loopRange = (0, functionPointer.Parameters.Count);
-        if (hasThis) loopRange.begin += 1;
-        if (isVarArg) loopRange.end -= 1;
+        ILProcessor? il = method.Body.GetILProcessor();
 
-        var methodName = t.Name.Contains("operator") ?
-            Utils.SelectOperatorName(t) :
-            t.Name.Length > 1 ? $"{char.ToUpper(t.Name[0])}{t.Name[1..]}" : t.Name.ToUpper();
-
-        var method = new MethodDefinition(methodName, MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.Static, functionPointer.ReturnType);
-        if (isVarArg) method.CallingConvention |= MethodCallingConvention.VarArg;
-
-        if (hasThis)
-        {
-            var param = new ParameterDefinition("this", ParameterAttributes.In, module.ImportReference(extensionType).MakeByReferenceType());
-            var paramIsReadOnlyAttr = new CustomAttribute(module.ImportReference(typeof(System.Runtime.CompilerServices.IsReadOnlyAttribute).GetConstructors().First()));
-            param.CustomAttributes.Add(paramIsReadOnlyAttr);
-            method.Parameters.Add(param);
-
-            var attr = new CustomAttribute(module.ImportReference(typeof(ExtensionAttribute).GetConstructors().First()));
-            method.CustomAttributes.Add(attr);
-        }
+        il.Emit(OC.Ldarg_0);
+        il.Emit(OC.Callvirt,
+            module.ImportReference(extensionType.GetProperty(nameof(ICppInstanceNonGeneric.Pointer))!.GetMethod));
 
         for (int i = loopRange.begin; i < loopRange.end; i++)
-            method.Parameters.Add(new($"a{i}", functionPointer.Parameters[i].Attributes, functionPointer.Parameters[i].ParameterType));
-
         {
-            var il = method.Body.GetILProcessor();
-
-            if (hasThis)
-                il.Emit(OC.Ldarg_0);
-
-            for (int i = loopRange.begin; i < loopRange.end; i++)
-                il.Emit(OC.Ldarg_S, method.Parameters[i]);
-            if (isVarArg)
-                il.Emit(OC.Arglist);
-
-            var callSite = new CallSite(module.ImportReference(functionPointer.ReturnType))
-            {
-                CallingConvention = MethodCallingConvention.Unmanaged
-            };
-            foreach (var param in functionPointer.Parameters)
-                callSite.Parameters.Add(param);
-
-            il.Emit(OC.Call, fptrProperty.GetMethod);
-            il.Emit(OC.Calli, callSite);
-
-            il.Emit(OC.Ret);
+            il.Emit(OC.Ldarg_S, method.Parameters[i]);
         }
 
+        if (isVarArg)
+        {
+            il.Emit(OC.Arglist);
+        }
+
+        CallSite callSite = new(module.ImportReference(functionPointer.ReturnType))
+        {
+            CallingConvention = MethodCallingConvention.Unmanaged
+        };
+        foreach (ParameterDefinition? param in functionPointer.Parameters)
+        {
+            callSite.Parameters.Add(param);
+        }
+
+        il.Emit(OC.Call, fptrProperty.GetMethod);
+        il.Emit(OC.Calli, callSite);
+
+        il.Emit(OC.Ret);
         return method;
     }
 
-
-    public MethodDefinition? BuildExtensionCtor(
-    ItemAccessType itemAccessType,
-    PropertyDefinition fptrProperty,
-    FunctionPointerType functionPointer,
-    bool isVarArg,
-    Type extensionType,
-    in Item t)
-    {
-        if (extensionType.IsValueType)
-            return BuildExtensionCtorValueType(itemAccessType, fptrProperty, functionPointer, isVarArg, extensionType, t);
-        else
-        {
-            var classSize = extensionType.GetProperty(nameof(ICppInstanceNonGeneric.ClassSize))!.GetValue(null) as int? ?? 0;
-
-            (int begin, int end) loopRange = (1/*[nint]@this*/, functionPointer.Parameters.Count);
-            if (isVarArg) loopRange.end -= 1;
-
-            //[returnType]extensionType CreateInstance([if classSize is 0]allocSize, ...args)
-            var method = new MethodDefinition("CreateInstance", MethodAttributes.Public | MethodAttributes.Static, module.ImportReference(extensionType));
-            if (isVarArg) method.CallingConvention |= MethodCallingConvention.VarArg;
-
-
-            if (classSize is 0)
-                method.Parameters.Add(new("allocSize", ParameterAttributes.None, module.ImportReference(typeof(ulong))));
-
-            for (int i = loopRange.begin; i < loopRange.end; i++)
-            {
-                ParameterDefinition param = functionPointer.Parameters[i];
-                method.Parameters.Add(new($"a{i - 1}", ParameterAttributes.None, param.ParameterType));
-            }
-
-            {
-                var ptr = new VariableDefinition(module.ImportReference(typeof(void).MakePointerType()));
-                method.Body.Variables.Add(ptr);
-
-                var il = method.Body.GetILProcessor();
-                if (classSize is 0)
-                    il.Emit(OpCodes.Ldarg_0);
-                else
-                    il.Emit(OC.Call, module.ImportReference(extensionType.GetProperty(nameof(ICppInstanceNonGeneric.ClassSize))!.GetMethod));
-                il.Emit(OC.Call, module.ImportReference(typeof(HeapAlloc).GetMethod(nameof(HeapAlloc.New))));
-                il.Emit(OC.Stloc, ptr);
-
-                il.Emit(OC.Ldloc, ptr);
-                for (int i = classSize is 0 ? 1 : 0; i < method.Parameters.Count - (isVarArg ? 1 : 0); i++)
-                    il.Emit(OC.Ldarg_S, method.Parameters[i]);
-                if (isVarArg)
-                    il.Emit(OC.Arglist);
-
-                var callSite = new CallSite(module.ImportReference(module.ImportReference(typeof(void))))
-                {
-                    CallingConvention = MethodCallingConvention.Unmanaged
-                };
-                foreach (var param in functionPointer.Parameters)
-                    callSite.Parameters.Add(param);
-
-                il.Emit(OC.Call, fptrProperty.GetMethod);
-                il.Emit(OC.Calli, callSite);
-
-                il.Emit(OC.Ldloc, ptr);
-                il.Emit(OC.Ldc_I4_1);
-                il.Emit(OC.Ldc_I4_0);
-                il.Emit(OC.Call, module.ImportReference(
-                    extensionType
-                    .GetMethods()
-                    .First(t => t.Name is nameof(ICppInstanceNonGeneric.ConstructInstance) &&
-                    t.IsGenericMethod &&
-                    t.GetParameters().Length is 3)));
-                il.Emit(OC.Ret);
-
-            }
-
-            return method;
-        }
-    }
-
-    public MethodDefinition BuildExtensionCtorValueType(
+    private MethodDefinition BuildExtensionFunctionValueType(
         ItemAccessType itemAccessType,
         PropertyDefinition fptrProperty,
-        FunctionPointerType functionPointer,
+        IMethodSignature functionPointer,
         bool isVarArg,
         Type extensionType,
         in Item t)
     {
-        (int begin, int end) loopRange = (1/*@this*/, functionPointer.Parameters.Count);
-        if (isVarArg) loopRange.end -= 1;
+        bool hasThis = Utils.HasThis(itemAccessType);
 
-        var method = new MethodDefinition("CreateInstance", MethodAttributes.Public | MethodAttributes.Static, module.ImportReference(extensionType));
-        if (isVarArg) method.CallingConvention |= MethodCallingConvention.VarArg;
+        (int begin, int end) loopRange = (0, functionPointer.Parameters.Count);
+        if (hasThis)
+        {
+            loopRange.begin += 1;
+        }
+
+        if (isVarArg)
+        {
+            loopRange.end -= 1;
+        }
+
+        string methodName = t.Name.Contains("operator") ? Utils.SelectOperatorName(t) :
+            t.Name.Length > 1 ? $"{char.ToUpper(t.Name[0])}{t.Name[1..]}" : t.Name.ToUpper();
+
+        MethodDefinition method = new(methodName,
+            MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.Static, functionPointer.ReturnType);
+        if (isVarArg)
+        {
+            method.CallingConvention |= MethodCallingConvention.VarArg;
+        }
+
+        if (hasThis)
+        {
+            ParameterDefinition param = new("this", ParameterAttributes.In,
+                module.ImportReference(extensionType).MakeByReferenceType());
+            CustomAttribute paramIsReadOnlyAttr =
+                new(module.ImportReference(typeof(IsReadOnlyAttribute).GetConstructors().First()));
+            param.CustomAttributes.Add(paramIsReadOnlyAttr);
+            method.Parameters.Add(param);
+
+            CustomAttribute attr = new(module.ImportReference(typeof(ExtensionAttribute).GetConstructors().First()));
+            method.CustomAttributes.Add(attr);
+        }
+
+        for (int i = loopRange.begin; i < loopRange.end; i++)
+        {
+            method.Parameters.Add(new($"a{i}", functionPointer.Parameters[i].Attributes,
+                functionPointer.Parameters[i].ParameterType));
+        }
+
+        ILProcessor? il = method.Body.GetILProcessor();
+
+        if (hasThis)
+        {
+            il.Emit(OC.Ldarg_0);
+        }
+
+        for (int i = loopRange.begin; i < loopRange.end; i++)
+        {
+            il.Emit(OC.Ldarg_S, method.Parameters[i]);
+        }
+
+        if (isVarArg)
+        {
+            il.Emit(OC.Arglist);
+        }
+
+        CallSite callSite = new(module.ImportReference(functionPointer.ReturnType))
+        {
+            CallingConvention = MethodCallingConvention.Unmanaged
+        };
+        foreach (ParameterDefinition? param in functionPointer.Parameters)
+        {
+            callSite.Parameters.Add(param);
+        }
+
+        il.Emit(OC.Call, fptrProperty.GetMethod);
+        il.Emit(OC.Calli, callSite);
+
+        il.Emit(OC.Ret);
+
+        return method;
+    }
+
+
+    private MethodDefinition BuildExtensionCtor(PropertyDefinition fptrProperty,
+        IMethodSignature functionPointer,
+        bool isVarArg,
+        Type extensionType)
+    {
+        if (extensionType.IsValueType)
+        {
+            return BuildExtensionCtorValueType(fptrProperty, functionPointer, isVarArg, extensionType);
+        }
+
+        int classSize = extensionType.GetProperty(nameof(ICppInstanceNonGeneric.ClassSize))!.GetValue(null) as int? ??
+                        0;
+
+        (int begin, int end) loopRange = (1, functionPointer.Parameters.Count);
+        if (isVarArg)
+        {
+            loopRange.end -= 1;
+        }
+
+        MethodDefinition method = new("CreateInstance",
+            MethodAttributes.Public | MethodAttributes.Static, module.ImportReference(extensionType));
+        if (isVarArg)
+        {
+            method.CallingConvention |= MethodCallingConvention.VarArg;
+        }
+
+
+        if (classSize is 0)
+        {
+            method.Parameters.Add(new("allocSize", ParameterAttributes.None, module.ImportReference(typeof(ulong))));
+        }
 
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
@@ -553,44 +586,127 @@ public class MethodBuilder
             method.Parameters.Add(new($"a{i - 1}", ParameterAttributes.None, param.ParameterType));
         }
 
-        var temp = new VariableDefinition(module.ImportReference(extensionType));
+        VariableDefinition ptr = new(module.ImportReference(typeof(void).MakePointerType()));
+        method.Body.Variables.Add(ptr);
+
+        ILProcessor? il = method.Body.GetILProcessor();
+        if (classSize is 0)
+        {
+            il.Emit(OC.Ldarg_0);
+        }
+        else
+        {
+            il.Emit(OC.Call,
+                module.ImportReference(extensionType.GetProperty(nameof(ICppInstanceNonGeneric.ClassSize))!
+                    .GetMethod));
+        }
+
+        il.Emit(OC.Call, module.ImportReference(typeof(HeapAlloc).GetMethod(nameof(HeapAlloc.New))));
+        il.Emit(OC.Stloc, ptr);
+
+        il.Emit(OC.Ldloc, ptr);
+        for (int i = classSize is 0 ? 1 : 0; i < method.Parameters.Count - (isVarArg ? 1 : 0); i++)
+        {
+            il.Emit(OC.Ldarg_S, method.Parameters[i]);
+        }
+
+        if (isVarArg)
+        {
+            il.Emit(OC.Arglist);
+        }
+
+        CallSite callSite = new(module.ImportReference(module.ImportReference(typeof(void))))
+        {
+            CallingConvention = MethodCallingConvention.Unmanaged
+        };
+        foreach (ParameterDefinition? param in functionPointer.Parameters)
+        {
+            callSite.Parameters.Add(param);
+        }
+
+        il.Emit(OC.Call, fptrProperty.GetMethod);
+        il.Emit(OC.Calli, callSite);
+
+        il.Emit(OC.Ldloc, ptr);
+        il.Emit(OC.Ldc_I4_1);
+        il.Emit(OC.Ldc_I4_0);
+        il.Emit(OC.Call, module.ImportReference(
+            extensionType
+                .GetMethods()
+                .First(t => t is { Name: nameof(ICppInstanceNonGeneric.ConstructInstance), IsGenericMethod: true } &&
+                            t.GetParameters().Length is 3)));
+        il.Emit(OC.Ret);
+
+        return method;
+    }
+
+    private MethodDefinition BuildExtensionCtorValueType(PropertyDefinition fptrProperty,
+        IMethodSignature functionPointer,
+        bool isVarArg,
+        Type extensionType)
+    {
+        (int begin, int end) loopRange = (1 /*@this*/, functionPointer.Parameters.Count);
+        if (isVarArg)
+        {
+            loopRange.end -= 1;
+        }
+
+        MethodDefinition method = new("CreateInstance",
+            MethodAttributes.Public | MethodAttributes.Static, module.ImportReference(extensionType));
+        if (isVarArg)
+        {
+            method.CallingConvention |= MethodCallingConvention.VarArg;
+        }
+
+        for (int i = loopRange.begin; i < loopRange.end; i++)
+        {
+            ParameterDefinition param = functionPointer.Parameters[i];
+            method.Parameters.Add(new($"a{i - 1}", ParameterAttributes.None, param.ParameterType));
+        }
+
+        VariableDefinition temp = new(module.ImportReference(extensionType));
         method.Body.Variables.Add(temp);
 
+        ILProcessor? il = method.Body.GetILProcessor();
+
+        il.Emit(OC.Ldloca_S, temp);
+
+        for (int i = 0; i < method.Parameters.Count - (isVarArg ? 1 : 0); i++)
         {
-            var il = method.Body.GetILProcessor();
-
-            il.Emit(OC.Ldloca_S, temp);
-
-            for (int i = 0; i < method.Parameters.Count - (isVarArg ? 1 : 0); i++)
-                il.Emit(OC.Ldarg_S, method.Parameters[i]);
-            if (isVarArg)
-                il.Emit(OC.Arglist);
-
-            var callSite = new CallSite(module.ImportReference(module.ImportReference(typeof(void))))
-            {
-                CallingConvention = MethodCallingConvention.Unmanaged
-            };
-            foreach (var param in functionPointer.Parameters)
-                callSite.Parameters.Add(param);
-
-            il.Emit(OC.Call, fptrProperty.GetMethod);
-            il.Emit(OC.Calli, callSite);
-
-            il.Emit(OC.Ldloc, temp);
-            il.Emit(OC.Ret);
+            il.Emit(OC.Ldarg_S, method.Parameters[i]);
         }
+
+        if (isVarArg)
+        {
+            il.Emit(OC.Arglist);
+        }
+
+        CallSite callSite = new(module.ImportReference(module.ImportReference(typeof(void))))
+        {
+            CallingConvention = MethodCallingConvention.Unmanaged
+        };
+        foreach (ParameterDefinition? param in functionPointer.Parameters)
+        {
+            callSite.Parameters.Add(param);
+        }
+
+        il.Emit(OC.Call, fptrProperty.GetMethod);
+        il.Emit(OC.Calli, callSite);
+
+        il.Emit(OC.Ldloc, temp);
+        il.Emit(OC.Ret);
 
         return method;
     }
 
 
     public unsafe MethodDefinition? BuildExtensionVirtualMethod(
-    FunctionPointerType functionPointer,
-    bool isVarArg,
-    Type extensionType,
-    int virtIndex,
-    in Item t,
-    Action ifIsDtor)
+        FunctionPointerType functionPointer,
+        bool isVarArg,
+        Type extensionType,
+        int virtIndex,
+        in Item t,
+        Action ifIsDtor)
     {
         if ((SymbolType)t.SymbolType is SymbolType.Destructor)
         {
@@ -599,123 +715,153 @@ public class MethodBuilder
         }
 
         if (extensionType.IsValueType)
-            return BuildExtensionVirtualMethodValueType(functionPointer, isVarArg, extensionType, virtIndex, t);
+        {
+            return BuildExtensionVirtualMethodValueType(functionPointer, isVarArg, virtIndex, t);
+        }
 
         (int begin, int end) loopRange = (1, functionPointer.Parameters.Count);
-        if (isVarArg) loopRange.end -= 1;
+        if (isVarArg)
+        {
+            loopRange.end -= 1;
+        }
 
-        var methodName = t.Name.Contains("operator") ?
-            Utils.SelectOperatorName(t) :
+        string methodName = t.Name.Contains("operator") ? Utils.SelectOperatorName(t) :
             t.Name.Length > 1 ? $"{char.ToUpper(t.Name[0])}{t.Name[1..]}" : t.Name.ToUpper();
 
-        var method = new MethodDefinition(methodName, MethodAttributes.Public | MethodAttributes.Static, functionPointer.ReturnType);
-        if (isVarArg) method.CallingConvention |= MethodCallingConvention.VarArg;
+        MethodDefinition method = new(methodName, MethodAttributes.Public | MethodAttributes.Static,
+            functionPointer.ReturnType);
+        if (isVarArg)
+        {
+            method.CallingConvention |= MethodCallingConvention.VarArg;
+        }
 
 
         method.Parameters.Add(new("this", ParameterAttributes.None, module.ImportReference(extensionType)));
-        var attr = new CustomAttribute(module.ImportReference(typeof(ExtensionAttribute).GetConstructors().First()));
+        CustomAttribute attr = new(module.ImportReference(typeof(ExtensionAttribute).GetConstructors().First()));
         method.CustomAttributes.Add(attr);
 
 
         for (int i = loopRange.begin; i < loopRange.end; i++)
-            method.Parameters.Add(new($"a{i - 1}", functionPointer.Parameters[i].Attributes, functionPointer.Parameters[i].ParameterType));
-
         {
-            var fptr = new VariableDefinition(module.ImportReference(typeof(void).MakePointerType()));
-            method.Body.Variables.Add(fptr);
-            var il = method.Body.GetILProcessor();
-
-            il.Emit(OC.Ldarg_0);
-            il.Emit(OC.Callvirt, module.ImportReference(extensionType.GetProperty(nameof(ICppInstanceNonGeneric.Pointer))!.GetMethod));
-            il.Emit(OC.Call, module.ImportReference(typeof(CppTypeSystem)
-                        .GetMethods()
-                        .First(f => f.Name is nameof(CppTypeSystem.GetVTable) && f.IsGenericMethodDefinition is false)));
-            il.Emit(OC.Ldc_I4, sizeof(void*) * virtIndex);
-            il.Emit(OC.Add);
-            il.Emit(OC.Ldind_I);
-            il.Emit(OC.Stloc, fptr);
-
-
-            il.Emit(OC.Ldarg_0);
-            il.Emit(OC.Callvirt, module.ImportReference(extensionType.GetProperty(nameof(ICppInstanceNonGeneric.Pointer))!.GetMethod));
-
-            for (int i = loopRange.begin; i < loopRange.end; i++)
-                il.Emit(OC.Ldarg_S, method.Parameters[i]);
-            if (isVarArg)
-                il.Emit(OC.Arglist);
-
-            var callSite = new CallSite(module.ImportReference(functionPointer.ReturnType))
-            {
-                CallingConvention = MethodCallingConvention.Unmanaged
-            };
-            foreach (var param in functionPointer.Parameters)
-                callSite.Parameters.Add(param);
-
-            il.Emit(OC.Ldloc, fptr);
-            il.Emit(OC.Calli, callSite);
-
-            il.Emit(OC.Ret);
+            method.Parameters.Add(new($"a{i - 1}", functionPointer.Parameters[i].Attributes,
+                functionPointer.Parameters[i].ParameterType));
         }
+
+        VariableDefinition fptr = new(module.ImportReference(typeof(void).MakePointerType()));
+        method.Body.Variables.Add(fptr);
+        ILProcessor? il = method.Body.GetILProcessor();
+
+        il.Emit(OC.Ldarg_0);
+        il.Emit(OC.Callvirt,
+            module.ImportReference(extensionType.GetProperty(nameof(ICppInstanceNonGeneric.Pointer))!.GetMethod));
+        il.Emit(OC.Call, module.ImportReference(typeof(CppTypeSystem)
+            .GetMethods()
+            .First(f => f is { Name: nameof(CppTypeSystem.GetVTable), IsGenericMethodDefinition: false })));
+        il.Emit(OC.Ldc_I4, sizeof(void*) * virtIndex);
+        il.Emit(OC.Add);
+        il.Emit(OC.Ldind_I);
+        il.Emit(OC.Stloc, fptr);
+
+
+        il.Emit(OC.Ldarg_0);
+        il.Emit(OC.Callvirt,
+            module.ImportReference(extensionType.GetProperty(nameof(ICppInstanceNonGeneric.Pointer))!.GetMethod));
+
+        for (int i = loopRange.begin; i < loopRange.end; i++)
+        {
+            il.Emit(OC.Ldarg_S, method.Parameters[i]);
+        }
+
+        if (isVarArg)
+        {
+            il.Emit(OC.Arglist);
+        }
+
+        CallSite callSite = new(module.ImportReference(functionPointer.ReturnType))
+        {
+            CallingConvention = MethodCallingConvention.Unmanaged
+        };
+        foreach (ParameterDefinition? param in functionPointer.Parameters)
+        {
+            callSite.Parameters.Add(param);
+        }
+
+        il.Emit(OC.Ldloc, fptr);
+        il.Emit(OC.Calli, callSite);
+
+        il.Emit(OC.Ret);
         return method;
     }
 
-    public unsafe MethodDefinition? BuildExtensionVirtualMethodValueType(
-    FunctionPointerType functionPointer,
-    bool isVarArg,
-    Type extensionType,
-    int virtIndex,
-    in Item t)
+    private unsafe MethodDefinition BuildExtensionVirtualMethodValueType(
+        IMethodSignature functionPointer,
+        bool isVarArg,
+        int virtIndex,
+        in Item t)
     {
-
         (int begin, int end) loopRange = (0, functionPointer.Parameters.Count);
-        if (isVarArg) loopRange.end -= 1;
+        if (isVarArg)
+        {
+            loopRange.end -= 1;
+        }
 
-        var methodName = t.Name.Contains("operator") ?
-            Utils.SelectOperatorName(t) :
+        string methodName = t.Name.Contains("operator") ? Utils.SelectOperatorName(t) :
             t.Name.Length > 1 ? $"{char.ToUpper(t.Name[0])}{t.Name[1..]}" : t.Name.ToUpper();
 
-        var method = new MethodDefinition(methodName, MethodAttributes.Public | MethodAttributes.Static, functionPointer.ReturnType);
-        if (isVarArg) method.CallingConvention |= MethodCallingConvention.VarArg;
+        MethodDefinition method = new(methodName, MethodAttributes.Public | MethodAttributes.Static,
+            functionPointer.ReturnType);
+        if (isVarArg)
+        {
+            method.CallingConvention |= MethodCallingConvention.VarArg;
+        }
 
         for (int i = loopRange.begin; i < loopRange.end; i++)
-            method.Parameters.Add(new($"a{i}", functionPointer.Parameters[i].Attributes, functionPointer.Parameters[i].ParameterType));
+        {
+            method.Parameters.Add(new($"a{i}", functionPointer.Parameters[i].Attributes,
+                functionPointer.Parameters[i].ParameterType));
+        }
 
-        var attr = new CustomAttribute(module.ImportReference(typeof(ExtensionAttribute).GetConstructors().First()));
+        CustomAttribute attr = new(module.ImportReference(typeof(ExtensionAttribute).GetConstructors().First()));
         method.CustomAttributes.Add(attr);
         method.Parameters[0].Attributes |= ParameterAttributes.In;
 
+        VariableDefinition fptr = new(module.ImportReference(typeof(void).MakePointerType()));
+        method.Body.Variables.Add(fptr);
+        ILProcessor? il = method.Body.GetILProcessor();
+
+        il.Emit(OC.Ldarga_S, 0);
+        il.Emit(OC.Conv_I);
+        il.Emit(OC.Call, module.ImportReference(typeof(CppTypeSystem)
+            .GetMethods()
+            .First(f => f is { Name: nameof(CppTypeSystem.GetVTable), IsGenericMethodDefinition: false })));
+        il.Emit(OC.Ldc_I4, sizeof(void*) * virtIndex);
+        il.Emit(OC.Add);
+        il.Emit(OC.Ldind_I);
+        il.Emit(OC.Stloc, fptr);
+
+        for (int i = loopRange.begin; i < loopRange.end; i++)
         {
-            var fptr = new VariableDefinition(module.ImportReference(typeof(void).MakePointerType()));
-            method.Body.Variables.Add(fptr);
-            var il = method.Body.GetILProcessor();
-
-            il.Emit(OC.Ldarga_S, 0);
-            il.Emit(OC.Conv_I);
-            il.Emit(OC.Call, module.ImportReference(typeof(CppTypeSystem)
-                        .GetMethods()
-                        .First(f => f.Name is nameof(CppTypeSystem.GetVTable) && f.IsGenericMethodDefinition is false)));
-            il.Emit(OC.Ldc_I4, sizeof(void*) * virtIndex);
-            il.Emit(OC.Add);
-            il.Emit(OC.Ldind_I);
-            il.Emit(OC.Stloc, fptr);
-
-            for (int i = loopRange.begin; i < loopRange.end; i++)
-                il.Emit(OC.Ldarg_S, method.Parameters[i]);
-            if (isVarArg)
-                il.Emit(OC.Arglist);
-
-            var callSite = new CallSite(module.ImportReference(functionPointer.ReturnType))
-            {
-                CallingConvention = MethodCallingConvention.Unmanaged
-            };
-            foreach (var param in functionPointer.Parameters)
-                callSite.Parameters.Add(param);
-
-            il.Emit(OC.Ldloc, fptr);
-            il.Emit(OC.Calli, callSite);
-
-            il.Emit(OC.Ret);
+            il.Emit(OC.Ldarg_S, method.Parameters[i]);
         }
+
+        if (isVarArg)
+        {
+            il.Emit(OC.Arglist);
+        }
+
+        CallSite callSite = new(module.ImportReference(functionPointer.ReturnType))
+        {
+            CallingConvention = MethodCallingConvention.Unmanaged
+        };
+        foreach (ParameterDefinition? param in functionPointer.Parameters)
+        {
+            callSite.Parameters.Add(param);
+        }
+
+        il.Emit(OC.Ldloc, fptr);
+        il.Emit(OC.Calli, callSite);
+
+        il.Emit(OC.Ret);
 
         return method;
     }

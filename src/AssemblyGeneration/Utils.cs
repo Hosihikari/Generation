@@ -1,47 +1,58 @@
-﻿using System.Text;
-using System.Diagnostics.CodeAnalysis;
-
-using Hosihikari.Utils;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using Hosihikari.Generation.Generator;
-
+using Hosihikari.Generation.Parser;
+using Hosihikari.Generation.Utils;
 using Mono.Cecil;
 using Mono.Cecil.Rocks;
-
-using static Hosihikari.Utils.OriginalData.Class;
+using static Hosihikari.Generation.Utils.OriginalData.Class;
 using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
-using Assembly = System.Reflection.Assembly;
-using System.Runtime.Loader;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 
 public static class Utils
 {
-#pragma warning disable CS8618
-    static Utils()
-#pragma warning restore CS8618
+    [Flags]
+    public enum PropertyMethodType
     {
-        var file = File.OpenRead("System.Runtime.dll");
-        var asm = AssemblyDefinition.ReadAssembly(file);
+        Get,
+        Set
+    }
+
+    static Utils()
+    {
+        FileStream file = File.OpenRead("System.Runtime.dll");
+        AssemblyDefinition? asm = AssemblyDefinition.ReadAssembly(file);
         file.Close();
 
-        foreach (var module in asm.Modules)
+        foreach (TypeDefinition? type in asm.Modules.SelectMany(module => module.Types))
         {
-            foreach (var type in module.Types)
+            switch (type.Name)
             {
-                if (type.Name is "Object") Object = type;
-                if (type.Name is "String") String = type;
-                if (type.Name is nameof(System.IDisposable)) IDisposable = type;
-                if (type.Name is "GC") GC = type;
-                if (type.Name is "ValueType") ValueType = type;
+                case "Object":
+                    Object = type;
+                    break;
+                case "String":
+                    String = type;
+                    break;
+                case nameof(System.IDisposable):
+                    IDisposable = type;
+                    break;
+                case "GC":
+                    GC = type;
+                    break;
+                case "ValueType":
+                    ValueType = type;
+                    break;
             }
         }
     }
 
-    public static TypeDefinition Object { get; private set; }
-    public static TypeDefinition String { get; private set; }
-    public static TypeDefinition IDisposable { get; private set; }
-    public static TypeDefinition GC { get; private set; }
-    public static TypeDefinition ValueType { get; private set; }
+    public static TypeDefinition? Object { get; private set; }
+    public static TypeDefinition? String { get; private set; }
+    public static TypeDefinition? IDisposable { get; private set; }
+    public static TypeDefinition? GC { get; private set; }
+    public static TypeDefinition? ValueType { get; private set; }
 
     public static string SelectOperatorName(in Item t)
     {
@@ -56,8 +67,8 @@ public static class Utils
             "operator&" => t.Params.Count is 1 ? "operator_Address_of" : "operator_Bitwise_AND",
             "operator&&" => "operator_Logical_AND",
             "operator&=" => "operator_Bitwise_AND_assignment",
-            "operator()" => t.Params is null ? "operator_Function_call" : t.Params.Count is 1 ? "operator_Cast" : "operator_Function_call",
-            "operator*" => t.Params is null ? "operator_Pointer_dereference" : t.Params.Count is 1 ? "operator_Pointer_dereference" : "operator_Multiplication",
+            "operator()" => t.Params.Count is 1 ? "operator_Cast" : "operator_Function_call",
+            "operator*" => t.Params.Count is 1 ? "operator_Pointer_dereference" : "operator_Multiplication",
             "operator*=" => "operator_Multiplication_assignment",
             "operator+" => "operator_Addition",
             "operator++" => "operator_Increment",
@@ -91,16 +102,16 @@ public static class Utils
         };
     }
 
-    public static bool HasThis(ItemAccessType accessType) =>
-    accessType is ItemAccessType.Public ||
-    accessType is ItemAccessType.Protected ||
-    accessType is ItemAccessType.Virtual ||
-    accessType is ItemAccessType.VirtualUnordered;
+    public static bool HasThis(ItemAccessType accessType)
+    {
+        return accessType is ItemAccessType.Public or ItemAccessType.Protected or ItemAccessType.Virtual
+            or ItemAccessType.VirtualUnordered;
+    }
 
     public static string BuildFptrId(in Item t)
     {
         StringBuilder builder = new();
-        var prefix = (SymbolType)t.SymbolType switch
+        string prefix = (SymbolType)t.SymbolType switch
         {
             SymbolType.Constructor => "ctor_",
             SymbolType.Destructor => "dtor_",
@@ -108,38 +119,50 @@ public static class Utils
         };
 
         builder.Append(prefix);
-        foreach (var c in t.Symbol)
+        foreach (char c in t.Symbol)
+        {
             builder.Append(TypeAnalyzer.IsLetterOrUnderline(c) ? c : '_');
+        }
+
         return builder.ToString();
     }
 
-    public static string BuildFptrName(HashSet<string> fptrFieldNames, in Item t, Random random)
+    public static string BuildFptrName(HashSet<string> fptrFieldNames, in Item t)
     {
-        var fptrName = t.Name;
+        string fptrName = t.Name;
 
         if (fptrName.Contains("operator"))
+        {
             fptrName = $"cpp_{SelectOperatorName(t)}";
+        }
 
         if ((SymbolType)t.SymbolType is SymbolType.Destructor)
-            fptrName = $"destructor_{fptrName[1..]}";
-        if ((SymbolType)t.SymbolType is SymbolType.Constructor)
-            fptrName = $"constructor_{fptrName}";
-
-
-        if (fptrFieldNames.Contains(fptrName))
         {
-            if (t.Params is null)
-                return $"{fptrName}_Overload{random.NextInt64()}";
-
-            StringBuilder builder = new(fptrName);
-            foreach (var param in t.Params)
-            {
-                builder.Append('_');
-                foreach (var c in param.Name)
-                    builder.Append(TypeAnalyzer.IsLetterOrUnderline(c) ? c : '_');
-            }
-            fptrName = builder.ToString();
+            fptrName = $"destructor_{fptrName[1..]}";
         }
+
+        if ((SymbolType)t.SymbolType is SymbolType.Constructor)
+        {
+            fptrName = $"constructor_{fptrName}";
+        }
+
+
+        if (!fptrFieldNames.Contains(fptrName))
+        {
+            return fptrName;
+        }
+
+        StringBuilder builder = new(fptrName);
+        foreach (Item.TypeData param in t.Params)
+        {
+            builder.Append('_');
+            foreach (char c in param.Name)
+            {
+                builder.Append(TypeAnalyzer.IsLetterOrUnderline(c) ? c : '_');
+            }
+        }
+
+        fptrName = builder.ToString();
 
         return fptrName;
     }
@@ -153,14 +176,14 @@ public static class Utils
         Type? extensionType = null)
     {
         bool isVarArg = false;
-        var fptrType = new FunctionPointerType { CallingConvention = MethodCallingConvention.Unmanaged };
-        var typeData = (SymbolType)t.SymbolType switch
+        FunctionPointerType fptrType = new() { CallingConvention = MethodCallingConvention.Unmanaged };
+        TypeData typeData = (SymbolType)t.SymbolType switch
         {
-            SymbolType.Constructor or SymbolType.Destructor => new TypeData(new() { Name = "void" }),
-            _ => new TypeData(t.Type)
+            SymbolType.Constructor or SymbolType.Destructor => new(new() { Name = "void" }),
+            _ => new(t.Type)
         };
 
-        var (@ref, _) = TypeReferenceBuilder.BuildReference(definedTypes, module, typeData, true);
+        TypeReference @ref = TypeReferenceBuilder.BuildReference(definedTypes, module, typeData, true);
         fptrType.ReturnType = @ref;
 
         if (HasThis(itemAccessType))
@@ -169,62 +192,59 @@ public static class Utils
             {
                 if (extensionType is not null && extensionType.IsValueType)
                 {
-                    var param = new ParameterDefinition(
+                    ParameterDefinition param = new(
                         string.Empty,
                         ParameterAttributes.None,
                         module.ImportReference(extensionType).MakeByReferenceType());
 
                     fptrType.Parameters.Add(param);
                 }
-                else fptrType.Parameters.Add(new(module.ImportReference(typeof(nint))));
-            }
-            else fptrType.Parameters.Add(new(module.ImportReference(typeof(nint))));
-        }
-
-        if (t.Params is null)
-            return (fptrType, false);
-        else
-        {
-            for (int i = 0; i < t.Params.Count; i++)
-            {
-                var type = new TypeData(t.Params[i]);
-                if (type.Analyzer.CppTypeHandle.Type is CppTypeEnum.VarArgs && i == t.Params.Count - 1)
+                else
                 {
-                    fptrType.Parameters.Add(new("args", ParameterAttributes.None, module.ImportReference(typeof(RuntimeArgumentHandle))));
-                    isVarArg = true;
-                    continue;
+                    fptrType.Parameters.Add(new(module.ImportReference(typeof(nint))));
                 }
-
-                var (reference, _) = TypeReferenceBuilder.BuildReference(definedTypes, module, type);
-                fptrType.Parameters.Add(new(reference));
+            }
+            else
+            {
+                fptrType.Parameters.Add(new(module.ImportReference(typeof(nint))));
             }
         }
+
+        for (int i = 0; i < t.Params.Count; i++)
+        {
+            TypeData type = new(t.Params[i]);
+            if (type.Analyzer.CppTypeHandle.Type is CppTypeEnum.VarArgs && i == t.Params.Count - 1)
+            {
+                fptrType.Parameters.Add(new("args", ParameterAttributes.None,
+                    module.ImportReference(typeof(RuntimeArgumentHandle))));
+                isVarArg = true;
+                continue;
+            }
+
+            TypeReference reference = TypeReferenceBuilder.BuildReference(definedTypes, module, type);
+            fptrType.Parameters.Add(new(reference));
+        }
+
         return (fptrType, isVarArg);
     }
 
-    public static bool IsVarArg(IMethodSignature self) => (self.CallingConvention & MethodCallingConvention.VarArg) != 0;
 
-    [Flags]
-    public enum PropertyMethodType { Get, Set }
-
-
-
-    public static bool IsPropertyMethod(MethodDefinition method, [NotNullWhen(true)] out (PropertyMethodType propertyMethodType, string proeprtyName)? tuple)
+    public static bool IsPropertyMethod(MethodDefinition method,
+        [NotNullWhen(true)] out (PropertyMethodType propertyMethodType, string proeprtyName)? tuple)
     {
         tuple = null;
 
         if (method.Name.Length > 3)
         {
-            var str = method.Name[..3].ToLower();
-            if (str is "get" && method.Parameters.Count is 0)
+            string str = method.Name[..3].ToLower();
+            switch (str)
             {
-                tuple = (PropertyMethodType.Get, method.Name[3..]);
-                return true;
-            }
-            else if (str is "set" && method.Parameters.Count is 1)
-            {
-                tuple = (PropertyMethodType.Set, method.Name[3..]);
-                return true;
+                case "get" when method.Parameters.Count is 0:
+                    tuple = (PropertyMethodType.Get, method.Name[3..]);
+                    return true;
+                case "set" when method.Parameters.Count is 1:
+                    tuple = (PropertyMethodType.Set, method.Name[3..]);
+                    return true;
             }
         }
         else if (method.Name.StartsWith("Is"))

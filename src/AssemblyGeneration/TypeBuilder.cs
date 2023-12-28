@@ -1,76 +1,57 @@
-﻿using Hosihikari.Utils;
-
-using Mono.Cecil;
-
-using static Hosihikari.Utils.OriginalData.Class;
-using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
-using System.Diagnostics.CodeAnalysis;
-using System.Collections.Generic;
-using System.Reflection.Emit;
-using System.Runtime.CompilerServices;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using Hosihikari.Generation.Utils;
+using Mono.Cecil;
+using static Hosihikari.Generation.Utils.OriginalData.Class;
+using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 
-public partial class TypeBuilder
+public class TypeBuilder(
+    Dictionary<string, TypeDefinition> types,
+    List<(ItemAccessType accessType, Item item, int? virtIndex)>? items,
+    ModuleDefinition module,
+    TypeDefinition definition,
+    List<Item>? functions,
+    ulong? size)
 {
-    public TypeBuilder(
-        Dictionary<string, TypeDefinition> definedTypes,
-        List<(ItemAccessType accessType, Item item, int? virtIndex)>? items,
-        ModuleDefinition module,
-        TypeDefinition definition,
-        List<Item>? virtualFunctions,
-        ulong? classSize)
-    {
-        this.definedTypes = definedTypes;
-        this.module = module;
-        this.definition = definition;
-        this.items = items;
-        this.virtualFunctions = virtualFunctions;
-        this.classSize = classSize;
-        fptrFieldNames = new();
-        propertyMethods = new();
-        functionSig = new();
+    public readonly TypeDefinition definition = definition;
+    private readonly DestructorBuilder destructorBuilder = new(module);
 
-        destructorBuilder = new(module);
-        interfaceImplBuilder = new(module);
-        nativeFunctionPointerBuilder = new(module);
-        vftableStructBuilder = new(module);
-        methodBuilder = new(module);
-    }
+    private readonly HashSet<string> functionSig = [];
 
-    public ModuleDefinition module;
-    public TypeDefinition definition;
+    private readonly InterfaceImplBuilder interfaceImplBuilder = new(module);
+    private readonly MethodBuilder methodBuilder = new(module);
+
+    private readonly NativeFunctionPointerBuilder nativeFunctionPointerBuilder = new(module);
+
+    private readonly Dictionary<string, (MethodDefinition? getMethod, MethodDefinition? setMethod)> propertyMethods =
+        new();
+
+    private DestructorBuilder.DtorType? dtorType;
+    private readonly HashSet<string> fptrFieldNames = [];
     public TypeDefinition? originalTypeDefinition;
-    public DestructorBuilder.DtorType? dtorType;
-    public Dictionary<string, TypeDefinition> definedTypes;
-    public List<(ItemAccessType accessType, Item item, int? virtIndex)>? items;
-    public List<Item>? virtualFunctions;
-    public ulong? classSize;
-    public HashSet<string> fptrFieldNames;
+    private readonly VftableStructBuilder vftableStructBuilder = new(module);
 
-    public InterfaceImplBuilder interfaceImplBuilder;
-    public NativeFunctionPointerBuilder nativeFunctionPointerBuilder;
-    public VftableStructBuilder vftableStructBuilder;
-    public MethodBuilder methodBuilder;
-    public DestructorBuilder destructorBuilder;
-
-    public HashSet<string> functionSig;
-
-    public Dictionary<string, (MethodDefinition? getMethod, MethodDefinition? setMethod)> propertyMethods;
-
-    public bool IsEmpty => items is null && virtualFunctions is null;
+    private bool IsEmpty => items is null && functions is null;
 
     public void Build()
     {
-        interfaceImplBuilder.ImplICppInstanceInterfaceForTypeDefinition(definition, classSize ?? 0);
+        interfaceImplBuilder.ImplICppInstanceInterfaceForTypeDefinition(definition, size ?? 0);
 
-        if (IsEmpty) return;
+        if (IsEmpty)
+        {
+            return;
+        }
 
-        var fptrProperties = BuildNativeFunctionPointer(definition, nativeFunctionPointerBuilder);
+        List<(ItemAccessType accessType, PropertyDefinition property, FunctionPointerType fptrType, Item item, int?
+            virtIndex)> fptrProperties = BuildNativeFunctionPointer(definition, nativeFunctionPointerBuilder);
 
-        var vtable = vftableStructBuilder.BuildVtable(definition, virtualFunctions, definedTypes);
-        if (vtable is not null) definition.NestedTypes.Add(vtable);
+        TypeDefinition? vtable = vftableStructBuilder.BuildVtable(definition, functions, types);
+        if (vtable is not null)
+        {
+            definition.NestedTypes.Add(vtable);
+        }
 
         BuildVirtualMethods(methodBuilder);
 
@@ -78,197 +59,192 @@ public partial class TypeBuilder
 
         BuildProperties();
 
-        if (dtorType is null)
+        if (dtorType is not null)
         {
-            destructorBuilder.BuildDtor(
-                definition,
-                DestructorBuilder.DtorType.Empty,
-                default,
-                interfaceImplBuilder.field_IsOwner!,
-                interfaceImplBuilder.field_Pointer!,
-                interfaceImplBuilder.field_IsTempStackValue!);
-            dtorType = DestructorBuilder.DtorType.Empty;
+            return;
         }
+
+        destructorBuilder.BuildDtor(
+            definition,
+            DestructorBuilder.DtorType.Empty,
+            default,
+            interfaceImplBuilder.field_IsOwner!,
+            interfaceImplBuilder.field_Pointer!,
+            interfaceImplBuilder.field_IsTempStackValue!);
+        dtorType = DestructorBuilder.DtorType.Empty;
     }
 
     [MemberNotNull(nameof(originalTypeDefinition))]
-    public List<(ItemAccessType accessType, PropertyDefinition property, FunctionPointerType fptrType, Item item, int? virtIndex)>
+    private List<(ItemAccessType accessType, PropertyDefinition property, FunctionPointerType fptrType, Item item, int?
+            virtIndex)>
         BuildNativeFunctionPointer(TypeDefinition definition, NativeFunctionPointerBuilder builder)
     {
-        var ret = new List<(ItemAccessType accessType, PropertyDefinition property, FunctionPointerType fptrType, Item item, int? virtIndex)>();
+        List<(ItemAccessType accessType, PropertyDefinition property, FunctionPointerType fptrType, Item item, int?
+            virtIndex)> ret = [];
 
-        var originalType = NativeFunctionPointerBuilder.BuildOriginalType(definition);
+        TypeDefinition originalType = NativeFunctionPointerBuilder.BuildOriginalType();
         definition.NestedTypes.Add(originalType);
         originalTypeDefinition = originalType;
 
-        if (items is not null)
-            foreach (var (accessType, item, virtIndex) in items)
+        if (items is null)
+        {
+            return ret;
+        }
+
+        foreach ((ItemAccessType accessType, Item item, int? virtIndex) in items)
+        {
+            if ((SymbolType)item.SymbolType is SymbolType.StaticField or SymbolType.UnknownFunction)
             {
-                ////skip virt functions
-                //if (virtIndex is not null)
-                //    continue;
-
-                if ((SymbolType)item.SymbolType is SymbolType.StaticField or SymbolType.UnknownFunction)
-                    continue;
-
-                try
-                {
-                    var fptrId = Utils.BuildFptrId(item);
-                    var storageType = builder.BuildFptrStorageType(fptrId, item, out var fptrField);
-
-                    originalType.NestedTypes.Add(storageType);
-
-                    var (proeprty, method, fptrType, staticMethod) = builder.BuildFptrProperty(accessType, definedTypes, fptrFieldNames, item, fptrField);
-                    ret.Add((accessType, proeprty, fptrType, item, virtIndex));
-                    originalType.Properties.Add(proeprty);
-                    originalType.Methods.Add(method);
-                    originalType.Methods.Add(staticMethod);
-                }
-                catch (Exception)
-                {
-                    continue;
-                }
+                continue;
             }
+
+            try
+            {
+                string fptrId = Utils.BuildFptrId(item);
+                TypeDefinition storageType =
+                    builder.BuildFptrStorageType(fptrId, item, out FieldDefinition fptrField);
+
+                originalType.NestedTypes.Add(storageType);
+
+                (PropertyDefinition proeprty, MethodDefinition method, FunctionPointerType fptrType,
+                    MethodDefinition staticMethod) = builder.BuildFptrProperty(accessType, types,
+                    fptrFieldNames, item, fptrField);
+                ret.Add((accessType, proeprty, fptrType, item, virtIndex));
+                originalType.Properties.Add(proeprty);
+                originalType.Methods.Add(method);
+                originalType.Methods.Add(staticMethod);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
+        }
 
         return ret;
     }
 
-    public void SetItems(List<(ItemAccessType accessType, Item item, int? virtIndex)> items) => this.items = items;
-
-    public void SetVirtualFunctrions(List<Item> items) => virtualFunctions = items;
-
-    public void SetClassSize(ulong size) => classSize = size;
-
-    public void BuildNormalMethods(
-        MethodBuilder builder,
-        List<(ItemAccessType accessType, PropertyDefinition property, FunctionPointerType fptrType, Item item, int? virtIndex)> properties)
+    public void SetItems(List<(ItemAccessType accessType, Item item, int? virtIndex)> items1)
     {
+        items = items1;
+    }
 
-        foreach (var (accessType, property, fptrType, item, virtIndex) in properties)
+    public void SetVirtualFunctrions(List<Item> items)
+    {
+        functions = items;
+    }
+
+    public void SetClassSize(ulong size1)
+    {
+        size = size1;
+    }
+
+    private void BuildNormalMethods(
+        MethodBuilder builder,
+        List<(ItemAccessType accessType, PropertyDefinition property, FunctionPointerType fptrType, Item item, int?
+            virtIndex)> properties)
+    {
+        foreach ((ItemAccessType accessType, PropertyDefinition property, FunctionPointerType fptrType, Item item,
+                     _) in properties)
         {
-            var isVarArg = fptrType.Parameters.Count > 1 && fptrType.Parameters[^1].ParameterType.FullName == typeof(RuntimeArgumentHandle).FullName;
+            bool isVarArg = fptrType.Parameters.Count > 1 && fptrType.Parameters[^1].ParameterType.FullName ==
+                typeof(RuntimeArgumentHandle).FullName;
 
-            var method = builder.BuildMethod(
-            accessType,
-            property,
-            fptrType,
-            isVarArg,
-            interfaceImplBuilder!.field_Pointer!,
-            interfaceImplBuilder.field_IsOwner!,
-            interfaceImplBuilder.field_IsTempStackValue!,
-            interfaceImplBuilder.classSize,
-            item,
-            () =>
-            {
-                destructorBuilder.BuildDtor(
-                    definition,
-                    DestructorBuilder.DtorType.Normal,
-                    new DestructorBuilder.DtorArgs() { propertyDef = property },
-                    interfaceImplBuilder.field_IsOwner!,
-                            interfaceImplBuilder.field_Pointer!,
-                            interfaceImplBuilder.field_IsTempStackValue!);
-                dtorType = DestructorBuilder.DtorType.Normal;
-            });
+            MethodDefinition? method = builder.BuildMethod(
+                accessType,
+                property,
+                fptrType,
+                isVarArg,
+                interfaceImplBuilder.field_Pointer!,
+                interfaceImplBuilder.field_IsOwner!,
+                interfaceImplBuilder.field_IsTempStackValue!,
+                interfaceImplBuilder.classSize,
+                item,
+                () =>
+                {
+                    destructorBuilder.BuildDtor(
+                        definition,
+                        DestructorBuilder.DtorType.Normal,
+                        new() { propertyDef = property },
+                        interfaceImplBuilder.field_IsOwner!,
+                        interfaceImplBuilder.field_Pointer!,
+                        interfaceImplBuilder.field_IsTempStackValue!);
+                    dtorType = DestructorBuilder.DtorType.Normal;
+                });
 
             PlaceMethod(method);
         }
     }
 
-    public void BuildVirtualMethods(MethodBuilder builder)
+    private void BuildVirtualMethods(MethodBuilder builder)
     {
-        if (virtualFunctions is null) return;
+        if (functions is null)
+        {
+            return;
+        }
 
-        for (int i = 0; i < virtualFunctions.Count; i++)
+        for (int i = 0; i < functions.Count; i++)
         {
             try
             {
-                var (fptrType, isVarArg) = Utils.BuildFunctionPointerType(module, definedTypes, ItemAccessType.Virtual, virtualFunctions[i]);
-                var method = builder.BuildVirtualMethod(fptrType, isVarArg, interfaceImplBuilder.field_Pointer!, i, virtualFunctions[i], () =>
-                {
-                    destructorBuilder.BuildDtor(
+                (FunctionPointerType fptrType, bool isVarArg) = Utils.BuildFunctionPointerType(module, types,
+                    ItemAccessType.Virtual, functions[i]);
+                int i1 = i;
+                MethodDefinition? method = builder.BuildVirtualMethod(fptrType, isVarArg,
+                    interfaceImplBuilder.field_Pointer!, i, functions[i], () =>
+                    {
+                        destructorBuilder.BuildDtor(
                             definition,
                             DestructorBuilder.DtorType.Virtual,
-                            new DestructorBuilder.DtorArgs() { virtualIndex = i },
+                            new() { virtualIndex = i1 },
                             interfaceImplBuilder.field_IsOwner!,
                             interfaceImplBuilder.field_Pointer!,
                             interfaceImplBuilder.field_IsTempStackValue!);
 
-                    dtorType = DestructorBuilder.DtorType.Virtual;
-                });
+                        dtorType = DestructorBuilder.DtorType.Virtual;
+                    });
 
                 PlaceMethod(method);
             }
-            catch (Exception) { continue; }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
         }
     }
 
-    public void PlaceMethod(MethodDefinition? method)
+    private void PlaceMethod(MethodDefinition? method)
     {
-        if (method is not null)
+        if (method is null)
         {
-            string sig;
-            StringBuilder builder = new(method.Name);
-            foreach (var param in method.Parameters)
-                builder.Append('+').Append(param.ParameterType.ToString());
-            sig = builder.ToString();
+            return;
+        }
 
-            if (functionSig.Add(sig) is false)
-                return;
+        StringBuilder builder = new(method.Name);
+        foreach (ParameterDefinition? param in method.Parameters)
+        {
+            builder.Append('+').Append(param.ParameterType);
+        }
 
-            if (Utils.IsPropertyMethod(method, out var tuple))
+        string sig = builder.ToString();
+
+        if (functionSig.Add(sig) is false)
+        {
+            return;
+        }
+
+        if (Utils.IsPropertyMethod(method,
+                out (Utils.PropertyMethodType propertyMethodType, string proeprtyName)? tuple))
+        {
+            if (propertyMethods.TryGetValue(tuple.Value.proeprtyName,
+                    out (MethodDefinition? getMethod, MethodDefinition? setMethod) val))
             {
-                if (propertyMethods.TryGetValue(tuple.Value.proeprtyName, out var val))
+                switch (tuple.Value.propertyMethodType)
                 {
-                    switch (tuple.Value.propertyMethodType)
-                    {
-                        case Utils.PropertyMethodType.Get:
+                    case Utils.PropertyMethodType.Get:
 
-                            if (val.setMethod is not null &&
-                                method.ReturnType.FullName == val.setMethod.Parameters[0].ParameterType.FullName)
-                            {
-                                method.Name = $"get_{tuple.Value.proeprtyName}";
-                                method.Attributes |=
-                                    MethodAttributes.Final |
-                                    MethodAttributes.HideBySig |
-                                    MethodAttributes.SpecialName |
-                                    MethodAttributes.NewSlot;
-
-                                propertyMethods[tuple.Value.proeprtyName] = (method, val.setMethod);
-                            }
-                            else
-                            {
-                                definition.Methods.Add(method);
-                                return;
-                            }
-                            break;
-
-                        case Utils.PropertyMethodType.Set:
-
-                            if (val.getMethod is not null &&
-                                method.Parameters[0].ParameterType.FullName == val.getMethod.ReturnType.FullName)
-                            {
-                                method.Name = $"set_{tuple.Value.proeprtyName}";
-                                method.Attributes |=
-                                    MethodAttributes.Final |
-                                    MethodAttributes.HideBySig |
-                                    MethodAttributes.SpecialName |
-                                    MethodAttributes.NewSlot;
-
-                                propertyMethods[tuple.Value.proeprtyName] = (val.getMethod, method);
-                            }
-                            else
-                            {
-                                definition.Methods.Add(method);
-                                return;
-                            }
-                            break;
-                    }
-                }
-                else
-                {
-                    switch (tuple.Value.propertyMethodType)
-                    {
-                        case Utils.PropertyMethodType.Get:
+                        if (val.setMethod is not null &&
+                            method.ReturnType.FullName == val.setMethod.Parameters[0].ParameterType.FullName)
+                        {
                             method.Name = $"get_{tuple.Value.proeprtyName}";
                             method.Attributes |=
                                 MethodAttributes.Final |
@@ -276,9 +252,20 @@ public partial class TypeBuilder
                                 MethodAttributes.SpecialName |
                                 MethodAttributes.NewSlot;
 
-                            propertyMethods.Add(tuple.Value.proeprtyName, (method, null));
-                            break;
-                        case Utils.PropertyMethodType.Set:
+                            propertyMethods[tuple.Value.proeprtyName] = (method, val.setMethod);
+                        }
+                        else
+                        {
+                            definition.Methods.Add(method);
+                        }
+
+                        break;
+
+                    case Utils.PropertyMethodType.Set:
+
+                        if (val.getMethod is not null &&
+                            method.Parameters[0].ParameterType.FullName == val.getMethod.ReturnType.FullName)
+                        {
                             method.Name = $"set_{tuple.Value.proeprtyName}";
                             method.Attributes |=
                                 MethodAttributes.Final |
@@ -286,32 +273,67 @@ public partial class TypeBuilder
                                 MethodAttributes.SpecialName |
                                 MethodAttributes.NewSlot;
 
-                            propertyMethods.Add(tuple.Value.proeprtyName, (null, method));
-                            break;
-                    }
+                            propertyMethods[tuple.Value.proeprtyName] = (val.getMethod, method);
+                        }
+                        else
+                        {
+                            definition.Methods.Add(method);
+                        }
+
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
                 }
             }
             else
             {
-                definition.Methods.Add(method);
+                switch (tuple.Value.propertyMethodType)
+                {
+                    case Utils.PropertyMethodType.Get:
+                        method.Name = $"get_{tuple.Value.proeprtyName}";
+                        method.Attributes |=
+                            MethodAttributes.Final |
+                            MethodAttributes.HideBySig |
+                            MethodAttributes.SpecialName |
+                            MethodAttributes.NewSlot;
+
+                        propertyMethods.Add(tuple.Value.proeprtyName, (method, null));
+                        break;
+                    case Utils.PropertyMethodType.Set:
+                        method.Name = $"set_{tuple.Value.proeprtyName}";
+                        method.Attributes |=
+                            MethodAttributes.Final |
+                            MethodAttributes.HideBySig |
+                            MethodAttributes.SpecialName |
+                            MethodAttributes.NewSlot;
+
+                        propertyMethods.Add(tuple.Value.proeprtyName, (null, method));
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
             }
+        }
+        else
+        {
+            definition.Methods.Add(method);
         }
     }
 
-    public void BuildProperties()
+    private void BuildProperties()
     {
-        foreach (var (name, (getMethod, setMethod)) in propertyMethods)
+        foreach ((string name, (MethodDefinition? getMethod, MethodDefinition? setMethod)) in propertyMethods)
         {
             if (getMethod is null && setMethod is null)
+            {
                 continue;
+            }
 
-            var property = new PropertyDefinition(
+            PropertyDefinition property = new(
                 name,
                 PropertyAttributes.None,
-                getMethod is null ?
-                    setMethod is null ?
-                        throw new NullReferenceException() :
-                        setMethod.Parameters[0].ParameterType
+                getMethod is null
+                    ? setMethod is null ? throw new NullReferenceException() : setMethod.Parameters[0].ParameterType
                     : getMethod.ReturnType);
 
             if (getMethod is not null)
@@ -319,11 +341,13 @@ public partial class TypeBuilder
                 property.GetMethod = getMethod;
                 definition.Methods.Add(getMethod);
             }
+
             if (setMethod is not null)
             {
                 property.SetMethod = setMethod;
                 definition.Methods.Add(setMethod);
             }
+
             definition.Properties.Add(property);
         }
     }

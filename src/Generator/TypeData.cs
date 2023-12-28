@@ -1,64 +1,68 @@
 ﻿using System.Text;
-using static Hosihikari.Utils.OriginalData;
+using Hosihikari.Generation.Parser;
+using static Hosihikari.Generation.Utils.OriginalData;
 
 namespace Hosihikari.Generation.Generator;
 
 public readonly struct TypeData
 {
-    public bool IsVoid => Analyzer.CppTypeHandle.FundamentalType is CppFundamentalType.Void;
-
     public TypeData(in Class.Item.TypeData type)
     {
         if (type.Name.Contains('(') || type.Name.Contains(')'))
+        {
             throw new NotSupportedException();
+        }
 
-        var analyzer = TypeAnalyzer.Analyze(type.Name);
-        var handle = analyzer.CppTypeHandle;
+        TypeAnalyzer analyzer = TypeAnalyzer.Analyze(type.Name);
+        CppTypeNode handle = analyzer.CppTypeHandle;
 
         Analyzer = analyzer;
 
         if (string.IsNullOrWhiteSpace(handle.RootType.TypeIdentifier))
+        {
             throw new InvalidDataException();
+        }
 
         if (handle.Type is not CppTypeEnum.VarArgs
             && handle.RootType.IsFundamentalType is false &&
             TypeAnalyzer.IsLegalName(handle.RootType.TypeIdentifier!) is false)
+        {
             throw new InvalidDataException();
+        }
 
-        (Type, IsByRef) = BuildManagedType(analyzer);
+        Type = BuildManagedType(analyzer);
 
-        var namespaces = handle.RootType.Namespaces;
+        string[]? namespaces = handle.RootType.Namespaces;
 
         Namespaces = namespaces ?? Array.Empty<string>();
         TypeIdentifier = handle.RootType.TypeIdentifier!;
-        FullTypeIdentifier = $"{string.Join('.', Namespaces)}{Utils.StrIfTrue(".", Namespaces.Count is not 0)}{TypeIdentifier}";
+        FullTypeIdentifier =
+            $"{string.Join('.', Namespaces)}{Utils.StrIfTrue(".", Namespaces.Count is not 0)}{TypeIdentifier}";
     }
 
     public readonly TypeAnalyzer Analyzer;
-    public readonly string Type;
-    public readonly bool IsByRef;
+    private readonly string Type;
     public readonly IReadOnlyList<string> Namespaces;
     public readonly string TypeIdentifier;
     public readonly string FullTypeIdentifier;
 
-    public override string ToString() => Type;
-
-    private static (string type, bool isByRef) BuildManagedType(TypeAnalyzer analyzer)
+    public override string ToString()
     {
-        var arr = analyzer.CppTypeHandle.ToArray().Reverse();
-        var builder = new StringBuilder();
+        return Type;
+    }
+
+    private static string BuildManagedType(TypeAnalyzer analyzer)
+    {
+        IEnumerable<CppTypeNode> arr = analyzer.CppTypeHandle.ToArray().Reverse();
+        StringBuilder builder = new();
 
         bool isIcppInstance;
-        bool isByRef = false;
         bool temp = false;
 
-        foreach (var item in arr)
+        foreach (CppTypeNode item in arr)
         {
             isIcppInstance = temp;
-            temp = false;
-
-            if (item.Type is CppTypeEnum.Class or CppTypeEnum.Struct)
-                temp = true;
+            temp = item.Type is CppTypeEnum.Class or CppTypeEnum.Struct;
 
             switch (item.Type)
             {
@@ -78,52 +82,66 @@ public readonly struct TypeData
                         CppFundamentalType.UInt16 => "ushort",
                         CppFundamentalType.UInt32 => "uint",
                         CppFundamentalType.UInt64 => "ulong",
-                        _ => throw new InvalidOperationException(),
+                        _ => throw new InvalidOperationException()
                     });
                     break;
                 case CppTypeEnum.Pointer:
                     if (isIcppInstance)
+                    {
                         builder.Insert(0, "Pointer<").Append('>');
+                    }
                     else
+                    {
                         builder.Append('*');
+                    }
+
                     break;
                 case CppTypeEnum.RValueRef:
                 case CppTypeEnum.Ref:
                     if (isIcppInstance)
+                    {
                         builder.Insert(0, "Reference<").Append('>');
+                    }
                     else
                     {
                         builder.Insert(0, "ref ");
-                        isByRef = true;
                     }
+
                     break;
                 case CppTypeEnum.Enum:
                     builder.Append("int");
                     break;
 
                 case CppTypeEnum.Class:
-                    {
-                        var namespaces = string.Join('.', item.Namespaces ?? Array.Empty<string>());
-                        builder.Append($"{namespaces}{(string.IsNullOrWhiteSpace(namespaces) ? string.Empty : ".")}{item.TypeIdentifier}");
-                    }
+                {
+                    string namespaces = string.Join('.', item.Namespaces ?? Array.Empty<string>());
+                    builder.Append(
+                        $"{namespaces}{(string.IsNullOrWhiteSpace(namespaces) ? string.Empty : ".")}{item.TypeIdentifier}");
+                }
                     break;
                 case CppTypeEnum.Struct:
-                    {
-                        var namespaces = string.Join('.', item.Namespaces ?? Array.Empty<string>());
-                        builder.Append($"{namespaces}{(string.IsNullOrWhiteSpace(namespaces) ? string.Empty : ".")}{item.TypeIdentifier}");
-                    }
+                {
+                    string namespaces = string.Join('.', item.Namespaces ?? Array.Empty<string>());
+                    builder.Append(
+                        $"{namespaces}{(string.IsNullOrWhiteSpace(namespaces) ? string.Empty : ".")}{item.TypeIdentifier}");
+                }
                     break;
                 case CppTypeEnum.Union:
-                    {
-                        var namespaces = string.Join('.', item.Namespaces ?? Array.Empty<string>());
-                        builder.Append($"{namespaces}{(string.IsNullOrWhiteSpace(namespaces) ? string.Empty : ".")}{item.TypeIdentifier}");
-                    }
+                {
+                    string namespaces = string.Join('.', item.Namespaces ?? Array.Empty<string>());
+                    builder.Append(
+                        $"{namespaces}{(string.IsNullOrWhiteSpace(namespaces) ? string.Empty : ".")}{item.TypeIdentifier}");
+                }
                     break;
                 case CppTypeEnum.Array:
                     throw new NotImplementedException();
+                case CppTypeEnum.VarArgs:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
         }
 
-        return (builder.ToString(), isByRef);
+        return builder.ToString();
     }
 }

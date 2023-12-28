@@ -7,7 +7,7 @@
 //var methodData = new MethodData(new Hosihikari.Utils.OriginalData.Class.Item()
 //{
 //    AccessType = (int)AccessType.Public,
-//    FakeSymbol = "",
+//    FakeSymbol = string.Empty,
 //    FlagBits = 0,
 //    Name = "testMethodName",
 //    Namespace = "TestNameSpace",
@@ -30,4 +30,4 @@
 //    Console.WriteLine(line);
 //}
 
-Main.Run(new Config("C:\\Users\\minec\\Desktop\\originalData.json", "C:\\Users\\minec\\Desktop"));
+Main.Run(new("""C:\Users\minec\Desktop\originalData.json""", """C:\Users\minec\Desktop"""));

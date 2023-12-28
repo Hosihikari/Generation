@@ -1,15 +1,16 @@
-﻿using Hosihikari.Utils;
+﻿using System.Text.Json;
 using Hosihikari.Generation.AssemblyGeneration;
-using System.Text.Json;
+using Hosihikari.Generation.Utils;
 
 namespace Hosihikari.Generation;
 
-public class Main
+public static class Main
 {
     public static void Run(Config config)
     {
-        var builder = AssemblyBuilder.Create("Hosihikari.Minecraft", new(1, 0, 0), config.AssemblyOutputDir);
+        AssemblyBuilder builder =
+            AssemblyBuilder.Create("Hosihikari.Minecraft", new(1, 0, 0), config.AssemblyOutputDir);
         builder.Build(JsonSerializer.Deserialize<OriginalData>(File.ReadAllText(config.OriginalDataPath)));
-        builder.Wirte();
+        builder.Write();
     }
 }

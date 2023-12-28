@@ -1,34 +1,35 @@
 ﻿using Hosihikari.NativeInterop.Unmanaged;
 using Hosihikari.NativeInterop.Unmanaged.Attributes;
-
 using Mono.Cecil;
-
-using static Hosihikari.Utils.OriginalData.Class;
+using Mono.Cecil.Cil;
+using static Hosihikari.Generation.Utils.OriginalData.Class;
 using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 
 public class VftableStructBuilder
 {
-    public ModuleDefinition module;
+    private readonly ModuleDefinition module;
+
+    private readonly HashSet<string> vfptrFieldNames = [];
 
     public VftableStructBuilder(ModuleDefinition module)
     {
         this.module = module;
     }
 
-    public HashSet<string> vfptrFieldNames = new();
-
-    public void AppendUnknownVfunc(
+    private void AppendUnknownVfunc(
         TypeDefinition definition,
         int currentIndex,
         string? funcName = null)
     {
-        var fieldDef = new FieldDefinition(funcName is null ? $"__UnknownVirtualFunction_{currentIndex}" : funcName, FieldAttributes.Public | FieldAttributes.InitOnly, module.ImportReference(typeof(nint)));
+        FieldDefinition fieldDef =
+            new(funcName ?? $"__UnknownVirtualFunction_{currentIndex}",
+                FieldAttributes.Public | FieldAttributes.InitOnly, module.ImportReference(typeof(nint)));
         definition.Fields.Add(fieldDef);
     }
 
-    public void AppendVfunc(
+    private void AppendVfunc(
         TypeDefinition vfptrStructType,
         Dictionary<string, TypeDefinition> definedTypes,
         int currentIndex,
@@ -36,30 +37,34 @@ public class VftableStructBuilder
     {
         try
         {
-            var (fptrType, _) = Utils.BuildFunctionPointerType(module, definedTypes, ItemAccessType.Virtual, item);
-            var fptrName = Utils.BuildFptrName(vfptrFieldNames, item, new());
-            var fieldDef = new FieldDefinition($"vfptr_{fptrName}", FieldAttributes.Public | FieldAttributes.InitOnly, fptrType);
+            (FunctionPointerType fptrType, _) =
+                Utils.BuildFunctionPointerType(module, definedTypes, ItemAccessType.Virtual, item);
+            string fptrName = Utils.BuildFptrName(vfptrFieldNames, item);
+            FieldDefinition fieldDef = new($"vfptr_{fptrName}",
+                FieldAttributes.Public | FieldAttributes.InitOnly, fptrType);
             vfptrStructType.Fields.Add(fieldDef);
         }
-        catch (Exception)
+        catch (Exception e)
         {
+            Console.WriteLine(e);
             AppendUnknownVfunc(vfptrStructType, currentIndex);
         }
     }
 
-    public void InsertVirtualCppClassAttribute(TypeDefinition definition)
+    private void InsertVirtualCppClassAttribute(ICustomAttributeProvider definition)
     {
-        var attribute = new CustomAttribute(module.ImportReference(typeof(VirtualCppClassAttribute).GetConstructors().First()));
+        CustomAttribute attribute =
+            new(module.ImportReference(typeof(VirtualCppClassAttribute).GetConstructors().First()));
         definition.CustomAttributes.Add(attribute);
     }
 
-    public void BuildVtableLengthProperty(TypeDefinition definition, ulong length)
+    private void BuildVtableLengthProperty(TypeDefinition definition, ulong length)
     {
-        var interfaceImpl = new InterfaceImplementation(module.ImportReference(typeof(ICppVtable)));
+        InterfaceImplementation interfaceImpl = new(module.ImportReference(typeof(ICppVtable)));
         definition.Interfaces.Add(interfaceImpl);
-        var property_VtableLength = new PropertyDefinition(
+        PropertyDefinition property_VtableLength = new(
             "VtableLength", PropertyAttributes.None, module.ImportReference(typeof(ulong)));
-        var getMethod_property_VtableLength = new MethodDefinition(
+        MethodDefinition getMethod_property_VtableLength = new(
             "get_VtableLength",
             MethodAttributes.Public |
             MethodAttributes.HideBySig |
@@ -69,7 +74,7 @@ public class VftableStructBuilder
         getMethod_property_VtableLength.Overrides.Add(module.ImportReference(
             typeof(ICppVtable).GetMethods().First(f => f.Name is "get_VtableLength")));
         {
-            var il = getMethod_property_VtableLength.Body.GetILProcessor();
+            ILProcessor? il = getMethod_property_VtableLength.Body.GetILProcessor();
             il.Emit(OC.Ldc_I8, (long)length);
             il.Emit(OC.Conv_U8);
             il.Emit(OC.Ret);
@@ -85,11 +90,13 @@ public class VftableStructBuilder
         Dictionary<string, TypeDefinition> definedTypes)
     {
         if (virtualFunctions is null || virtualFunctions.Count is 0)
+        {
             return null;
+        }
 
         InsertVirtualCppClassAttribute(definition);
 
-        var vtableStructType = new TypeDefinition(
+        TypeDefinition vtableStructType = new(
             string.Empty,
             "Vftable",
             TypeAttributes.NestedPublic |
@@ -101,11 +108,11 @@ public class VftableStructBuilder
 
         BuildVtableLengthProperty(vtableStructType, (ulong)virtualFunctions.Count);
 
-        //definition.NestedTypes.Add(vtableStructType);
-
 
         for (int i = 0; i < virtualFunctions.Count; i++)
+        {
             AppendVfunc(vtableStructType, definedTypes, i, virtualFunctions[i]);
+        }
 
         return vtableStructType;
     }
