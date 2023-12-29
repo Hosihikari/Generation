@@ -9,14 +9,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Hosihikari.NativeInterop" Version="1.0.5"/>
+        <PackageReference Include="Hosihikari.Minecraft.Foundation" Version="1.0.0" />
         <PackageReference Include="Mono.Cecil" Version="0.11.5"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <Reference Include="Hosihikari.Minecraft.Foundation">
-            <HintPath>..\..\MinecraftFoundation\src\bin\Release\net8.0\Hosihikari.Minecraft.Foundation.dll</HintPath>
-        </Reference>
     </ItemGroup>
 
 </Project>

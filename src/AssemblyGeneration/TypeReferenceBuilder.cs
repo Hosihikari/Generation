@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using Hosihikari.Generation.Generator;
 using Hosihikari.Generation.Parser;
-using Hosihikari.Minecraft.Foundation;
+using Hosihikari.Minecraft;
 using Hosihikari.NativeInterop;
 using Hosihikari.NativeInterop.Generation;
 using Hosihikari.NativeInterop.Unmanaged;
