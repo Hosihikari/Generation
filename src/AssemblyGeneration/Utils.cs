@@ -109,7 +109,7 @@ public static class Utils
 
     public static string GetParameterName(in Item item, bool hasThis, int paramIndex)
     {
-        if (item.ParamsName is not null && item.ParamsName.Count > paramIndex)
+        if (item.ParamsName is not null && (item.ParamsName.Count > paramIndex))
         {
             return item.ParamsName[paramIndex];
         }

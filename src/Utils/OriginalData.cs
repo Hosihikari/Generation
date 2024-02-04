@@ -34,7 +34,9 @@ public struct OriginalData
         [JsonPropertyName("public.static")] public List<Item> PublicStatic { get; set; }
         [JsonPropertyName("private.static")] public List<Item> PrivateStatic { get; set; }
         [JsonPropertyName("virtual")] public List<Item> Virtual { get; set; }
-        [JsonPropertyName("virtual.unordered")] public List<Item> VirtualUnordered { get; set; }
+
+        [JsonPropertyName("virtual.unordered")]
+        public List<Item> VirtualUnordered { get; set; }
 
         public struct Item
         {

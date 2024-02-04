@@ -235,7 +235,8 @@ public class AssemblyBuilder
             case CppTypeEnum.Struct:
             case CppTypeEnum.Union:
 
-                TypeDefinition definition = new("Hosihikari.Minecraft.Extension", $"{predefinedType.Name}MinecraftExtension",
+                TypeDefinition definition = new("Hosihikari.Minecraft.Extension",
+                    $"{predefinedType.Name}MinecraftExtension",
                     TypeAttributes.Public | TypeAttributes.Class | TypeAttributes.Sealed | TypeAttributes.Abstract,
                     module.ImportReference(Utils.Object));
                 builder = new(predefinedType, definedTypes, null, module, definition, null);
@@ -316,8 +317,10 @@ public class AssemblyBuilder
 
                 items.Add((accessType, item, isVirt ? i : null));
             }
-            catch { /*0.o*/ }
-
+            catch
+            {
+                /*0.o*/
+            }
         }
     }
 

@@ -154,7 +154,8 @@ public class MethodBuilder(ModuleDefinition module)
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
             ParameterDefinition param = functionPointer.Parameters[i];
-            method.Parameters.Add(new(Utils.GetParameterName(t, hasThis, i), ParameterAttributes.None, param.ParameterType));
+            method.Parameters.Add(new(Utils.GetParameterName(t, hasThis, i), ParameterAttributes.None,
+                param.ParameterType));
         }
 
         {
@@ -251,7 +252,7 @@ public class MethodBuilder(ModuleDefinition module)
         return ret;
     }
 
-    public unsafe MethodDefinition? BuildVirtualMethod(
+    public MethodDefinition? BuildVirtualMethod(
         FunctionPointerType functionPointer,
         bool isVarArg,
         FieldDefinition field_Pointer,
@@ -288,7 +289,8 @@ public class MethodBuilder(ModuleDefinition module)
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
             ParameterDefinition param = functionPointer.Parameters[i];
-            method.Parameters.Add(new(Utils.GetParameterName(t, true, i), ParameterAttributes.None, param.ParameterType));
+            method.Parameters.Add(
+                new(Utils.GetParameterName(t, true, i), ParameterAttributes.None, param.ParameterType));
         }
 
         {
@@ -310,7 +312,10 @@ public class MethodBuilder(ModuleDefinition module)
             il.Emit(OC.Ldc_I4, virtIndex);
             il.Append(il.Create(OC.Call, module.ImportReference(typeof(CppTypeSystem)
                 .GetMethods()
-                .First(f => f is { Name: nameof(CppTypeSystem.GetVurtualFunctionPointerByIndex), IsGenericMethodDefinition: false }))));
+                .First(f => f is
+                {
+                    Name: nameof(CppTypeSystem.GetVurtualFunctionPointerByIndex), IsGenericMethodDefinition: false
+                }))));
             il.Emit(OC.Stloc, fptr);
 
             il.Emit(OC.Ldarg_0);
@@ -583,7 +588,8 @@ public class MethodBuilder(ModuleDefinition module)
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
             ParameterDefinition param = functionPointer.Parameters[i];
-            method.Parameters.Add(new(Utils.GetParameterName(t, true, i), ParameterAttributes.None, param.ParameterType));
+            method.Parameters.Add(
+                new(Utils.GetParameterName(t, true, i), ParameterAttributes.None, param.ParameterType));
         }
 
         VariableDefinition ptr = new(module.ImportReference(typeof(void).MakePointerType()));
@@ -662,7 +668,8 @@ public class MethodBuilder(ModuleDefinition module)
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
             ParameterDefinition param = functionPointer.Parameters[i];
-            method.Parameters.Add(new(Utils.GetParameterName(t, true, i), ParameterAttributes.None, param.ParameterType));
+            method.Parameters.Add(
+                new(Utils.GetParameterName(t, true, i), ParameterAttributes.None, param.ParameterType));
         }
 
         VariableDefinition temp = new(module.ImportReference(extensionType));
@@ -701,7 +708,7 @@ public class MethodBuilder(ModuleDefinition module)
     }
 
 
-    public unsafe MethodDefinition? BuildExtensionVirtualMethod(
+    public MethodDefinition? BuildExtensionVirtualMethod(
         FunctionPointerType functionPointer,
         bool isVarArg,
         Type extensionType,
@@ -758,7 +765,8 @@ public class MethodBuilder(ModuleDefinition module)
         il.Emit(OC.Ldc_I4, virtIndex);
         il.Emit(OC.Call, module.ImportReference(typeof(CppTypeSystem)
             .GetMethods()
-            .First(f => f is { Name: nameof(CppTypeSystem.GetVurtualFunctionPointerByIndex), IsGenericMethodDefinition: false })));
+            .First(f => f is
+                { Name: nameof(CppTypeSystem.GetVurtualFunctionPointerByIndex), IsGenericMethodDefinition: false })));
         il.Emit(OC.Stloc, fptr);
 
 
@@ -792,7 +800,7 @@ public class MethodBuilder(ModuleDefinition module)
         return method;
     }
 
-    private unsafe MethodDefinition BuildExtensionVirtualMethodValueType(
+    private MethodDefinition BuildExtensionVirtualMethodValueType(
         IMethodSignature functionPointer,
         bool isVarArg,
         int virtIndex,
@@ -833,7 +841,8 @@ public class MethodBuilder(ModuleDefinition module)
         il.Emit(OC.Ldc_I4, virtIndex);
         il.Emit(OC.Call, module.ImportReference(typeof(CppTypeSystem)
             .GetMethods()
-            .First(f => f is { Name: nameof(CppTypeSystem.GetVurtualFunctionPointerByIndex), IsGenericMethodDefinition: false })));
+            .First(f => f is
+                { Name: nameof(CppTypeSystem.GetVurtualFunctionPointerByIndex), IsGenericMethodDefinition: false })));
         il.Emit(OC.Stloc, fptr);
 
         for (int i = loopRange.begin; i < loopRange.end; i++)
