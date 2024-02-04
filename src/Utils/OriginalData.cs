@@ -67,6 +67,8 @@ public struct OriginalData
             [JsonPropertyName("namespace")] public string Namespace { get; set; }
             [JsonPropertyName("params")] public List<TypeData>? Params { get; set; }
 
+            [JsonPropertyName("params_name")] public List<string>? ParamsName { get; set; }
+
             public struct TypeData
             {
                 [JsonPropertyName("kind")] public int Kind { get; set; }

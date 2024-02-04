@@ -20,7 +20,8 @@ public class MethodBuilder(ModuleDefinition module)
         FieldReference field_Pointer,
         FieldReference field_IsOwner,
         FieldReference field_IsTempStackValue,
-        ulong classSize)
+        ulong classSize,
+        in Item t)
     {
         (int begin, int end) loopRange = (1, functionPointer.Parameters.Count);
         if (isVarArg)
@@ -48,7 +49,7 @@ public class MethodBuilder(ModuleDefinition module)
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
             ParameterDefinition param = functionPointer.Parameters[i];
-            ctor.Parameters.Add(new($"a{i - 1}", ParameterAttributes.None, param.ParameterType));
+            ctor.Parameters.Add(new(Utils.GetParameterName(t, true, i), ParameterAttributes.None, param.ParameterType));
         }
 
         {
@@ -153,7 +154,7 @@ public class MethodBuilder(ModuleDefinition module)
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
             ParameterDefinition param = functionPointer.Parameters[i];
-            method.Parameters.Add(new($"a{i - (hasThis ? 1 : 0)}", ParameterAttributes.None, param.ParameterType));
+            method.Parameters.Add(new(Utils.GetParameterName(t, hasThis, i), ParameterAttributes.None, param.ParameterType));
         }
 
         {
@@ -220,7 +221,7 @@ public class MethodBuilder(ModuleDefinition module)
 
             case SymbolType.Constructor:
                 ret = BuildCtor(fptrProperty, functionPointer, isVarArg, field_Pointer, field_IsOwner,
-                    field_IsTempStackValue, classSize);
+                    field_IsTempStackValue, classSize, t);
                 break;
 
             case SymbolType.Destructor:
@@ -287,7 +288,7 @@ public class MethodBuilder(ModuleDefinition module)
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
             ParameterDefinition param = functionPointer.Parameters[i];
-            method.Parameters.Add(new($"a{i - 1}", ParameterAttributes.None, param.ParameterType));
+            method.Parameters.Add(new(Utils.GetParameterName(t, true, i), ParameterAttributes.None, param.ParameterType));
         }
 
         {
@@ -306,12 +307,10 @@ public class MethodBuilder(ModuleDefinition module)
 
             il.Emit(OC.Ldarg_0);
             il.Emit(OC.Ldfld, field_Pointer);
+            il.Emit(OC.Ldc_I4, virtIndex);
             il.Append(il.Create(OC.Call, module.ImportReference(typeof(CppTypeSystem)
                 .GetMethods()
-                .First(f => f is { Name: nameof(CppTypeSystem.GetVTable), IsGenericMethodDefinition: false }))));
-            il.Emit(OC.Ldc_I4, sizeof(void*) * virtIndex);
-            il.Emit(OC.Add);
-            il.Emit(OC.Ldind_I);
+                .First(f => f is { Name: nameof(CppTypeSystem.GetVurtualFunctionPointerByIndex), IsGenericMethodDefinition: false }))));
             il.Emit(OC.Stloc, fptr);
 
             il.Emit(OC.Ldarg_0);
@@ -355,7 +354,7 @@ public class MethodBuilder(ModuleDefinition module)
                 break;
 
             case SymbolType.Constructor:
-                ret = BuildExtensionCtor(fptrProperty, functionPointer, isVarArg, extensionType);
+                ret = BuildExtensionCtor(fptrProperty, functionPointer, isVarArg, extensionType, t);
                 break;
 
             case SymbolType.Destructor:
@@ -426,7 +425,7 @@ public class MethodBuilder(ModuleDefinition module)
 
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
-            method.Parameters.Add(new($"a{i - 1}", functionPointer.Parameters[i].Attributes,
+            method.Parameters.Add(new(Utils.GetParameterName(t, true, i), functionPointer.Parameters[i].Attributes,
                 functionPointer.Parameters[i].ParameterType));
         }
 
@@ -509,7 +508,7 @@ public class MethodBuilder(ModuleDefinition module)
 
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
-            method.Parameters.Add(new($"a{i}", functionPointer.Parameters[i].Attributes,
+            method.Parameters.Add(new(Utils.GetParameterName(t, false, i), functionPointer.Parameters[i].Attributes,
                 functionPointer.Parameters[i].ParameterType));
         }
 
@@ -551,11 +550,12 @@ public class MethodBuilder(ModuleDefinition module)
     private MethodDefinition BuildExtensionCtor(PropertyDefinition fptrProperty,
         IMethodSignature functionPointer,
         bool isVarArg,
-        Type extensionType)
+        Type extensionType,
+        in Item t)
     {
         if (extensionType.IsValueType)
         {
-            return BuildExtensionCtorValueType(fptrProperty, functionPointer, isVarArg, extensionType);
+            return BuildExtensionCtorValueType(fptrProperty, functionPointer, isVarArg, extensionType, t);
         }
 
         int classSize = extensionType.GetProperty(nameof(ICppInstanceNonGeneric.ClassSize))!.GetValue(null) as int? ??
@@ -583,7 +583,7 @@ public class MethodBuilder(ModuleDefinition module)
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
             ParameterDefinition param = functionPointer.Parameters[i];
-            method.Parameters.Add(new($"a{i - 1}", ParameterAttributes.None, param.ParameterType));
+            method.Parameters.Add(new(Utils.GetParameterName(t, true, i), ParameterAttributes.None, param.ParameterType));
         }
 
         VariableDefinition ptr = new(module.ImportReference(typeof(void).MakePointerType()));
@@ -643,7 +643,8 @@ public class MethodBuilder(ModuleDefinition module)
     private MethodDefinition BuildExtensionCtorValueType(PropertyDefinition fptrProperty,
         IMethodSignature functionPointer,
         bool isVarArg,
-        Type extensionType)
+        Type extensionType,
+        in Item t)
     {
         (int begin, int end) loopRange = (1 /*@this*/, functionPointer.Parameters.Count);
         if (isVarArg)
@@ -661,7 +662,7 @@ public class MethodBuilder(ModuleDefinition module)
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
             ParameterDefinition param = functionPointer.Parameters[i];
-            method.Parameters.Add(new($"a{i - 1}", ParameterAttributes.None, param.ParameterType));
+            method.Parameters.Add(new(Utils.GetParameterName(t, true, i), ParameterAttributes.None, param.ParameterType));
         }
 
         VariableDefinition temp = new(module.ImportReference(extensionType));
@@ -743,7 +744,7 @@ public class MethodBuilder(ModuleDefinition module)
 
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
-            method.Parameters.Add(new($"a{i - 1}", functionPointer.Parameters[i].Attributes,
+            method.Parameters.Add(new(Utils.GetParameterName(t, true, i), functionPointer.Parameters[i].Attributes,
                 functionPointer.Parameters[i].ParameterType));
         }
 
@@ -754,12 +755,10 @@ public class MethodBuilder(ModuleDefinition module)
         il.Emit(OC.Ldarg_0);
         il.Emit(OC.Callvirt,
             module.ImportReference(extensionType.GetProperty(nameof(ICppInstanceNonGeneric.Pointer))!.GetMethod));
+        il.Emit(OC.Ldc_I4, virtIndex);
         il.Emit(OC.Call, module.ImportReference(typeof(CppTypeSystem)
             .GetMethods()
-            .First(f => f is { Name: nameof(CppTypeSystem.GetVTable), IsGenericMethodDefinition: false })));
-        il.Emit(OC.Ldc_I4, sizeof(void*) * virtIndex);
-        il.Emit(OC.Add);
-        il.Emit(OC.Ldind_I);
+            .First(f => f is { Name: nameof(CppTypeSystem.GetVurtualFunctionPointerByIndex), IsGenericMethodDefinition: false })));
         il.Emit(OC.Stloc, fptr);
 
 
@@ -817,7 +816,7 @@ public class MethodBuilder(ModuleDefinition module)
 
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
-            method.Parameters.Add(new($"a{i}", functionPointer.Parameters[i].Attributes,
+            method.Parameters.Add(new(Utils.GetParameterName(t, false, i), functionPointer.Parameters[i].Attributes,
                 functionPointer.Parameters[i].ParameterType));
         }
 
@@ -831,12 +830,10 @@ public class MethodBuilder(ModuleDefinition module)
 
         il.Emit(OC.Ldarga_S, 0);
         il.Emit(OC.Conv_I);
+        il.Emit(OC.Ldc_I4, virtIndex);
         il.Emit(OC.Call, module.ImportReference(typeof(CppTypeSystem)
             .GetMethods()
-            .First(f => f is { Name: nameof(CppTypeSystem.GetVTable), IsGenericMethodDefinition: false })));
-        il.Emit(OC.Ldc_I4, sizeof(void*) * virtIndex);
-        il.Emit(OC.Add);
-        il.Emit(OC.Ldind_I);
+            .First(f => f is { Name: nameof(CppTypeSystem.GetVurtualFunctionPointerByIndex), IsGenericMethodDefinition: false })));
         il.Emit(OC.Stloc, fptr);
 
         for (int i = loopRange.begin; i < loopRange.end; i++)

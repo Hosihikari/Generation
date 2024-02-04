@@ -234,7 +234,7 @@ public class AssemblyBuilder
             case CppTypeEnum.Struct:
             case CppTypeEnum.Union:
 
-                TypeDefinition definition = new("Hosihikari.Minecraft.Extension", $"{predefinedType.Name}EX",
+                TypeDefinition definition = new("Hosihikari.Minecraft.Extension", $"{predefinedType.Name}MinecraftExtension",
                     TypeAttributes.Public | TypeAttributes.Class | TypeAttributes.Sealed | TypeAttributes.Abstract,
                     module.ImportReference(Utils.Object));
                 builder = new(predefinedType, definedTypes, null, module, definition, null);
@@ -342,13 +342,6 @@ public class AssemblyBuilder
 
 
                 List<(ItemAccessType, Item, int?)> items = [];
-                ForeachItemsForBuildTypeDefinition(items, value.PublicStatic, ItemAccessType.PublicStatic);
-                ForeachItemsForBuildTypeDefinition(items, value.PrivateStatic, ItemAccessType.PrivateStatic);
-                ForeachItemsForBuildTypeDefinition(items, value.Public, ItemAccessType.Public);
-                ForeachItemsForBuildTypeDefinition(items, value.Protected, ItemAccessType.Protected);
-                ForeachItemsForBuildTypeDefinition(items, value.Virtual, ItemAccessType.Virtual, true);
-                ForeachItemsForBuildTypeDefinition(items, value.VirtualUnordered,
-                    ItemAccessType.VirtualUnordered);
 
                 if (builders.TryGetValue(definition, out (TypeData typData, TypeBuilder builder) pair))
                 {
@@ -364,6 +357,14 @@ public class AssemblyBuilder
                     predefinedBuilder.SetItems(items);
                     predefinedBuilder.SetVirtualFunctrions(value.Virtual);
                 }
+
+                ForeachItemsForBuildTypeDefinition(items, value.PublicStatic, ItemAccessType.PublicStatic);
+                ForeachItemsForBuildTypeDefinition(items, value.PrivateStatic, ItemAccessType.PrivateStatic);
+                ForeachItemsForBuildTypeDefinition(items, value.Public, ItemAccessType.Public);
+                ForeachItemsForBuildTypeDefinition(items, value.Protected, ItemAccessType.Protected);
+                ForeachItemsForBuildTypeDefinition(items, value.Virtual, ItemAccessType.Virtual, true);
+                ForeachItemsForBuildTypeDefinition(items, value.VirtualUnordered,
+                    ItemAccessType.VirtualUnordered);
             }
             catch
             {

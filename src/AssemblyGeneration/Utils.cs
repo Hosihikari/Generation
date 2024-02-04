@@ -107,6 +107,16 @@ public static class Utils
         };
     }
 
+    public static string GetParameterName(in Item item, bool hasThis, int paramIndex)
+    {
+        if (item.ParamsName is not null && item.ParamsName.Count > paramIndex)
+        {
+            return item.ParamsName[paramIndex];
+        }
+
+        return $"a{paramIndex - (hasThis ? 1 : 0)}";
+    }
+
     public static bool HasThis(ItemAccessType accessType)
     {
         return accessType is ItemAccessType.Public or ItemAccessType.Protected or ItemAccessType.Virtual
@@ -260,7 +270,12 @@ public static class Utils
                     return true;
             }
         }
-        else if (method.Name.StartsWith("Is"))
+        else if (method.Name.StartsWith("Is") || method.Name.StartsWith("is"))
+        {
+            tuple = (PropertyMethodType.Get, method.Name);
+            return true;
+        }
+        else if (method.Name.StartsWith("Has") || method.Name.StartsWith("has"))
         {
             tuple = (PropertyMethodType.Get, method.Name);
             return true;

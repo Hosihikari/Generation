@@ -27,7 +27,7 @@ public class TypeBuilder(
     private readonly NativeFunctionPointerBuilder nativeFunctionPointerBuilder = new(module);
 
     private readonly Dictionary<string, (MethodDefinition? getMethod, MethodDefinition? setMethod)> propertyMethods =
-        new();
+        [];
 
     private readonly VftableStructBuilder vftableStructBuilder = new(module);
 
