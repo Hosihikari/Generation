@@ -1,5 +1,5 @@
-﻿using System.Text;
-using Hosihikari.Generation.Parser;
+﻿using Hosihikari.Generation.Parser;
+using System.Text;
 using static Hosihikari.Generation.Utils.OriginalData;
 
 namespace Hosihikari.Generation.Generator;
@@ -113,25 +113,25 @@ public readonly struct TypeData
                     break;
 
                 case CppTypeEnum.Class:
-                {
-                    string namespaces = string.Join('.', item.Namespaces ?? Array.Empty<string>());
-                    builder.Append(
-                        $"{namespaces}{(string.IsNullOrWhiteSpace(namespaces) ? string.Empty : ".")}{item.TypeIdentifier}");
-                }
+                    {
+                        string namespaces = string.Join('.', item.Namespaces ?? Array.Empty<string>());
+                        builder.Append(
+                            $"{namespaces}{(string.IsNullOrWhiteSpace(namespaces) ? string.Empty : ".")}{item.TypeIdentifier}");
+                    }
                     break;
                 case CppTypeEnum.Struct:
-                {
-                    string namespaces = string.Join('.', item.Namespaces ?? Array.Empty<string>());
-                    builder.Append(
-                        $"{namespaces}{(string.IsNullOrWhiteSpace(namespaces) ? string.Empty : ".")}{item.TypeIdentifier}");
-                }
+                    {
+                        string namespaces = string.Join('.', item.Namespaces ?? Array.Empty<string>());
+                        builder.Append(
+                            $"{namespaces}{(string.IsNullOrWhiteSpace(namespaces) ? string.Empty : ".")}{item.TypeIdentifier}");
+                    }
                     break;
                 case CppTypeEnum.Union:
-                {
-                    string namespaces = string.Join('.', item.Namespaces ?? Array.Empty<string>());
-                    builder.Append(
-                        $"{namespaces}{(string.IsNullOrWhiteSpace(namespaces) ? string.Empty : ".")}{item.TypeIdentifier}");
-                }
+                    {
+                        string namespaces = string.Join('.', item.Namespaces ?? Array.Empty<string>());
+                        builder.Append(
+                            $"{namespaces}{(string.IsNullOrWhiteSpace(namespaces) ? string.Empty : ".")}{item.TypeIdentifier}");
+                    }
                     break;
                 case CppTypeEnum.Array:
                     throw new NotImplementedException();

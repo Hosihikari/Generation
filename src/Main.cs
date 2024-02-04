@@ -1,6 +1,6 @@
-﻿using System.Text.Json;
-using Hosihikari.Generation.AssemblyGeneration;
+﻿using Hosihikari.Generation.AssemblyGeneration;
 using Hosihikari.Generation.Utils;
+using System.Text.Json;
 
 namespace Hosihikari.Generation;
 

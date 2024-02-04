@@ -1,5 +1,5 @@
-﻿using System.Diagnostics;
-using Hosihikari.Generation;
+﻿using Hosihikari.Generation;
+using System.Diagnostics;
 
 Stopwatch watcher = new();
 Console.WriteLine($"Start generating at {DateTime.Now}");

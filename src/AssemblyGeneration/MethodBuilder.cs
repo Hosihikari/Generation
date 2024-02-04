@@ -1,10 +1,10 @@
-﻿using System.Runtime.CompilerServices;
-using Hosihikari.Generation.Utils;
+﻿using Hosihikari.Generation.Utils;
 using Hosihikari.NativeInterop.Unmanaged;
 using Hosihikari.NativeInterop.Unmanaged.Attributes;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
+using System.Runtime.CompilerServices;
 using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
 using static Hosihikari.Generation.Utils.OriginalData.Class;
 using CallSite = Mono.Cecil.CallSite;
@@ -79,7 +79,7 @@ public class MethodBuilder(ModuleDefinition module)
 
             il.Emit(OC.Ldarg_0);
             il.Emit(OC.Ldfld, field_Pointer);
-            for (int i = classSize is 0 ? 1 : 0; i < ctor.Parameters.Count - (isVarArg ? 1 : 0); i++)
+            for (int i = classSize is 0 ? 1 : 0; i < (ctor.Parameters.Count - (isVarArg ? 1 : 0)); i++)
             {
                 il.Emit(OC.Ldarg_S, ctor.Parameters[i]);
             }
@@ -605,7 +605,7 @@ public class MethodBuilder(ModuleDefinition module)
         il.Emit(OC.Stloc, ptr);
 
         il.Emit(OC.Ldloc, ptr);
-        for (int i = classSize is 0 ? 1 : 0; i < method.Parameters.Count - (isVarArg ? 1 : 0); i++)
+        for (int i = classSize is 0 ? 1 : 0; i < (method.Parameters.Count - (isVarArg ? 1 : 0)); i++)
         {
             il.Emit(OC.Ldarg_S, method.Parameters[i]);
         }
@@ -671,7 +671,7 @@ public class MethodBuilder(ModuleDefinition module)
 
         il.Emit(OC.Ldloca_S, temp);
 
-        for (int i = 0; i < method.Parameters.Count - (isVarArg ? 1 : 0); i++)
+        for (int i = 0; i < (method.Parameters.Count - (isVarArg ? 1 : 0)); i++)
         {
             il.Emit(OC.Ldarg_S, method.Parameters[i]);
         }

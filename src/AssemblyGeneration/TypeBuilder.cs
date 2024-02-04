@@ -1,7 +1,7 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using System.Text;
-using Hosihikari.Generation.Utils;
+﻿using Hosihikari.Generation.Utils;
 using Mono.Cecil;
+using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using static Hosihikari.Generation.Utils.OriginalData.Class;
 using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
 
@@ -147,8 +147,8 @@ public class TypeBuilder(
         foreach ((ItemAccessType accessType, PropertyDefinition property, FunctionPointerType fptrType, Item item,
                      _) in properties)
         {
-            bool isVarArg = fptrType.Parameters.Count > 1 && fptrType.Parameters[^1].ParameterType.FullName ==
-                typeof(RuntimeArgumentHandle).FullName;
+            bool isVarArg = (fptrType.Parameters.Count > 1) && (fptrType.Parameters[^1].ParameterType.FullName ==
+                                                                typeof(RuntimeArgumentHandle).FullName);
 
             MethodDefinition? method = builder.BuildMethod(
                 accessType,
@@ -244,7 +244,7 @@ public class TypeBuilder(
                     case Utils.PropertyMethodType.Get:
 
                         if (val.setMethod is not null &&
-                            method.ReturnType.FullName == val.setMethod.Parameters[0].ParameterType.FullName)
+                            (method.ReturnType.FullName == val.setMethod.Parameters[0].ParameterType.FullName))
                         {
                             method.Name = $"get_{tuple.Value.proeprtyName}";
                             method.Attributes |=
@@ -265,7 +265,7 @@ public class TypeBuilder(
                     case Utils.PropertyMethodType.Set:
 
                         if (val.getMethod is not null &&
-                            method.Parameters[0].ParameterType.FullName == val.getMethod.ReturnType.FullName)
+                            (method.Parameters[0].ParameterType.FullName == val.getMethod.ReturnType.FullName))
                         {
                             method.Name = $"set_{tuple.Value.proeprtyName}";
                             method.Attributes |=

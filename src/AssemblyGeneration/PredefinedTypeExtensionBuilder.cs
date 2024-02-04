@@ -1,6 +1,6 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using Hosihikari.Generation.Utils;
+﻿using Hosihikari.Generation.Utils;
 using Mono.Cecil;
+using System.Diagnostics.CodeAnalysis;
 using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
 using static Hosihikari.Generation.Utils.OriginalData.Class;
 
@@ -144,8 +144,8 @@ public class PredefinedTypeExtensionBuilder
         foreach ((ItemAccessType accessType, PropertyDefinition property, FunctionPointerType fptrType, Item item,
                      int? _) in properties)
         {
-            bool isVarArg = fptrType.Parameters.Count > 1 && fptrType.Parameters[^1].ParameterType.FullName ==
-                typeof(RuntimeArgumentHandle).FullName;
+            bool isVarArg = (fptrType.Parameters.Count > 1) && (fptrType.Parameters[^1].ParameterType.FullName ==
+                                                                typeof(RuntimeArgumentHandle).FullName);
 
             MethodDefinition? method;
             method = builder.BuildExtensionMethod(

@@ -163,132 +163,132 @@ public sealed class TypeAnalyzer
             switch (c)
             {
                 case '*':
-                {
-                    if (searchDepth is 0)
                     {
-                        ret.Type = CppTypeEnum.Pointer;
-                        string subTypeStr = typeStr[..i].Trim();
-                        if (subTypeStr.Length > 0)
+                        if (searchDepth is 0)
                         {
-                            ret.SubType = __AnalyzeCppType(subTypeStr);
-                        }
+                            ret.Type = CppTypeEnum.Pointer;
+                            string subTypeStr = typeStr[..i].Trim();
+                            if (subTypeStr.Length > 0)
+                            {
+                                ret.SubType = __AnalyzeCppType(subTypeStr);
+                            }
 
-                        return ret;
+                            return ret;
+                        }
                     }
-                }
                     goto default;
 
                 case '&':
-                {
-                    if (searchDepth is 0)
                     {
-                        if (typeStr[i - 1] is '&')
+                        if (searchDepth is 0)
                         {
-                            ret.Type = CppTypeEnum.RValueRef;
-                            --i;
-                        }
-                        else
-                        {
-                            ret.Type = CppTypeEnum.Ref;
-                        }
+                            if (typeStr[i - 1] is '&')
+                            {
+                                ret.Type = CppTypeEnum.RValueRef;
+                                --i;
+                            }
+                            else
+                            {
+                                ret.Type = CppTypeEnum.Ref;
+                            }
 
 
-                        string subTypeStr = typeStr[..i].Trim();
-                        if (subTypeStr.Length > 0)
-                        {
-                            ret.SubType = __AnalyzeCppType(subTypeStr);
-                        }
+                            string subTypeStr = typeStr[..i].Trim();
+                            if (subTypeStr.Length > 0)
+                            {
+                                ret.SubType = __AnalyzeCppType(subTypeStr);
+                            }
 
-                        return ret;
+                            return ret;
+                        }
                     }
-                }
                     goto default;
 
                 case '[':
-                {
-                    if (searchDepth is 0)
                     {
-                        if (ret.Type is not CppTypeEnum.Array)
+                        if (searchDepth is 0)
                         {
-                            throw new InvalidDataException();
+                            if (ret.Type is not CppTypeEnum.Array)
+                            {
+                                throw new InvalidDataException();
+                            }
                         }
                     }
-                }
                     goto default;
 
                 case ']':
-                {
-                    if (searchDepth is 0)
                     {
-                        if (typeStr[i - 1] is not '[')
+                        if (searchDepth is 0)
                         {
-                            throw new InvalidDataException();
-                        }
+                            if (typeStr[i - 1] is not '[')
+                            {
+                                throw new InvalidDataException();
+                            }
 
-                        ret.Type = CppTypeEnum.Array;
-                        string subTypeStr = typeStr[..(i - 1)].Trim();
-                        if (subTypeStr.Length > 0)
-                        {
-                            ret.SubType = __AnalyzeCppType(subTypeStr);
-                        }
+                            ret.Type = CppTypeEnum.Array;
+                            string subTypeStr = typeStr[..(i - 1)].Trim();
+                            if (subTypeStr.Length > 0)
+                            {
+                                ret.SubType = __AnalyzeCppType(subTypeStr);
+                            }
 
-                        return ret;
+                            return ret;
+                        }
                     }
-                }
                     goto default;
 
                 case '>':
-                {
-                    if (searchDepth is 0)
                     {
-                        templateArgsEndIndex = i;
-                    }
+                        if (searchDepth is 0)
+                        {
+                            templateArgsEndIndex = i;
+                        }
 
-                    ++searchDepth;
-                }
+                        ++searchDepth;
+                    }
                     continue;
 
                 case '<':
-                {
-                    --searchDepth;
-                    if (searchDepth is 0)
                     {
-                        templateArgsStartIndex = i;
+                        --searchDepth;
+                        if (searchDepth is 0)
+                        {
+                            templateArgsStartIndex = i;
+                        }
                     }
-                }
                     continue;
 
                 case 'c':
-                {
-                    if (searchDepth is 0)
                     {
-                        if ((i > 0 && IsLetterOrUnderline(typeStr[i - 1])) || i is 0)
+                        if (searchDepth is 0)
                         {
-                            goto default;
-                        }
+                            if (((i > 0) && IsLetterOrUnderline(typeStr[i - 1])) || i is 0)
+                            {
+                                goto default;
+                            }
 
-                        if (typeStr.Length - i >= 5 && typeStr[i..(i + 5)] is "const")
-                        {
-                            typeStr = typeStr.Remove(i, 5).Trim();
-                            identifierBulider.Clear();
+                            if (((typeStr.Length - i) >= 5) && typeStr[i..(i + 5)] is "const")
+                            {
+                                typeStr = typeStr.Remove(i, 5).Trim();
+                                identifierBulider.Clear();
 
-                            i = typeStr.Length;
-                        }
-                        else
-                        {
-                            goto default;
+                                i = typeStr.Length;
+                            }
+                            else
+                            {
+                                goto default;
+                            }
                         }
                     }
-                }
                     continue;
 
                 default:
-                {
-                    if (searchDepth is 0)
                     {
-                        identifierBulider.Append(c);
+                        if (searchDepth is 0)
+                        {
+                            identifierBulider.Append(c);
+                        }
                     }
-                }
                     continue;
             }
         }

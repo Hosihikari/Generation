@@ -1,10 +1,10 @@
 ﻿global using OC = Mono.Cecil.Cil.OpCodes;
-using System.Diagnostics.CodeAnalysis;
-using System.Runtime.Versioning;
 using Hosihikari.Generation.Generator;
 using Hosihikari.Generation.Parser;
 using Hosihikari.Generation.Utils;
 using Mono.Cecil;
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.Versioning;
 using static Hosihikari.Generation.Utils.OriginalData.Class;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
@@ -113,7 +113,7 @@ public class AssemblyBuilder
 
                 namespaceNode = node;
 
-                if (i != typeData.Namespaces.Count - 1)
+                if (i != (typeData.Namespaces.Count - 1))
                 {
                     continue;
                 }
@@ -317,11 +317,11 @@ public class AssemblyBuilder
 
     private void ForeachClassesAndBuildTypeDefinition(in OriginalData data)
     {
-        foreach (KeyValuePair<string, OriginalData.Class> @class in data.Classes)
+        foreach ((string? key, OriginalData.Class value) in data.Classes)
         {
             try
             {
-                TypeData typeData = new(new() { Name = @class.Key });
+                TypeData typeData = new(new() { Name = key });
                 if (definedTypes.TryGetValue(typeData.FullTypeIdentifier, out TypeDefinition? type) is false)
                 {
                     CreateBuilderAndAddTypeDefinition(typeData, out object? builder);
@@ -342,12 +342,12 @@ public class AssemblyBuilder
 
 
                 List<(ItemAccessType, Item, int?)> items = [];
-                ForeachItemsForBuildTypeDefinition(items, @class.Value.PublicStatic, ItemAccessType.PublicStatic);
-                ForeachItemsForBuildTypeDefinition(items, @class.Value.PrivateStatic, ItemAccessType.PrivateStatic);
-                ForeachItemsForBuildTypeDefinition(items, @class.Value.Public, ItemAccessType.Public);
-                ForeachItemsForBuildTypeDefinition(items, @class.Value.Protected, ItemAccessType.Protected);
-                ForeachItemsForBuildTypeDefinition(items, @class.Value.Virtual, ItemAccessType.Virtual, true);
-                ForeachItemsForBuildTypeDefinition(items, @class.Value.VirtualUnordered,
+                ForeachItemsForBuildTypeDefinition(items, value.PublicStatic, ItemAccessType.PublicStatic);
+                ForeachItemsForBuildTypeDefinition(items, value.PrivateStatic, ItemAccessType.PrivateStatic);
+                ForeachItemsForBuildTypeDefinition(items, value.Public, ItemAccessType.Public);
+                ForeachItemsForBuildTypeDefinition(items, value.Protected, ItemAccessType.Protected);
+                ForeachItemsForBuildTypeDefinition(items, value.Virtual, ItemAccessType.Virtual, true);
+                ForeachItemsForBuildTypeDefinition(items, value.VirtualUnordered,
                     ItemAccessType.VirtualUnordered);
 
                 if (builders.TryGetValue(definition, out (TypeData typData, TypeBuilder builder) pair))
@@ -355,14 +355,14 @@ public class AssemblyBuilder
                     (_, TypeBuilder builder) = pair;
 
                     builder.SetItems(items);
-                    builder.SetVirtualFunctrions(@class.Value.Virtual);
+                    builder.SetVirtualFunctrions(value.Virtual);
                     builder.SetClassSize(0);
                 }
                 else if (predefinedBuilders.TryGetValue(definition,
                              out PredefinedTypeExtensionBuilder? predefinedBuilder))
                 {
                     predefinedBuilder.SetItems(items);
-                    predefinedBuilder.SetVirtualFunctrions(@class.Value.Virtual);
+                    predefinedBuilder.SetVirtualFunctrions(value.Virtual);
                 }
             }
             catch

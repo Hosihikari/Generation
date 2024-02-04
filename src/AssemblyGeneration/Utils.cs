@@ -1,10 +1,10 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using System.Text;
-using Hosihikari.Generation.Generator;
+﻿using Hosihikari.Generation.Generator;
 using Hosihikari.Generation.Parser;
 using Hosihikari.Generation.Utils;
 using Mono.Cecil;
 using Mono.Cecil.Rocks;
+using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using static Hosihikari.Generation.Utils.OriginalData.Class;
 using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
 
@@ -226,7 +226,7 @@ public static class Utils
         for (int i = 0; i < t.Params.Count; i++)
         {
             TypeData type = new(t.Params[i]);
-            if (type.Analyzer.CppTypeHandle.Type is CppTypeEnum.VarArgs && i == t.Params.Count - 1)
+            if (type.Analyzer.CppTypeHandle.Type is CppTypeEnum.VarArgs && (i == (t.Params.Count - 1)))
             {
                 fptrType.Parameters.Add(new("args", ParameterAttributes.None,
                     module.ImportReference(typeof(RuntimeArgumentHandle))));

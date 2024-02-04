@@ -43,43 +43,43 @@ public class DestructorBuilder(ModuleDefinition module)
         switch (type)
         {
             case DtorType.Normal:
-            {
-                ILProcessor? il = method_DestructInstance.Body.GetILProcessor();
-                il.Emit(OC.Ldarg_0);
-                il.Emit(OC.Call, dtorArgs.propertyDef!.GetMethod);
-                il.Emit(OC.Calli, callSite);
-                il.Emit(OC.Ret);
-            }
+                {
+                    ILProcessor? il = method_DestructInstance.Body.GetILProcessor();
+                    il.Emit(OC.Ldarg_0);
+                    il.Emit(OC.Call, dtorArgs.propertyDef!.GetMethod);
+                    il.Emit(OC.Calli, callSite);
+                    il.Emit(OC.Ret);
+                }
                 break;
             case DtorType.Virtual:
-            {
-                VariableDefinition fptr = new(module.ImportReference(typeof(nint)));
-                method_DestructInstance.Body.Variables.Add(fptr);
+                {
+                    VariableDefinition fptr = new(module.ImportReference(typeof(nint)));
+                    method_DestructInstance.Body.Variables.Add(fptr);
 
-                ILProcessor? il = method_DestructInstance.Body.GetILProcessor();
-                il.Emit(OC.Ldarg_0);
-                il.Emit(OC.Ldflda, field_Pointer);
-                il.Emit(OC.Call, module.ImportReference(typeof(nint).GetMethod(nameof(nint.ToPointer))));
-                il.Append(il.Create(OC.Call, module.ImportReference(
-                    typeof(CppTypeSystem)
-                        .GetMethods()
-                        .First(f => f is { Name: "GetVTable", IsGenericMethodDefinition: false }))));
-                il.Emit(OC.Ldc_I4, sizeof(void*) * dtorArgs.virtualIndex!.Value);
-                il.Emit(OC.Add);
-                il.Emit(OC.Ldind_I);
-                il.Emit(OC.Stloc, fptr);
+                    ILProcessor? il = method_DestructInstance.Body.GetILProcessor();
+                    il.Emit(OC.Ldarg_0);
+                    il.Emit(OC.Ldflda, field_Pointer);
+                    il.Emit(OC.Call, module.ImportReference(typeof(nint).GetMethod(nameof(nint.ToPointer))));
+                    il.Append(il.Create(OC.Call, module.ImportReference(
+                        typeof(CppTypeSystem)
+                            .GetMethods()
+                            .First(f => f is { Name: "GetVTable", IsGenericMethodDefinition: false }))));
+                    il.Emit(OC.Ldc_I4, sizeof(void*) * dtorArgs.virtualIndex!.Value);
+                    il.Emit(OC.Add);
+                    il.Emit(OC.Ldind_I);
+                    il.Emit(OC.Stloc, fptr);
 
-                il.Emit(OC.Ldarg_0);
-                il.Emit(OC.Ldloc, fptr);
-                il.Emit(OC.Calli, callSite);
-                il.Emit(OC.Ret);
-            }
+                    il.Emit(OC.Ldarg_0);
+                    il.Emit(OC.Ldloc, fptr);
+                    il.Emit(OC.Calli, callSite);
+                    il.Emit(OC.Ret);
+                }
                 break;
             case DtorType.Empty:
-            {
-                ILProcessor? il = method_DestructInstance.Body.GetILProcessor();
-                il.Emit(OC.Ret);
-            }
+                {
+                    ILProcessor? il = method_DestructInstance.Body.GetILProcessor();
+                    il.Emit(OC.Ret);
+                }
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(type), type, null);

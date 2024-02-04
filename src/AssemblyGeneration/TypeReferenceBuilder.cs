@@ -1,7 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
-using System.Text.RegularExpressions;
-using Hosihikari.Generation.Generator;
+﻿using Hosihikari.Generation.Generator;
 using Hosihikari.Generation.Parser;
 using Hosihikari.Minecraft;
 using Hosihikari.NativeInterop;
@@ -9,6 +6,9 @@ using Hosihikari.NativeInterop.Generation;
 using Hosihikari.NativeInterop.Unmanaged;
 using Mono.Cecil;
 using Mono.Cecil.Rocks;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
+using System.Text.RegularExpressions;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 
@@ -77,7 +77,7 @@ public static class TypeReferenceBuilder
                 }
             }
 
-            if (type == typeof(ITypeReferenceProvider) || !type.IsAssignableTo(typeof(ITypeReferenceProvider)))
+            if ((type == typeof(ITypeReferenceProvider)) || !type.IsAssignableTo(typeof(ITypeReferenceProvider)))
             {
                 continue;
             }
@@ -283,12 +283,12 @@ public static class TypeReferenceBuilder
                     goto TYPE_DEFAULT_PARSE;
                 }
 
-                    ENUM_DEFAULT_PARSE:
+                ENUM_DEFAULT_PARSE:
                     reference = module.ImportReference(typeof(int));
                     isUnmanagedType = true;
                     break;
 
-                    TYPE_DEFAULT_PARSE:
+                TYPE_DEFAULT_PARSE:
                     if (definedTypes.TryGetValue(type.FullTypeIdentifier, out TypeDefinition? t) is false)
                     {
                         reference = module.ImportReference(typeof(nint));

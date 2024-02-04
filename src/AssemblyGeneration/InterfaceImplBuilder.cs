@@ -1,8 +1,8 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using Hosihikari.NativeInterop.Unmanaged;
+﻿using Hosihikari.NativeInterop.Unmanaged;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 
