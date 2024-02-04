@@ -9,7 +9,7 @@ public static class Main
     public static void Run(Config config)
     {
         AssemblyBuilder builder =
-            AssemblyBuilder.Create("Hosihikari.Minecraft", new(1, 0, 0), config.AssemblyOutputDir);
+            AssemblyBuilder.Create("Hosihikari.Minecraft", config.AssemblyVersion, config.AssemblyOutputDir);
         builder.Build(JsonSerializer.Deserialize<OriginalData>(File.ReadAllText(config.OriginalDataPath)));
         builder.Write();
     }
