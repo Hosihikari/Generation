@@ -119,8 +119,8 @@ public static class Utils
 
     public static bool HasThis(ItemAccessType accessType)
     {
-        return accessType is ItemAccessType.Public or ItemAccessType.Protected or ItemAccessType.Virtual
-            or ItemAccessType.VirtualUnordered;
+        return accessType is ItemAccessType.Public or ItemAccessType.Protected or ItemAccessType.Private
+            or ItemAccessType.Virtual or ItemAccessType.VirtualUnordered;
     }
 
     public static string BuildFptrId(in Item t)

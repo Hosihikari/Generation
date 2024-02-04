@@ -41,6 +41,7 @@ public class AssemblyBuilder
         PrivateStatic,
         Public,
         Protected,
+        Private,
         Virtual,
         VirtualUnordered
     }
@@ -297,21 +298,26 @@ public class AssemblyBuilder
 
         for (int i = 0; i < list.Count; i++)
         {
-            Item item = list[i];
-            if (string.IsNullOrEmpty(item.Type.Name) is false)
+            try
             {
-                CreateBuilderAndAddTypeDefinition(new(item.Type), out object? _);
-            }
-
-            if (item.Params is not null)
-            {
-                foreach (Item.TypeData param in item.Params)
+                Item item = list[i];
+                if (string.IsNullOrEmpty(item.Type.Name) is false)
                 {
-                    CreateBuilderAndAddTypeDefinition(new(param), out object? _);
+                    CreateBuilderAndAddTypeDefinition(new(item.Type), out object? _);
                 }
-            }
 
-            items.Add((accessType, item, isVirt ? i : null));
+                if (item.Params is not null)
+                {
+                    foreach (Item.TypeData param in item.Params)
+                    {
+                        CreateBuilderAndAddTypeDefinition(new(param), out object? _);
+                    }
+                }
+
+                items.Add((accessType, item, isVirt ? i : null));
+            }
+            catch { /*0.o*/ }
+
         }
     }
 
@@ -362,6 +368,7 @@ public class AssemblyBuilder
                 ForeachItemsForBuildTypeDefinition(items, value.PrivateStatic, ItemAccessType.PrivateStatic);
                 ForeachItemsForBuildTypeDefinition(items, value.Public, ItemAccessType.Public);
                 ForeachItemsForBuildTypeDefinition(items, value.Protected, ItemAccessType.Protected);
+                ForeachItemsForBuildTypeDefinition(items, value.Private, ItemAccessType.Private);
                 ForeachItemsForBuildTypeDefinition(items, value.Virtual, ItemAccessType.Virtual, true);
                 ForeachItemsForBuildTypeDefinition(items, value.VirtualUnordered,
                     ItemAccessType.VirtualUnordered);

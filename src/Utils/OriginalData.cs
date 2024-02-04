@@ -16,17 +16,6 @@ public struct OriginalData
         /// </summary>
         public List<string> ParentTypes { get; set; }
 
-        [JsonPropertyName("public")]
-        /// <summary>
-        /// 有序存储的虚函数列表
-        /// </summary>
-        public List<Item> Public { get; set; }
-
-        [JsonPropertyName("virtual")] public List<Item> Virtual { get; set; }
-
-        [JsonPropertyName("virtual.unordered")]
-        public List<Item> VirtualUnordered { get; set; }
-
         [JsonPropertyName("vtbl_entry")]
         /// <summary>
         /// 虚表入口，可能有多个
@@ -39,9 +28,13 @@ public struct OriginalData
         /// </summary>
         public List<string> ChildTypes { get; set; }
 
+        [JsonPropertyName("public")] public List<Item> Public { get; set; }
         [JsonPropertyName("protected")] public List<Item> Protected { get; set; }
+        [JsonPropertyName("private")] public List<Item> Private { get; set; }
         [JsonPropertyName("public.static")] public List<Item> PublicStatic { get; set; }
         [JsonPropertyName("private.static")] public List<Item> PrivateStatic { get; set; }
+        [JsonPropertyName("virtual")] public List<Item> Virtual { get; set; }
+        [JsonPropertyName("virtual.unordered")] public List<Item> VirtualUnordered { get; set; }
 
         public struct Item
         {
