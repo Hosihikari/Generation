@@ -2,8 +2,8 @@
 using Mono.Cecil;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
-using static Hosihikari.Generation.Utils.OriginalData.Class;
 using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
+using static Hosihikari.Generation.Utils.OriginalData.Class;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 

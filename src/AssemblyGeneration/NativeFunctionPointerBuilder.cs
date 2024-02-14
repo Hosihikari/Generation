@@ -2,8 +2,8 @@
 using Hosihikari.NativeInterop.Unmanaged.Attributes;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
-using static Hosihikari.Generation.Utils.OriginalData.Class;
 using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
+using static Hosihikari.Generation.Utils.OriginalData.Class;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 

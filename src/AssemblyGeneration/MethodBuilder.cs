@@ -14,106 +14,91 @@ namespace Hosihikari.Generation.AssemblyGeneration;
 
 public class MethodBuilder(ModuleDefinition module)
 {
-    private MethodDefinition BuildCtor(PropertyDefinition fptrProperty,
-        IMethodSignature functionPointer,
-        bool isVarArg,
-        FieldReference field_Pointer,
-        FieldReference field_IsOwner,
-        FieldReference field_IsTempStackValue,
-        ulong classSize,
-        in Item t)
+    /// <summary>
+    /// Builds a constructor method definition.
+    /// </summary>
+    /// <param name="fptrProperty">The property definition for the function pointer.</param>
+    /// <param name="functionPointer">The method signature for the function pointer.</param>
+    /// <param name="isVarArg">Indicates if the function has a variable number of arguments.</param>
+    /// <param name="field_Pointer">The field reference for the pointer.</param>
+    /// <param name="field_IsOwner">The field reference for the owner flag.</param>
+    /// <param name="field_IsTempStackValue">The field reference for the temporary stack value flag.</param>
+    /// <param name="classSize">The size of the class.</param>
+    /// <param name="t">The item.</param>
+    /// <returns>The constructed method definition.</returns>
+    private MethodDefinition BuildCtor(PropertyDefinition fptrProperty, IMethodSignature functionPointer, bool isVarArg, FieldReference field_Pointer, FieldReference field_IsOwner, FieldReference field_IsTempStackValue, ulong classSize, in Item t)
     {
+        // Determine the loop range based on the function pointer parameters and whether it's a vararg function
         (int begin, int end) loopRange = (1, functionPointer.Parameters.Count);
-        if (isVarArg)
-        {
-            loopRange.end -= 1;
-        }
+        if (isVarArg) loopRange.end -= 1;
 
-        MethodDefinition ctor = new(
-            ".ctor",
-            MethodAttributes.Public |
-            MethodAttributes.HideBySig |
-            MethodAttributes.SpecialName |
-            MethodAttributes.RTSpecialName,
-            module.ImportReference(typeof(void)));
-        if (isVarArg)
-        {
-            ctor.CallingConvention |= MethodCallingConvention.VarArg;
-        }
+        // Create a new method definition for the constructor
+        MethodDefinition ctor = new(".ctor", MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName, module.ImportReference(typeof(void)));
+        if (isVarArg) ctor.CallingConvention |= MethodCallingConvention.VarArg;
+        if (classSize is 0) ctor.Parameters.Add(new("allocSize", ParameterAttributes.None, module.ImportReference(typeof(ulong))));
 
-        if (classSize is 0)
-        {
-            ctor.Parameters.Add(new("allocSize", ParameterAttributes.None, module.ImportReference(typeof(ulong))));
-        }
-
+        // Add parameters to the constructor based on the function pointer parameters
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
             ParameterDefinition param = functionPointer.Parameters[i];
             ctor.Parameters.Add(new(Utils.GetParameterName(t, true, i), ParameterAttributes.None, param.ParameterType));
         }
 
+        // Create a variable for the function pointer
+        VariableDefinition fptr = new(module.ImportReference(typeof(void).MakePointerType()));
+        ctor.Body.Variables.Add(fptr);
+        ILProcessor? il = ctor.Body.GetILProcessor();
+
+        // Emit IL instructions for constructor body
+        il.Emit(OC.Ldarg_0); // Load argument 0
+        il.Emit(OC.Call, module.ImportReference(Utils.Object.GetConstructors().First())); // Call the first constructor of the object
+        il.Emit(OC.Ldarg_0); // Load argument 0
+
+        if (classSize is 0)
         {
-            VariableDefinition fptr = new(module.ImportReference(typeof(void).MakePointerType()));
-            ctor.Body.Variables.Add(fptr);
-            ILProcessor? il = ctor.Body.GetILProcessor();
-
-            il.Emit(OC.Ldarg_0);
-            il.Emit(OC.Call, module.ImportReference(Utils.Object.GetConstructors().First()));
-
-            il.Emit(OC.Ldarg_0);
-
-            if (classSize is 0)
-            {
-                il.Emit(OC.Ldarg_1);
-            }
-            else
-            {
-                il.Emit(OC.Ldc_I8, classSize);
-                il.Emit(OC.Conv_U8);
-            }
-
-            il.Emit(OC.Call, module.ImportReference(typeof(HeapAlloc).GetMethod(nameof(HeapAlloc.New))));
-            il.Emit(OC.Stfld, field_Pointer);
-
-            il.Emit(OC.Call, fptrProperty.GetMethod);
-            il.Emit(OC.Stloc, fptr);
-
-            il.Emit(OC.Ldarg_0);
-            il.Emit(OC.Ldfld, field_Pointer);
-            for (int i = classSize is 0 ? 1 : 0; i < (ctor.Parameters.Count - (isVarArg ? 1 : 0)); i++)
-            {
-                il.Emit(OC.Ldarg_S, ctor.Parameters[i]);
-            }
-
-            CallSite callSite = new(module.ImportReference(module.ImportReference(typeof(void))))
-            {
-                CallingConvention = MethodCallingConvention.Unmanaged
-            };
-            foreach (ParameterDefinition? param in functionPointer.Parameters)
-            {
-                callSite.Parameters.Add(param);
-            }
-
-            if (isVarArg)
-            {
-                il.Emit(OC.Arglist);
-            }
-
-            il.Emit(OC.Ldloc, fptr);
-            il.Emit(OC.Calli, callSite);
-
-            il.Emit(OC.Ldarg_0);
-            il.Emit(OC.Ldc_I4_1);
-            il.Emit(OC.Stfld, field_IsOwner);
-
-            il.Emit(OC.Ldarg_0);
-            il.Emit(OC.Ldc_I4_0);
-            il.Emit(OC.Stfld, field_IsTempStackValue);
-            il.Emit(OC.Ret);
+            il.Emit(OC.Ldarg_1); // Load argument 1
         }
+        else
+        {
+            il.Emit(OC.Ldc_I8, classSize); // Load constant of type long
+            il.Emit(OC.Conv_U8); // Convert to unsigned long
+        }
+
+        il.Emit(OC.Call, module.ImportReference(typeof(HeapAlloc).GetMethod(nameof(HeapAlloc.New)))); // Call the New method of HeapAlloc
+        il.Emit(OC.Stfld, field_Pointer); // Store the field Pointer
+        il.Emit(OC.Call, fptrProperty.GetMethod); // Call the get method of the fptrProperty
+        il.Emit(OC.Stloc, fptr); // Store the value in fptr
+        il.Emit(OC.Ldarg_0); // Load argument 0
+        il.Emit(OC.Ldfld, field_Pointer); // Load the field Pointer
+
+        for (int i = classSize is 0 ? 1 : 0; i < (ctor.Parameters.Count - (isVarArg ? 1 : 0)); i++)
+        {
+            il.Emit(OC.Ldarg_S, ctor.Parameters[i]); // Load the argument at index i
+        }
+
+        CallSite callSite = new(module.ImportReference(module.ImportReference(typeof(void)))) { CallingConvention = MethodCallingConvention.Unmanaged }; // Create a new CallSite
+        foreach (ParameterDefinition? param in functionPointer.Parameters)
+        {
+            callSite.Parameters.Add(param); // Add parameter to the CallSite
+        }
+        if (isVarArg)
+        {
+            il.Emit(OC.Arglist); // Emit the Arglist opcode
+        }
+        il.Emit(OC.Ldloc, fptr); // Load the value in fptr
+        il.Emit(OC.Calli, callSite); // Call the function pointer using the CallSite
+        il.Emit(OC.Ldarg_0); // Load argument 0
+        il.Emit(OC.Ldc_I4_1); // Load the constant 1
+        il.Emit(OC.Stfld, field_IsOwner); // Store the value in field IsOwner
+        il.Emit(OC.Ldarg_0); // Load argument 0
+        il.Emit(OC.Ldc_I4_0); // Load the constant 0
+        il.Emit(OC.Stfld, field_IsTempStackValue); // Store the value in field IsTempStackValue
+        il.Emit(OC.Ret); // Return
 
         return ctor;
     }
+
+
 
     private MethodDefinition BuildFunction(
         ItemAccessType itemAccessType,
@@ -766,7 +751,7 @@ public class MethodBuilder(ModuleDefinition module)
         il.Emit(OC.Call, module.ImportReference(typeof(CppTypeSystem)
             .GetMethods()
             .First(f => f is
-                { Name: nameof(CppTypeSystem.GetVurtualFunctionPointerByIndex), IsGenericMethodDefinition: false })));
+            { Name: nameof(CppTypeSystem.GetVurtualFunctionPointerByIndex), IsGenericMethodDefinition: false })));
         il.Emit(OC.Stloc, fptr);
 
 
@@ -842,7 +827,7 @@ public class MethodBuilder(ModuleDefinition module)
         il.Emit(OC.Call, module.ImportReference(typeof(CppTypeSystem)
             .GetMethods()
             .First(f => f is
-                { Name: nameof(CppTypeSystem.GetVurtualFunctionPointerByIndex), IsGenericMethodDefinition: false })));
+            { Name: nameof(CppTypeSystem.GetVurtualFunctionPointerByIndex), IsGenericMethodDefinition: false })));
         il.Emit(OC.Stloc, fptr);
 
         for (int i = loopRange.begin; i < loopRange.end; i++)

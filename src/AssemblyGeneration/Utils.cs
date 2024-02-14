@@ -4,9 +4,10 @@ using Hosihikari.Generation.Utils;
 using Mono.Cecil;
 using Mono.Cecil.Rocks;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Text;
-using static Hosihikari.Generation.Utils.OriginalData.Class;
 using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
+using static Hosihikari.Generation.Utils.OriginalData.Class;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 
@@ -19,9 +20,20 @@ public static class Utils
         Set
     }
 
-    static Utils()
+    public static void Init(Config config)
     {
-        FileStream file = File.OpenRead("System.Runtime.dll");
+        DirectoryInfo sdkDir = new(config.DotnetSdkDir);
+
+        var runtime = sdkDir.EnumerateDirectories()
+                            .First(dir => dir.Name is "shared")
+                            .EnumerateDirectories()
+                            .First(dir => dir.Name is "Microsoft.NETCore.App")
+                            .GetDirectories("8.*")
+                            .First()
+                            .EnumerateFiles()
+                            .First(file => file.Name is "System.Runtime.dll");
+
+        FileStream file = File.OpenRead(runtime.FullName);
         AssemblyDefinition? asm = AssemblyDefinition.ReadAssembly(file);
         file.Close();
 

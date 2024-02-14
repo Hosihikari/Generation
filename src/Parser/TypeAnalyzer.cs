@@ -152,11 +152,10 @@ public sealed class TypeAnalyzer
         }
 
         StringBuilder identifierBulider = new();
-        uint searchDepth = 0;
         int templateArgsStartIndex = 0, templateArgsEndIndex = 0;
 
 
-        for (int i = typeStr.Length - 1; i >= 0; --i)
+        for (int i = typeStr.Length - 1, searchDepth = 0; i >= 0; --i)
         {
             char c = typeStr[i];
 
@@ -351,85 +350,63 @@ public sealed class TypeAnalyzer
             return ret;
         }
 
-        if (ret.TypeIdentifier.StartsWith("union "))
-        {
-            ret.Type = CppTypeEnum.Union;
-            ret.TypeIdentifier = ret.TypeIdentifier.Remove(0, "union ".Length);
-        }
-        else if (ret.TypeIdentifier.StartsWith("class "))
-        {
-            ret.Type = CppTypeEnum.Class;
-            ret.TypeIdentifier = ret.TypeIdentifier.Remove(0, "class ".Length);
-        }
-        else if (ret.TypeIdentifier.StartsWith("struct "))
-        {
-            ret.Type = CppTypeEnum.Struct;
-            ret.TypeIdentifier = ret.TypeIdentifier.Remove(0, "struct ".Length);
-        }
-        else if (ret.TypeIdentifier.StartsWith("enum "))
-        {
-            ret.Type = CppTypeEnum.Enum;
-            ret.TypeIdentifier = ret.TypeIdentifier.Remove(0,
-                ret.TypeIdentifier.StartsWith("enum class ") ? "enum class ".Length : "enum ".Length);
-        }
-        else
-        {
-            ret.Type = CppTypeEnum.Class;
-        }
+        string typeIdentifier = ret.TypeIdentifier;
+        ret.Type = typeIdentifier.StartsWith("union ") ? CppTypeEnum.Union :
+            typeIdentifier.StartsWith("class ") ? CppTypeEnum.Class :
+            typeIdentifier.StartsWith("struct ") ? CppTypeEnum.Struct :
+            typeIdentifier.StartsWith("enum class ") ? CppTypeEnum.Enum :
+            typeIdentifier.StartsWith("enum ") ? CppTypeEnum.Enum : CppTypeEnum.Class;
 
+        if (ret.Type != CppTypeEnum.FundamentalType)
+        {
+            ret.TypeIdentifier = typeIdentifier.Remove(0, ret.Type.ToString().Length + 1);
+        }
 
         string templateArgs = string.Empty;
-        if (templateArgsStartIndex is not 0 || templateArgsEndIndex is not 0)
+        if (templateArgsStartIndex != 0 || templateArgsEndIndex != 0)
         {
-            templateArgs = typeStr.Substring(
-                templateArgsStartIndex + 1, templateArgsEndIndex - templateArgsStartIndex - 1);
+            templateArgs = typeStr.Substring(templateArgsStartIndex + 1, templateArgsEndIndex - templateArgsStartIndex - 1);
 
-            List<int> indexs = [];
+            var indexs = new List<int>(templateArgs.Length / 2); // Pre-allocate the size
 
-            uint _searchDepth = 0;
-
-            for (int i = 0; i < templateArgs.Length; ++i)
+            for (int i = 0, searchDepth = 0; i < templateArgs.Length; ++i)
             {
                 switch (templateArgs[i])
                 {
                     case '<':
-                        ++_searchDepth;
+                        ++searchDepth;
                         break;
                     case '>':
-                        --_searchDepth;
+                        --searchDepth;
                         break;
-                    case ',':
-                        if (_searchDepth is 0)
-                        {
-                            indexs.Add(i);
-                        }
-
+                    case ',' when searchDepth == 0:
+                        indexs.Add(i);
                         break;
-                    default: continue;
                 }
             }
 
             indexs.Add(templateArgs.Length);
 
-            ret.TemplateTypes = new CppTypeNode[indexs.Count];
+            var templateArgsSpan = templateArgs.AsSpan(); // Use Span<T> for substring operations
+
+            var templateTypes = new CppTypeNode[indexs.Count];
 
             int currentIndex = -2;
 
             for (int i = 0; i < indexs.Count; ++i)
             {
-                ret.TemplateTypes[i] =
-                    __AnalyzeCppType(templateArgs.Substring(currentIndex + 2, indexs[i] - currentIndex - 2).Trim());
+                templateTypes[i] = __AnalyzeCppType(templateArgsSpan.Slice(currentIndex + 2, indexs[i] - currentIndex - 2).Trim().ToString());
                 currentIndex = indexs[i];
             }
         }
 
-        string[] arr = ret.TypeIdentifier.Split("::");
+        var arr = ret.TypeIdentifier.Split("::");
         ret.TypeIdentifier = arr.LastOrDefault();
         ret.Namespaces = arr.Length > 0 ? arr.Take(arr.Length - 1).ToArray() : null;
 
         ret.TypeIdentifierWithTemplateArgs = ret.TypeIdentifier;
 
-        if (string.IsNullOrEmpty(templateArgs) is false)
+        if (!string.IsNullOrEmpty(templateArgs))
         {
             ret.TypeIdentifierWithTemplateArgs += $"<{templateArgs}>";
         }
