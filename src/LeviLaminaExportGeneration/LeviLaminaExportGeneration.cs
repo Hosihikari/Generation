@@ -1,7 +1,9 @@
 ﻿using System.Collections.ObjectModel;
-using System.CommandLine;
-using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
+
+using static Hosihikari.Generation.LeviLaminaExportGeneration.LeviLaminaExportGeneration.RegexStrings;
+using static Hosihikari.Generation.LeviLaminaExportGeneration.LeviLaminaExportGeneration.Regexes;
+using static Hosihikari.Generation.LeviLaminaExportGeneration.LeviLaminaExportGeneration.Defines;
 
 namespace Hosihikari.Generation.LeviLaminaExportGeneration;
 
@@ -26,32 +28,112 @@ public static partial class LeviLaminaExportGeneration
         public const string Reference = "Reference";
     }
 
+    /// <summary>
+    /// Contains regular expressions for matching parameters, types, names, and numbers.
+    /// </summary>
     public static partial class Regexes
     {
+        /// <summary>
+        /// Regular expression for matching parameters.
+        /// </summary>
         [GeneratedRegex(@"\s*([a-zA-Z_]\S*\s*\s*\w+)\s*(?:,\s*([a-zA-Z_]\S*\s*\s*\w+))*")]
         public static partial Regex Parameters();
 
+        /// <summary>
+        /// Regular expression for matching types.
+        /// </summary>
         [GeneratedRegex(@"[a-zA-Z_]\S*")]
-        public static partial Regex ReturnType();
+        public static partial Regex Type();
 
+        /// <summary>
+        /// Regular expression for matching names.
+        /// </summary>
         [GeneratedRegex(@"[a-zA-Z_]*")]
         public static partial Regex Name();
+
+        /// <summary>
+        /// Regular expression for matching numbers.
+        /// </summary>
+        [GeneratedRegex(@"(0x[0-9A-Fa-f]+)|\d+")]
+        public static partial Regex Number();
+    }
+
+    /// <summary>
+    /// This class contains regex strings for common patterns.
+    /// </summary>
+    public static class RegexStrings
+    {
+        /// <summary>
+        /// Regex string for left parenthesis with optional spaces around it.
+        /// </summary>
+        public const string LeftParenthesis = @"\s*\(\s*";
+
+        /// <summary>
+        /// Regex string for right parenthesis with optional spaces around it.
+        /// </summary>
+        public const string RightParenthesis = @"\s*\)\s*";
+
+        /// <summary>
+        /// Regex string for comma with optional spaces around it.
+        /// </summary>
+        public const string Comma = @"\s*,\s*";
+
+        /// <summary>
+        /// Regex string for whitespace.
+        /// </summary>
+        public const string Whitespace = @"\s+";
+
+        /// <summary>
+        /// Regex string for a string identifier.
+        /// </summary>
+        public const string String = @"[a-zA-Z_]\S*";
+
+        /// <summary>
+        /// Alias for LeftParenthesis.
+        /// </summary>
+        public const string Lparen = LeftParenthesis;
+
+        /// <summary>
+        /// Alias for RightParenthesis.
+        /// </summary>
+        public const string Rparen = RightParenthesis;
     }
 
     public class Expression
     {
+        /// <summary>
+        /// Represents a symbol with a specific type and value.
+        /// </summary>
         public class Symbol
         {
+            /// <summary>
+            /// The type of symbol.
+            /// </summary>
             [Flags]
             public enum Type
             {
+                /// <summary>
+                /// Regular expression type.
+                /// </summary>
                 Regex,
+                /// <summary>
+                /// String type.
+                /// </summary>
                 String,
+                /// <summary>
+                /// Expression type.
+                /// </summary>
                 Expression
             }
 
+            /// <summary>
+            /// The value of the symbol.
+            /// </summary>
             private object? Value { get; set; }
 
+            /// <summary>
+            /// The type of the symbol.
+            /// </summary>
             public Type SymbolType => Value switch
             {
                 Regex _ => Type.Regex,
@@ -60,13 +142,55 @@ public static partial class LeviLaminaExportGeneration
                 _ => throw new NotSupportedException()
             };
 
+            /// <summary>
+            /// Implicit conversion operator from Regex to Symbol.
+            /// </summary>
             public static implicit operator Symbol(Regex regex) => new() { Value = regex };
+            /// <summary>
+            /// Implicit conversion operator from string to Symbol.
+            /// </summary>
             public static implicit operator Symbol(string str) => new() { Value = str };
+            /// <summary>
+            /// Implicit conversion operator from Expression to Symbol.
+            /// </summary>
             public static implicit operator Symbol(Expression exp) => new() { Value = exp };
 
+            /// <summary>
+            /// Gets the value of the symbol as a specific type.
+            /// </summary>
             public T Target<T>() => (T)Value!;
 
+            /// <summary>
+            /// Returns the string representation of the symbol's value.
+            /// </summary>
             public override string ToString() => Value?.ToString() ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Provides utility methods for generating substring, subexpression, and subregex names.
+        /// </summary>
+        public static class GroupName
+        {
+            /// <summary>
+            /// Generates a substring name based on the given index.
+            /// </summary>
+            /// <param name="index">The index used to generate the substring name.</param>
+            /// <returns>The generated substring name.</returns>
+            public static string SubString(int index) => $"__substr_{index}";
+
+            /// <summary>
+            /// Generates a subexpression name based on the given index.
+            /// </summary>
+            /// <param name="index">The index used to generate the subexpression name.</param>
+            /// <returns>The generated subexpression name.</returns>
+            public static string SubExpression(int index) => $"__subexp_{index}";
+
+            /// <summary>
+            /// Generates a subregex name based on the given index.
+            /// </summary>
+            /// <param name="index">The index used to generate the subregex name.</param>
+            /// <returns>The generated subregex name.</returns>
+            public static string SubRegex(int index) => $"__subreg_{index}";
         }
 
 
@@ -94,9 +218,9 @@ public static partial class LeviLaminaExportGeneration
                     var symbolType = symbols[i].SymbolType;
                     strings[i] = symbolType switch
                     {
-                        Symbol.Type.String => $"(?<__substr_{istr++}>{symbols[i]})",
-                        Symbol.Type.Expression => $"(?<__subexp_{iexp++}>.*)",
-                        Symbol.Type.Regex => $"(?<__subreg_{ireg++}>{symbols[i]})",
+                        Symbol.Type.String => $"(?<{GroupName.SubString(istr++)}>{symbols[i]})",
+                        Symbol.Type.Expression => $"(?<{GroupName.SubExpression(iexp++)}>.*)",
+                        Symbol.Type.Regex => $"(?<{GroupName.SubRegex(ireg++)}>{symbols[i]})",
                         _ => throw new NotSupportedException()
                     };
                     if (symbolType == Symbol.Type.Expression) indexes.Add(i);
@@ -142,9 +266,9 @@ public static partial class LeviLaminaExportGeneration
                 {
                     visitor?.Invoke(Symbols[i], match.Groups[Symbols[i].SymbolType switch
                     {
-                        Symbol.Type.String => $"__substr_{istr++}",
-                        Symbol.Type.Expression => $"__subexp_{iexp++}",
-                        Symbol.Type.Regex => $"__subreg_{ireg++}",
+                        Symbol.Type.String => GroupName.SubString(istr++),
+                        Symbol.Type.Expression => GroupName.SubExpression(iexp++),
+                        Symbol.Type.Regex => GroupName.SubRegex(ireg++),
                         _ => throw new NotSupportedException()
                     }]);
                 }
@@ -157,7 +281,7 @@ public static partial class LeviLaminaExportGeneration
                 foreach (var i in subExpressionIndexes)
                 {
                     var current = Symbols![i].Target<Expression>();
-                    if (current.Match(match.Groups[$"__subexp_{expIndex++}"].Value, visitor).Success is false)
+                    if (current.Match(match.Groups[GroupName.SubExpression(expIndex++)].Value, visitor).Success is false)
                         return this;
                 }
             }
@@ -180,66 +304,102 @@ public static partial class LeviLaminaExportGeneration
     public static class Expressions
     {
         /// <summary>
+        /// Represents the event arguments for when a match is found.
+        /// </summary>
+        public class MatchedEventArgs(IReadOnlyList<Expression.Symbol> symbols, GroupCollection groups) : EventArgs
+        {
+            /// <summary>
+            /// Gets the list of symbols involved in the match.
+            /// </summary>
+            public IReadOnlyList<Expression.Symbol> Symbols => symbols;
+
+            /// <summary>
+            /// Gets the collection of groups captured in the match.
+            /// </summary>
+            public GroupCollection Groups => groups;
+        }
+
+
+        /// <summary>
+        /// HosihikariExport(<return_type> ExportFuncName(<function_name>))(<parameters>)
+        /// </summary>
+        public static Expression ExportFunctionExp { get; } = new(
+            format: @$"{{0}}{Lparen}{{1}}{Rparen}",
+            symbols: [
+                HosihikariExport,
+                new Expression(
+                    format: @$"{{0}}\s+{{1}}{Lparen}{{2}}{Rparen}\s*{Lparen}{{3}}{Rparen}",
+                    symbols: [
+                        Type(),
+                        ExportFuncName,
+                        Name(),
+                        Parameters()
+                    ],
+                    matched: (symbols, groups) => ExportAutoGenerateMatched?.Invoke(null, new(symbols, groups)))
+            ]);
+
+        /// <summary>
         /// AutoGenerate HosihikariExport(<return_type> ExportFuncName(<function_name>))(<parameters>)
         /// </summary>
-        public static Expression ExportAutoGenerate { get; } = new(
-            @"{0} {1}\({2}\)", [
-                Defines.AutoGenerate,
-                Defines.HosihikariExport,
-                new Expression(
-                    @"{0} {1}\({2}\)\({3}\)", [
-                        Regexes.ReturnType(),
-                        Defines.ExportFuncName,
-                        Regexes.Name(),
-                        Regexes.Parameters()
-                    ],
-                    (symbols, groups) =>
-                    {
-                        throw new NotImplementedException();
-                    }
-                )
-            ]
-        );
+        public static Expression ExportAutoGenerateExp { get; } = new(
+            format: @$"{{0}}\s+{{1}}",
+            symbols: [AutoGenerate, ExportFunctionExp],
+            matched: (symbols, groups) => ExportManuallyMatched?.Invoke(null, new(symbols, groups)));
+
+
+        public static event EventHandler<MatchedEventArgs>? ExportAutoGenerateMatched;
 
         /// <summary>
         /// Manually HosihikariExport(<return_type> ExportFuncName(<function_name>))(<parameters>)
         /// </summary>
-        public static Expression ExportManually { get; } = new(
-            @"{0} {1}\({2}\)", [
-                Defines.Manually,
-                Defines.HosihikariExport,
-                new Expression(
-                    @"{0} {1}\({2}\)\({3}\)", [
-                        Regexes.ReturnType(),
-                        Defines.ExportFuncName,
-                        Regexes.Name(),
-                        Regexes.Parameters()
-                    ],
-                    (symbols, groups) =>
-                    {
-                        throw new NotImplementedException();
-                    }
-                )
-            ]
+        public static Expression ExportManuallyExp { get; } = new(
+            format: @$"{{0}}\s+{{1}}",
+            symbols: [Manually, ExportFunctionExp],
+            matched: (symbols, groups) => ExportManuallyMatched?.Invoke(null, new(symbols, groups)));
+
+        public static event EventHandler<MatchedEventArgs>? ExportManuallyMatched;
+
+
+        public static Expression RecordFieldExp { get; } = new(
+            format: @$"{{0}}{Lparen}{{1}}{Comma}{{2}}{Rparen}",
+            symbols: [
+                RecordField,
+                Type(),
+                Name()
+            ]);
+
+        public static Expression FillerDefinitionExp { get; } = new(
+            format: @$"{{0}}{Lparen}{{1}}{Rparen}",
+            symbols: [FillerDef, Number()]
         );
+
+        public static Expression PointerExp { get; } = new(
+            format: @$"{{0}}{Lparen}{{1}}{Rparen}",
+            symbols: [Pointer, Type()]
+        );
+
+        public static Expression ReferenceExp { get; } = new(
+            format: @$"{{0}}{Lparen}{{1}}{Rparen}",
+            symbols: [Reference, Type()]
+        );
+
+
+
+        //public static Expression InteropRecordDefinition { get; } = new(
+        //    @"{0}\s*\(\s*{1}\s\)\s*;", [
+        //        Defines.InteropRecordDefinition,
+        //        new Expression(@"([\s\S])+", null, (symbols, groups) => {
+        //            throw new NotImplementedException();
+        //        })
+        //    ]);
 
         //todo
     }
 
     public static void Run(string sourceDir, string outputPath)
     {
-        //var exp = new Expression(
-        //    @"{0} {1}\({2}\)", [
-        //        Defines.AutoGenerate,
-        //        Defines.HosihikariExport,
-        //        new Expression(
-        //            @"{0} {1}\({2}\)\({3}\)", [
-        //                Regexes.ReturnType(),
-        //                Defines.ExportFuncName,
-        //                Regexes.Name(),
-        //                Regexes.Parameters()
-        //            ])]);
-        //exp.Match("AutoGenerate HosihikariExport(bool ExportFuncName(unhook)(void* target, void* detour, bool stopTheWorld))");
+        //Expressions.ExportFunctionExp.Match("AutoGenerate HosihikariExport(bool ExportFuncName(unhook)(void* target, void* detour, bool stopTheWorld))");
+        //Expressions.FillerDefinitionExp.Match("FillerDef(0x30)");
 
         throw new NotImplementedException();
     }
