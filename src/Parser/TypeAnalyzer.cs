@@ -95,11 +95,11 @@ public class CppTypeNode
         }
     }
 
-    public IEnumerable<CppTypeNode> ToArray()
+    public IEnumerable<CppTypeNode> ToEnumerable()
     {
         List<CppTypeNode> nodes = [];
         ForEach((node, _, _) => nodes.Add(node));
-        return nodes.ToArray();
+        return [.. nodes];
     }
 }
 
@@ -351,16 +351,18 @@ public sealed class TypeAnalyzer
         }
 
         string typeIdentifier = ret.TypeIdentifier;
-        ret.Type = typeIdentifier.StartsWith("union ") ? CppTypeEnum.Union :
-            typeIdentifier.StartsWith("class ") ? CppTypeEnum.Class :
-            typeIdentifier.StartsWith("struct ") ? CppTypeEnum.Struct :
-            typeIdentifier.StartsWith("enum class ") ? CppTypeEnum.Enum :
-            typeIdentifier.StartsWith("enum ") ? CppTypeEnum.Enum : CppTypeEnum.Class;
 
-        if (ret.Type != CppTypeEnum.FundamentalType)
-        {
-            ret.TypeIdentifier = typeIdentifier.Remove(0, ret.Type.ToString().Length + 1);
-        }
+        (CppTypeEnum type, bool removePrefix) temp = default;
+
+        temp = typeIdentifier.StartsWith("union ") ? (CppTypeEnum.Union, true) :
+            typeIdentifier.StartsWith("class ") ? (CppTypeEnum.Class, true) :
+            typeIdentifier.StartsWith("struct ") ? (CppTypeEnum.Struct, true) :
+            typeIdentifier.StartsWith("enum class ") ? (CppTypeEnum.Enum, true) :
+            typeIdentifier.StartsWith("enum ") ? (CppTypeEnum.Enum, true) : (CppTypeEnum.Class, false);
+
+        ret.Type = temp.type;
+
+        if (temp.removePrefix) ret.TypeIdentifier = typeIdentifier.Remove(0, ret.Type.ToString().Length + 1);
 
         string templateArgs = string.Empty;
         if (templateArgsStartIndex != 0 || templateArgsEndIndex != 0)

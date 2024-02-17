@@ -167,7 +167,7 @@ public static class TypeReferenceBuilder
         in TypeData type,
         bool isResult = false)
     {
-        IEnumerable<CppTypeNode> typeNodes = type.Analyzer.CppTypeHandle.ToArray().Reverse();
+        IEnumerable<CppTypeNode> typeNodes = type.Analyzer.CppTypeHandle.ToEnumerable().Reverse();
 
         TypeReference? reference = null;
         bool isUnmanagedType = false;

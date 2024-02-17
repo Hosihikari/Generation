@@ -53,7 +53,7 @@ public readonly struct TypeData
 
     private static string BuildManagedType(TypeAnalyzer analyzer)
     {
-        IEnumerable<CppTypeNode> arr = analyzer.CppTypeHandle.ToArray().Reverse();
+        IEnumerable<CppTypeNode> arr = analyzer.CppTypeHandle.ToEnumerable().Reverse();
         StringBuilder builder = new();
 
         bool isIcppInstance;

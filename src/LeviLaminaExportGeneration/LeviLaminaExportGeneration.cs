@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using static Hosihikari.Generation.LeviLaminaExportGeneration.LeviLaminaExportGeneration.RegexStrings;
 using static Hosihikari.Generation.LeviLaminaExportGeneration.LeviLaminaExportGeneration.Regexes;
 using static Hosihikari.Generation.LeviLaminaExportGeneration.LeviLaminaExportGeneration.Defines;
+using Hosihikari.Generation.Generator;
 
 namespace Hosihikari.Generation.LeviLaminaExportGeneration;
 
@@ -43,7 +44,7 @@ public static partial class LeviLaminaExportGeneration
         /// Regular expression for matching types.
         /// </summary>
         [GeneratedRegex(@"[a-zA-Z_]\S*")]
-        public static partial Regex Type();
+        public static partial Regex CppType();
 
         /// <summary>
         /// Regular expression for matching names.
@@ -56,6 +57,12 @@ public static partial class LeviLaminaExportGeneration
         /// </summary>
         [GeneratedRegex(@"(0x[0-9A-Fa-f]+)|\d+")]
         public static partial Regex Number();
+
+        /// <summary>
+        /// Represents a regular expression for matching calling conventions.
+        /// </summary>
+        [GeneratedRegex("__(cdecl|fastcall|stdcall|thiscall)")]
+        public static partial Regex Convention();
     }
 
     /// <summary>
@@ -200,7 +207,7 @@ public static partial class LeviLaminaExportGeneration
         /// <param name="format">The format string.</param>
         /// <param name="symbols">The list of symbols.</param>
         /// <param name="matched">The action to be performed when a match is found.</param>
-        public Expression(string format, IList<Symbol>? symbols = null, Action<IReadOnlyList<Symbol>, GroupCollection>? matched = null)
+        public Expression(string format, IList<Symbol>? symbols = null, Func<IReadOnlyList<Symbol>, GroupCollection, bool>? matched = null)
         {
             Format = format;
             Symbols = new ReadOnlyCollection<Symbol>(symbols ?? []);
@@ -239,7 +246,7 @@ public static partial class LeviLaminaExportGeneration
 
         private readonly Regex exp;
 
-        private readonly Action<IReadOnlyList<Symbol>, GroupCollection>? matched;
+        private readonly Func<IReadOnlyList<Symbol>, GroupCollection, bool>? matched;
 
         private readonly IReadOnlyList<int>? subExpressionIndexes;
 
@@ -319,6 +326,38 @@ public static partial class LeviLaminaExportGeneration
             public GroupCollection Groups => groups;
         }
 
+        public static Expression CppFundamentalTypeExp { get; } = new(
+            format: "{0}",
+            symbols: [RegexStrings.String],
+            matched: (symbols, groups) =>
+            {
+                var str = groups[Expression.GroupName.SubString(0)].Value;
+                try
+                {
+                    var type = new TypeData(new() { Kind = 0, Name = str });
+                    if (type.Analyzer.CppTypeHandle.RootType.FundamentalType is not null)
+                        return true;
+                }
+                catch { }
+                return false;
+            });
+
+        public static Expression SupportedTypeExp { get; } = new(
+            format: "{0}",
+            symbols: [RegexStrings.String],
+            matched: (symbols, groups) =>
+            {
+                var str = groups[Expression.GroupName.SubString(0)].Value;
+                try
+                {
+                    var type = new TypeData(new() { Kind = 0, Name = str });
+                }
+                catch { }
+
+                if (FillerDefinitionExp!.Match(str).Success) return true;
+                return FunctionPointerDefinitionExp!.Match(str).Success;
+            });
+
 
         /// <summary>
         /// HosihikariExport(<return_type> ExportFuncName(<function_name>))(<parameters>)
@@ -330,13 +369,11 @@ public static partial class LeviLaminaExportGeneration
                 new Expression(
                     format: @$"{{0}}\s+{{1}}{Lparen}{{2}}{Rparen}\s*{Lparen}{{3}}{Rparen}",
                     symbols: [
-                        Type(),
+                        SupportedTypeExp,
                         ExportFuncName,
                         Name(),
                         Parameters()
-                    ],
-                    matched: (symbols, groups) => ExportAutoGenerateMatched?.Invoke(null, new(symbols, groups)))
-            ]);
+                    ])]);
 
         /// <summary>
         /// AutoGenerate HosihikariExport(<return_type> ExportFuncName(<function_name>))(<parameters>)
@@ -344,7 +381,11 @@ public static partial class LeviLaminaExportGeneration
         public static Expression ExportAutoGenerateExp { get; } = new(
             format: @$"{{0}}\s+{{1}}",
             symbols: [AutoGenerate, ExportFunctionExp],
-            matched: (symbols, groups) => ExportManuallyMatched?.Invoke(null, new(symbols, groups)));
+            matched: (symbols, groups) =>
+            {
+                ExportManuallyMatched?.Invoke(null, new(symbols, groups));
+                return true;
+            });
 
 
         public static event EventHandler<MatchedEventArgs>? ExportAutoGenerateMatched;
@@ -355,7 +396,11 @@ public static partial class LeviLaminaExportGeneration
         public static Expression ExportManuallyExp { get; } = new(
             format: @$"{{0}}\s+{{1}}",
             symbols: [Manually, ExportFunctionExp],
-            matched: (symbols, groups) => ExportManuallyMatched?.Invoke(null, new(symbols, groups)));
+            matched: (symbols, groups) =>
+            {
+                ExportManuallyMatched?.Invoke(null, new(symbols, groups));
+                return true;
+            });
 
         public static event EventHandler<MatchedEventArgs>? ExportManuallyMatched;
 
@@ -364,9 +409,20 @@ public static partial class LeviLaminaExportGeneration
             format: @$"{{0}}{Lparen}{{1}}{Comma}{{2}}{Rparen}",
             symbols: [
                 RecordField,
-                Type(),
+                SupportedTypeExp,
                 Name()
             ]);
+
+        public static Expression FunctionPointerDefinitionExp { get; } = new(
+            format: @$"{{0}}{Lparen}{{1}}{Comma}{{2}}{Comma}{{3}}{Comma}{{4}}",
+            symbols: [
+                FunctionPointerDef,
+                Name(),
+                Convention(),
+                SupportedTypeExp,
+                Parameters()
+            ],
+            matched: (symbols, groups) => { return true; });
 
         public static Expression FillerDefinitionExp { get; } = new(
             format: @$"{{0}}{Lparen}{{1}}{Rparen}",
@@ -375,12 +431,12 @@ public static partial class LeviLaminaExportGeneration
 
         public static Expression PointerExp { get; } = new(
             format: @$"{{0}}{Lparen}{{1}}{Rparen}",
-            symbols: [Pointer, Type()]
+            symbols: [Pointer, SupportedTypeExp]
         );
 
         public static Expression ReferenceExp { get; } = new(
             format: @$"{{0}}{Lparen}{{1}}{Rparen}",
-            symbols: [Reference, Type()]
+            symbols: [Reference, SupportedTypeExp]
         );
 
 
@@ -398,8 +454,10 @@ public static partial class LeviLaminaExportGeneration
 
     public static void Run(string sourceDir, string outputPath)
     {
-        //Expressions.ExportFunctionExp.Match("AutoGenerate HosihikariExport(bool ExportFuncName(unhook)(void* target, void* detour, bool stopTheWorld))");
+        //Expressions.ExportFunctionExp.Match("AutoGenerate HosihikariExport(bool ExportFuncName(unhook)(void* target, void* detour, bool stopTheWorld)){}  AutoGenerate HosihikariExport(bool ExportFuncName(unhook)(void* target, void* detour, bool stopTheWorld)){}");
         //Expressions.FillerDefinitionExp.Match("FillerDef(0x30)");
+        //Expressions.PointerExp.Match("Pointer(std::string)");
+        //Expressions.SupportedTypeExp.Match("void*");
 
         throw new NotImplementedException();
     }
