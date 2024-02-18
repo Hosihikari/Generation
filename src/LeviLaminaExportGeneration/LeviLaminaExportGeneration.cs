@@ -18,8 +18,8 @@ public static partial class LeviLaminaExportGeneration
         //Expressions.PointerExp.Match("Pointer(std::string)");
         //Expressions.SupportedTypeExp.Match("void*");
         //Expressions.SupportedTypeExp.Match("FillerDef(0x30)");
-        Expressions.FunctionPointerDefinitionExp.Match(
-            @"FunctionPointerDef(""get_name"", __stdcall, Pointer(std::string), Pointer(ll::plugin::Dependency))");
+        //Expressions.FunctionPointerDefinitionExp.Match(
+        //    @"FunctionPointerDef(""get_name"", __stdcall, Pointer(std::string), Pointer(ll::plugin::Dependency))");
 
         throw new NotImplementedException();
     }
@@ -467,7 +467,7 @@ public static partial class LeviLaminaExportGeneration
             @$"{{0}}{Lparen}{{1}}{Comma}{{2}}{Comma}{{3}}{Comma}{{4}}",
             [
                 FunctionPointerDef,
-                NameWithQuotationMarks(),
+                All,
                 Convention(),
                 SupportedTypeExp,
                 All

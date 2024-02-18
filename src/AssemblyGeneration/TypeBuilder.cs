@@ -60,19 +60,17 @@ public class TypeBuilder(
 
         BuildProperties();
 
-        if (dtorType is not null)
+        if (dtorType is null)
         {
-            return;
+            destructorBuilder.BuildDtor(
+                definition,
+                DestructorBuilder.DtorType.Empty,
+                default,
+                interfaceImplBuilder.field_IsOwner!,
+                interfaceImplBuilder.field_Pointer!,
+                interfaceImplBuilder.field_IsTempStackValue!);
+            dtorType = DestructorBuilder.DtorType.Empty;
         }
-
-        destructorBuilder.BuildDtor(
-            definition,
-            DestructorBuilder.DtorType.Empty,
-            default,
-            interfaceImplBuilder.field_IsOwner!,
-            interfaceImplBuilder.field_Pointer!,
-            interfaceImplBuilder.field_IsTempStackValue!);
-        dtorType = DestructorBuilder.DtorType.Empty;
     }
 
     [MemberNotNull(nameof(originalTypeDefinition))]
@@ -162,6 +160,9 @@ public class TypeBuilder(
                 item,
                 () =>
                 {
+                    if (dtorType is not null)
+                        return;
+
                     destructorBuilder.BuildDtor(
                         definition,
                         DestructorBuilder.DtorType.Normal,
@@ -193,6 +194,9 @@ public class TypeBuilder(
                 MethodDefinition? method = builder.BuildVirtualMethod(fptrType, isVarArg,
                     interfaceImplBuilder.field_Pointer!, i, functions[i], () =>
                     {
+                        if (dtorType is not null)
+                            return;
+
                         destructorBuilder.BuildDtor(
                             definition,
                             DestructorBuilder.DtorType.Virtual,
