@@ -63,6 +63,9 @@ public static partial class LeviLaminaExportGeneration
         /// </summary>
         [GeneratedRegex("__(cdecl|fastcall|stdcall|thiscall)")]
         public static partial Regex Convention();
+
+        [GeneratedRegex("\"\"[a-zA-Z_]*\"\"")]
+        public static partial Regex NameWithQuotationMarks();
     }
 
     /// <summary>
@@ -94,6 +97,11 @@ public static partial class LeviLaminaExportGeneration
         /// Regex string for a string identifier.
         /// </summary>
         public const string String = @"[a-zA-Z_]\S*";
+
+        /// <summary>
+        /// Regex string for matching all characters.
+        /// </summary>
+        public const string All = ".*";
 
         /// <summary>
         /// Alias for LeftParenthesis.
@@ -347,15 +355,11 @@ public static partial class LeviLaminaExportGeneration
             symbols: [RegexStrings.String],
             matched: (symbols, groups) =>
             {
-                var str = groups[Expression.GroupName.SubString(0)].Value;
-                try
-                {
-                    var type = new TypeData(new() { Kind = 0, Name = str });
-                }
-                catch { }
+                var str = groups[Expression.GroupName.SubString(0)].Value.Trim();
 
                 if (FillerDefinitionExp!.Match(str).Success) return true;
-                return FunctionPointerDefinitionExp!.Match(str).Success;
+                if (FunctionPointerDefinitionExp!.Match(str).Success) return true;
+                return CppFundamentalTypeExp.Match(str).Success;
             });
 
 
@@ -410,19 +414,25 @@ public static partial class LeviLaminaExportGeneration
             symbols: [
                 RecordField,
                 SupportedTypeExp,
-                Name()
+                NameWithQuotationMarks()
             ]);
 
         public static Expression FunctionPointerDefinitionExp { get; } = new(
             format: @$"{{0}}{Lparen}{{1}}{Comma}{{2}}{Comma}{{3}}{Comma}{{4}}",
             symbols: [
                 FunctionPointerDef,
-                Name(),
+                NameWithQuotationMarks(),
                 Convention(),
                 SupportedTypeExp,
-                Parameters()
+                All
             ],
-            matched: (symbols, groups) => { return true; });
+            matched: (symbols, groups) =>
+            {
+                var parameters = from str in groups[Expression.GroupName.SubString(1)].Value.Split(',')
+                                 where SupportedTypeExp.Match(str).Success
+                                 select str.Trim();
+                throw new NotImplementedException();
+            });
 
         public static Expression FillerDefinitionExp { get; } = new(
             format: @$"{{0}}{Lparen}{{1}}{Rparen}",
@@ -458,6 +468,8 @@ public static partial class LeviLaminaExportGeneration
         //Expressions.FillerDefinitionExp.Match("FillerDef(0x30)");
         //Expressions.PointerExp.Match("Pointer(std::string)");
         //Expressions.SupportedTypeExp.Match("void*");
+        //Expressions.SupportedTypeExp.Match("FillerDef(0x30)");
+        Expressions.FunctionPointerDefinitionExp.Match(@"FunctionPointerDef(""get_name"", __stdcall, Pointer(std::string), Pointer(ll::plugin::Dependency))");
 
         throw new NotImplementedException();
     }

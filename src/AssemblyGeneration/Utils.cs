@@ -25,10 +25,14 @@ public static class Utils
         DirectoryInfo sdkDir = new(config.DotnetSdkDir);
 
         var runtime = sdkDir.EnumerateDirectories()
-                            .First(dir => dir.Name is "shared")
+                            .First(dir => dir.Name is "packs")
                             .EnumerateDirectories()
-                            .First(dir => dir.Name is "Microsoft.NETCore.App")
+                            .First(dir => dir.Name is "Microsoft.NETCore.App.Ref")
                             .GetDirectories("8.*")
+                            .First()
+                            .EnumerateDirectories()
+                            .First(dir => dir.Name is "ref")
+                            .GetDirectories("net8.0")
                             .First()
                             .EnumerateFiles()
                             .First(file => file.Name is "System.Runtime.dll");
@@ -37,7 +41,7 @@ public static class Utils
         AssemblyDefinition? asm = AssemblyDefinition.ReadAssembly(file);
         file.Close();
 
-        foreach (TypeDefinition? type in asm.Modules.SelectMany(module => module.Types))
+        foreach (TypeDefinition? type in asm.MainModule.Types)
         {
             switch (type.Name)
             {
