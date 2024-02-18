@@ -15,7 +15,7 @@ namespace Hosihikari.Generation.AssemblyGeneration;
 public class MethodBuilder(ModuleDefinition module)
 {
     /// <summary>
-    /// Builds a constructor method definition.
+    ///     Builds a constructor method definition.
     /// </summary>
     /// <param name="fptrProperty">The property definition for the function pointer.</param>
     /// <param name="functionPointer">The method signature for the function pointer.</param>
@@ -26,16 +26,30 @@ public class MethodBuilder(ModuleDefinition module)
     /// <param name="classSize">The size of the class.</param>
     /// <param name="t">The item.</param>
     /// <returns>The constructed method definition.</returns>
-    private MethodDefinition BuildCtor(PropertyDefinition fptrProperty, IMethodSignature functionPointer, bool isVarArg, FieldReference field_Pointer, FieldReference field_IsOwner, FieldReference field_IsTempStackValue, ulong classSize, in Item t)
+    private MethodDefinition BuildCtor(PropertyDefinition fptrProperty, IMethodSignature functionPointer, bool isVarArg,
+        FieldReference field_Pointer, FieldReference field_IsOwner, FieldReference field_IsTempStackValue,
+        ulong classSize, in Item t)
     {
         // Determine the loop range based on the function pointer parameters and whether it's a vararg function
         (int begin, int end) loopRange = (1, functionPointer.Parameters.Count);
-        if (isVarArg) loopRange.end -= 1;
+        if (isVarArg)
+        {
+            loopRange.end -= 1;
+        }
 
         // Create a new method definition for the constructor
-        MethodDefinition ctor = new(".ctor", MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName, module.ImportReference(typeof(void)));
-        if (isVarArg) ctor.CallingConvention |= MethodCallingConvention.VarArg;
-        if (classSize is 0) ctor.Parameters.Add(new("allocSize", ParameterAttributes.None, module.ImportReference(typeof(ulong))));
+        MethodDefinition ctor = new(".ctor",
+            MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName |
+            MethodAttributes.RTSpecialName, module.ImportReference(typeof(void)));
+        if (isVarArg)
+        {
+            ctor.CallingConvention |= MethodCallingConvention.VarArg;
+        }
+
+        if (classSize is 0)
+        {
+            ctor.Parameters.Add(new("allocSize", ParameterAttributes.None, module.ImportReference(typeof(ulong))));
+        }
 
         // Add parameters to the constructor based on the function pointer parameters
         for (int i = loopRange.begin; i < loopRange.end; i++)
@@ -51,7 +65,8 @@ public class MethodBuilder(ModuleDefinition module)
 
         // Emit IL instructions for constructor body
         il.Emit(OC.Ldarg_0); // Load argument 0
-        il.Emit(OC.Call, module.ImportReference(Utils.Object.GetConstructors().First())); // Call the first constructor of the object
+        il.Emit(OC.Call,
+            module.ImportReference(Utils.Object.GetConstructors().First())); // Call the first constructor of the object
         il.Emit(OC.Ldarg_0); // Load argument 0
 
         if (classSize is 0)
@@ -64,7 +79,9 @@ public class MethodBuilder(ModuleDefinition module)
             il.Emit(OC.Conv_U8); // Convert to unsigned long
         }
 
-        il.Emit(OC.Call, module.ImportReference(typeof(HeapAlloc).GetMethod(nameof(HeapAlloc.New)))); // Call the New method of HeapAlloc
+        il.Emit(OC.Call,
+            module.ImportReference(
+                typeof(HeapAlloc).GetMethod(nameof(HeapAlloc.New)))); // Call the New method of HeapAlloc
         il.Emit(OC.Stfld, field_Pointer); // Store the field Pointer
         il.Emit(OC.Call, fptrProperty.GetMethod); // Call the get method of the fptrProperty
         il.Emit(OC.Stloc, fptr); // Store the value in fptr
@@ -76,15 +93,18 @@ public class MethodBuilder(ModuleDefinition module)
             il.Emit(OC.Ldarg_S, ctor.Parameters[i]); // Load the argument at index i
         }
 
-        CallSite callSite = new(module.ImportReference(module.ImportReference(typeof(void)))) { CallingConvention = MethodCallingConvention.Unmanaged }; // Create a new CallSite
+        CallSite callSite = new(module.ImportReference(module.ImportReference(typeof(void))))
+            { CallingConvention = MethodCallingConvention.Unmanaged }; // Create a new CallSite
         foreach (ParameterDefinition? param in functionPointer.Parameters)
         {
             callSite.Parameters.Add(param); // Add parameter to the CallSite
         }
+
         if (isVarArg)
         {
             il.Emit(OC.Arglist); // Emit the Arglist opcode
         }
+
         il.Emit(OC.Ldloc, fptr); // Load the value in fptr
         il.Emit(OC.Calli, callSite); // Call the function pointer using the CallSite
         il.Emit(OC.Ldarg_0); // Load argument 0
@@ -97,7 +117,6 @@ public class MethodBuilder(ModuleDefinition module)
 
         return ctor;
     }
-
 
 
     private MethodDefinition BuildFunction(
@@ -751,7 +770,7 @@ public class MethodBuilder(ModuleDefinition module)
         il.Emit(OC.Call, module.ImportReference(typeof(CppTypeSystem)
             .GetMethods()
             .First(f => f is
-            { Name: nameof(CppTypeSystem.GetVurtualFunctionPointerByIndex), IsGenericMethodDefinition: false })));
+                { Name: nameof(CppTypeSystem.GetVurtualFunctionPointerByIndex), IsGenericMethodDefinition: false })));
         il.Emit(OC.Stloc, fptr);
 
 
@@ -827,7 +846,7 @@ public class MethodBuilder(ModuleDefinition module)
         il.Emit(OC.Call, module.ImportReference(typeof(CppTypeSystem)
             .GetMethods()
             .First(f => f is
-            { Name: nameof(CppTypeSystem.GetVurtualFunctionPointerByIndex), IsGenericMethodDefinition: false })));
+                { Name: nameof(CppTypeSystem.GetVurtualFunctionPointerByIndex), IsGenericMethodDefinition: false })));
         il.Emit(OC.Stloc, fptr);
 
         for (int i = loopRange.begin; i < loopRange.end; i++)

@@ -1,7 +1,5 @@
 ﻿using Hosihikari.Generation.Generator;
 using Hosihikari.Generation.Parser;
-using Hosihikari.Minecraft;
-using Hosihikari.NativeInterop;
 using Hosihikari.NativeInterop.Generation;
 using Hosihikari.NativeInterop.Unmanaged;
 using Mono.Cecil;
@@ -9,7 +7,6 @@ using Mono.Cecil.Rocks;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using System.Linq;
 
 namespace Hosihikari.Generation.AssemblyGeneration;
 
@@ -20,34 +17,40 @@ public static class TypeReferenceBuilder
     private static readonly List<(Type, nint, nint)> typeReferenceProviders = [];
 
     /// <summary>
-    /// Initializes the predefined types and type reference providers from the given configuration.
+    ///     Initializes the predefined types and type reference providers from the given configuration.
     /// </summary>
     /// <param name="config">The configuration to use for initialization.</param>
     public static void Init(Config config)
     {
         // Load assemblies from the specified directory
-        var assemblies = new DirectoryInfo(config.RefAssemblyDir)
+        IEnumerable<Assembly> assemblies = new DirectoryInfo(config.RefAssemblyDir)
             .EnumerateFiles()
             .Where(file => file.Extension == ".dll")
             .Select(file => Assembly.LoadFrom(file.FullName));
 
         // Iterate through the assemblies and types to initialize predefined types and type reference providers
-        foreach (var type in assemblies.SelectMany(assembly => assembly.GetExportedTypes())
-            .Where(type => type.IsGenericTypeDefinition is false))
+        foreach (Type type in assemblies.SelectMany(assembly => assembly.GetExportedTypes())
+                     .Where(type => type.IsGenericTypeDefinition is false))
         {
             // Check if the type has the PredefinedTypeAttribute
             if (type.GetCustomAttribute<PredefinedTypeAttribute>() is not null)
             {
-                var attribute = type.GetCustomAttribute<PredefinedTypeAttribute>()!;
-                var keyValues = predefinedTypes.TryGetValue(attribute.NativeTypeNamespace, out Dictionary<string, Type>? value) ? value : predefinedTypes[attribute.NativeTypeNamespace] = [];
+                PredefinedTypeAttribute attribute = type.GetCustomAttribute<PredefinedTypeAttribute>()!;
+                Dictionary<string, Type> keyValues =
+                    predefinedTypes.TryGetValue(attribute.NativeTypeNamespace, out Dictionary<string, Type>? value)
+                        ? value
+                        : predefinedTypes[attribute.NativeTypeNamespace] = [];
 
                 // Add the type to predefined types based on its attributes
                 if (type.IsClass)
                 {
-                    foreach (var @interface in type.GetInterfaces().Where(@interface => @interface.IsGenericType && @interface.GetGenericTypeDefinition() == typeof(ICppInstance<>)))
+                    foreach (Type @interface in type.GetInterfaces().Where(@interface =>
+                                 @interface.IsGenericType &&
+                                 (@interface.GetGenericTypeDefinition() == typeof(ICppInstance<>))))
                     {
                         keyValues.Add(
-                            string.IsNullOrWhiteSpace(attribute.NativeTypeName) ? type.Name : attribute.NativeTypeName, type);
+                            string.IsNullOrWhiteSpace(attribute.NativeTypeName) ? type.Name : attribute.NativeTypeName,
+                            type);
                     }
                 }
                 else if (type.IsEnum || type.IsValueType)
@@ -59,7 +62,7 @@ public static class TypeReferenceBuilder
             }
 
             // Check if the type is a type reference provider and add it to the type reference providers list
-            if (type != typeof(ITypeReferenceProvider) && type.IsAssignableTo(typeof(ITypeReferenceProvider)))
+            if ((type != typeof(ITypeReferenceProvider)) && type.IsAssignableTo(typeof(ITypeReferenceProvider)))
             {
                 nint fptr1 = type.GetProperty(
                         nameof(ITypeReferenceProvider.Regex),
@@ -77,7 +80,6 @@ public static class TypeReferenceBuilder
             }
         }
     }
-
 
 
     private static TypeReference BuildFundamentalTypeReference(ModuleDefinition module, CppTypeNode node)
@@ -111,7 +113,9 @@ public static class TypeReferenceBuilder
             types.TryGetValue(node.TypeIdentifierWithTemplateArgs ?? string.Empty, out Type? type))
         {
             if (isEnum && type.IsEnum is false)
+            {
                 return false;
+            }
 
             predefinedType = type;
             return true;
@@ -124,19 +128,22 @@ public static class TypeReferenceBuilder
                 Regex regex = ((delegate* managed<Regex>)getRegexMethodFptr)();
                 Match match = regex.Match(node.OriginalTypeString ?? string.Empty);
                 if (!match.Success)
+                {
                     continue;
+                }
 
                 Type? matchedType = ((delegate* managed<Match, Type?>)matchedMethodFptr)(match);
                 predefinedType = matchedType;
 
                 if (predefinedType is not null)
+                {
                     return true;
+                }
             }
         }
 
         return false;
     }
-
 
 
     private static bool TryBuildPredefinedTypeReference(ModuleDefinition module, CppTypeNode node, bool isEnum,
@@ -154,7 +161,7 @@ public static class TypeReferenceBuilder
     }
 
     /// <summary>
-    /// Builds a TypeReference based on the provided type data and module information.
+    ///     Builds a TypeReference based on the provided type data and module information.
     /// </summary>
     /// <param name="definedTypes">Dictionary of defined types</param>
     /// <param name="module">Module definition</param>
@@ -193,20 +200,23 @@ public static class TypeReferenceBuilder
                     {
                         throw new InvalidOperationException();
                     }
+
+                {
+                    if (TryBuildPredefinedTypeReference(module, typeNode, true, out TypeReference? @ref))
                     {
-                        if (TryBuildPredefinedTypeReference(module, typeNode, true, out TypeReference? @ref))
-                        {
-                            reference = @ref;
-                            isUnmanagedType = true;
-                            break;
-                        }
-                        goto EnumDefaultParse;
+                        reference = @ref;
+                        isUnmanagedType = true;
+                        break;
                     }
+
+                    goto EnumDefaultParse;
+                }
 
                 case CppTypeEnum.Array:
                 case CppTypeEnum.Pointer:
-                    reference = isUnmanagedType ? reference.MakePointerType() :
-                        module.ImportReference(new GenericInstanceType(module.ImportReference(typeof(Pointer<>)))
+                    reference = isUnmanagedType
+                        ? reference.MakePointerType()
+                        : module.ImportReference(new GenericInstanceType(module.ImportReference(typeof(Pointer<>)))
                         {
                             GenericArguments = { reference }
                         });
@@ -214,15 +224,18 @@ public static class TypeReferenceBuilder
                     break;
 
                 case CppTypeEnum.RValueRef:
-                    return isUnmanagedType ? reference.MakeByReferenceType() :
-                        module.ImportReference(new GenericInstanceType(module.ImportReference(typeof(RValueReference<>)))
-                        {
-                            GenericArguments = { reference }
-                        });
+                    return isUnmanagedType
+                        ? reference.MakeByReferenceType()
+                        : module.ImportReference(
+                            new GenericInstanceType(module.ImportReference(typeof(RValueReference<>)))
+                            {
+                                GenericArguments = { reference }
+                            });
 
                 case CppTypeEnum.Ref:
-                    return isUnmanagedType ? reference.MakeByReferenceType() :
-                        module.ImportReference(new GenericInstanceType(module.ImportReference(typeof(Reference<>)))
+                    return isUnmanagedType
+                        ? reference.MakeByReferenceType()
+                        : module.ImportReference(new GenericInstanceType(module.ImportReference(typeof(Reference<>)))
                         {
                             GenericArguments = { reference }
                         });
@@ -234,16 +247,18 @@ public static class TypeReferenceBuilder
                     {
                         throw new InvalidOperationException();
                     }
+
+                {
+                    if (TryBuildPredefinedTypeReference(module, typeNode, false, out TypeReference? @ref))
                     {
-                        if (TryBuildPredefinedTypeReference(module, typeNode, false, out TypeReference? @ref))
-                        {
-                            reference = @ref;
-                            isUnmanagedType = @ref.IsValueType;
-                            rootTypeParsed = true;
-                            break;
-                        }
-                        goto TypeDefaultParse;
+                        reference = @ref;
+                        isUnmanagedType = @ref.IsValueType;
+                        rootTypeParsed = true;
+                        break;
                     }
+
+                    goto TypeDefaultParse;
+                }
 
                 EnumDefaultParse:
                     reference = module.ImportReference(typeof(int));
@@ -256,6 +271,7 @@ public static class TypeReferenceBuilder
                         reference = module.ImportReference(typeof(nint));
                         return reference!;
                     }
+
                     reference = definition;
                     rootTypeParsed = true;
                     break;
@@ -270,12 +286,12 @@ public static class TypeReferenceBuilder
 
         if (rootTypeParsed && !isUnmanagedType)
         {
-            reference = isResult ?
-                module.ImportReference(new GenericInstanceType(module.ImportReference(typeof(Result<>)))
+            reference = isResult
+                ? module.ImportReference(new GenericInstanceType(module.ImportReference(typeof(Result<>)))
                 {
                     GenericArguments = { reference }
-                }) :
-                module.ImportReference(new GenericInstanceType(module.ImportReference(typeof(Reference<>)))
+                })
+                : module.ImportReference(new GenericInstanceType(module.ImportReference(typeof(Reference<>)))
                 {
                     GenericArguments = { reference }
                 });
@@ -283,6 +299,4 @@ public static class TypeReferenceBuilder
 
         return reference!;
     }
-
-
 }

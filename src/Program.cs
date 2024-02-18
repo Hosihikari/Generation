@@ -21,7 +21,6 @@ mcExportCommnad.AddOption(versionOption);
 
 mcExportCommnad.SetHandler((path, outputPath, dotnetSdkDir, refAssemblyDir, version) =>
 {
-    
     Stopwatch watcher = new();
     logger.LogInformation("Start generating at {DateTime}", DateTime.Now);
     watcher.Start();

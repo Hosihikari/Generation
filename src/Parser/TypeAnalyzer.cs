@@ -362,14 +362,18 @@ public sealed class TypeAnalyzer
 
         ret.Type = temp.type;
 
-        if (temp.removePrefix) ret.TypeIdentifier = typeIdentifier.Remove(0, ret.Type.ToString().Length + 1);
+        if (temp.removePrefix)
+        {
+            ret.TypeIdentifier = typeIdentifier.Remove(0, ret.Type.ToString().Length + 1);
+        }
 
         string templateArgs = string.Empty;
-        if (templateArgsStartIndex != 0 || templateArgsEndIndex != 0)
+        if ((templateArgsStartIndex != 0) || (templateArgsEndIndex != 0))
         {
-            templateArgs = typeStr.Substring(templateArgsStartIndex + 1, templateArgsEndIndex - templateArgsStartIndex - 1);
+            templateArgs = typeStr.Substring(templateArgsStartIndex + 1,
+                templateArgsEndIndex - templateArgsStartIndex - 1);
 
-            var indexs = new List<int>(templateArgs.Length / 2); // Pre-allocate the size
+            List<int> indexs = new(templateArgs.Length / 2); // Pre-allocate the size
 
             for (int i = 0, searchDepth = 0; i < templateArgs.Length; ++i)
             {
@@ -389,20 +393,21 @@ public sealed class TypeAnalyzer
 
             indexs.Add(templateArgs.Length);
 
-            var templateArgsSpan = templateArgs.AsSpan(); // Use Span<T> for substring operations
+            ReadOnlySpan<char> templateArgsSpan = templateArgs.AsSpan(); // Use Span<T> for substring operations
 
-            var templateTypes = new CppTypeNode[indexs.Count];
+            CppTypeNode[] templateTypes = new CppTypeNode[indexs.Count];
 
             int currentIndex = -2;
 
             for (int i = 0; i < indexs.Count; ++i)
             {
-                templateTypes[i] = __AnalyzeCppType(templateArgsSpan.Slice(currentIndex + 2, indexs[i] - currentIndex - 2).Trim().ToString());
+                templateTypes[i] = __AnalyzeCppType(templateArgsSpan
+                    .Slice(currentIndex + 2, indexs[i] - currentIndex - 2).Trim().ToString());
                 currentIndex = indexs[i];
             }
         }
 
-        var arr = ret.TypeIdentifier.Split("::");
+        string[] arr = ret.TypeIdentifier.Split("::");
         ret.TypeIdentifier = arr.LastOrDefault();
         ret.Namespaces = arr.Length > 0 ? arr.Take(arr.Length - 1).ToArray() : null;
 

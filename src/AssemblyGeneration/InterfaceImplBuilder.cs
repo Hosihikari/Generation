@@ -125,11 +125,11 @@ public class InterfaceImplBuilder(ModuleDefinition module)
         ParameterDefinition ptrParameter = new("ptr", ParameterAttributes.None, module.ImportReference(typeof(nint)));
         ParameterDefinition ownsParameter =
             new("owns", ParameterAttributes.Optional, module.ImportReference(typeof(bool)))
-            { Constant = false };
+                { Constant = false };
         ParameterDefinition isTempStackValueParameter =
             new("isTempStackValue", ParameterAttributes.Optional,
-                module.ImportReference(typeof(bool)))
-            { Constant = true };
+                    module.ImportReference(typeof(bool)))
+                { Constant = true };
         ctor.Parameters.Add(ptrParameter);
         ctor.Parameters.Add(ownsParameter);
         ctor.Parameters.Add(isTempStackValueParameter);

@@ -4,7 +4,6 @@ using Hosihikari.Generation.Utils;
 using Mono.Cecil;
 using Mono.Cecil.Rocks;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using System.Text;
 using static Hosihikari.Generation.AssemblyGeneration.AssemblyBuilder;
 using static Hosihikari.Generation.Utils.OriginalData.Class;
@@ -20,22 +19,28 @@ public static class Utils
         Set
     }
 
+    public static TypeDefinition? Object { get; private set; }
+    public static TypeDefinition? String { get; private set; }
+    public static TypeDefinition? IDisposable { get; private set; }
+    public static TypeDefinition? GC { get; private set; }
+    public static TypeDefinition? ValueType { get; private set; }
+
     public static void Init(Config config)
     {
         DirectoryInfo sdkDir = new(config.DotnetSdkDir);
 
-        var runtime = sdkDir.EnumerateDirectories()
-                            .First(dir => dir.Name is "packs")
-                            .EnumerateDirectories()
-                            .First(dir => dir.Name is "Microsoft.NETCore.App.Ref")
-                            .GetDirectories("8.*")
-                            .First()
-                            .EnumerateDirectories()
-                            .First(dir => dir.Name is "ref")
-                            .GetDirectories("net8.0")
-                            .First()
-                            .EnumerateFiles()
-                            .First(file => file.Name is "System.Runtime.dll");
+        FileInfo runtime = sdkDir.EnumerateDirectories()
+            .First(dir => dir.Name is "packs")
+            .EnumerateDirectories()
+            .First(dir => dir.Name is "Microsoft.NETCore.App.Ref")
+            .GetDirectories("8.*")
+            .First()
+            .EnumerateDirectories()
+            .First(dir => dir.Name is "ref")
+            .GetDirectories("net8.0")
+            .First()
+            .EnumerateFiles()
+            .First(file => file.Name is "System.Runtime.dll");
 
         FileStream file = File.OpenRead(runtime.FullName);
         AssemblyDefinition? asm = AssemblyDefinition.ReadAssembly(file);
@@ -63,12 +68,6 @@ public static class Utils
             }
         }
     }
-
-    public static TypeDefinition? Object { get; private set; }
-    public static TypeDefinition? String { get; private set; }
-    public static TypeDefinition? IDisposable { get; private set; }
-    public static TypeDefinition? GC { get; private set; }
-    public static TypeDefinition? ValueType { get; private set; }
 
     public static string SelectOperatorName(in Item t)
     {
