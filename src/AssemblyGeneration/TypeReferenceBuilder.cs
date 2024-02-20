@@ -39,9 +39,9 @@ public static class TypeReferenceBuilder
             if (attribute is not null)
             {
                 Dictionary<string, Type> keyValues;
-                if (predefinedTypes.ContainsKey(attribute.NativeTypeNamespace) is false)
+                if (predefinedTypes.ContainsKey(attribute.NativeTypeNamespace ??= string.Empty) is false)
                 {
-                    keyValues = new();
+                    keyValues = [];
                     predefinedTypes.Add(attribute.NativeTypeNamespace, keyValues);
                 }
                 else

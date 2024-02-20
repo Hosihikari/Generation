@@ -4,6 +4,11 @@ using System.Text.RegularExpressions;
 using static Hosihikari.Generation.LeviLaminaExportGeneration.LeviLaminaExportGeneration.RegexStrings;
 using static Hosihikari.Generation.LeviLaminaExportGeneration.LeviLaminaExportGeneration.Regexes;
 using static Hosihikari.Generation.LeviLaminaExportGeneration.LeviLaminaExportGeneration.Defines;
+using GroupName = Hosihikari.Generation.LeviLaminaExportGeneration.LeviLaminaExportGeneration.Expression.GroupName;
+
+using ParsingDataCollection = System.Collections.Generic.Dictionary<string, object>;
+
+using System.Text;
 
 namespace Hosihikari.Generation.LeviLaminaExportGeneration;
 
@@ -18,8 +23,29 @@ public static partial class LeviLaminaExportGeneration
         //Expressions.PointerExp.Match("Pointer(std::string)");
         //Expressions.SupportedTypeExp.Match("void*");
         //Expressions.SupportedTypeExp.Match("FillerDef(0x30)");
-        //Expressions.FunctionPointerDefinitionExp.Match(
-        //    @"FunctionPointerDef(""get_name"", __stdcall, Pointer(std::string), Pointer(ll::plugin::Dependency))");
+        //Expressions.FunctionPointerDefinitionExp.Match(@"FunctionPointerDef(""get_name"", __stdcall, Pointer(std::string), Pointer(ll::plugin::Dependency), void*, double, int)");
+        //Expressions.RecordFieldExp.Match(@"RecordField(int, ""testInt"")");
+        Expressions.InteropRecordDefinitionExp.Match(@"InteropRecordDefinition(
+    ll_plugin_Dependency_functions,
+    FunctionPointerDef(""dtor"", __stdcall, void, Pointer(ll::plugin::Dependency)),
+    FunctionPointerDef(
+        ""ctor"",
+        __stdcall,
+        void,
+        Pointer(ll::plugin::Dependency),
+        Pointer(std::string),
+        Pointer(std::string)
+    ),
+    FunctionPointerDef(""get_name"", __stdcall, Pointer(std::string), Pointer(ll::plugin::Dependency)),
+    FunctionPointerDef(""get_version"", __stdcall, Pointer(std::string), Pointer(ll::plugin::Dependency)),
+    FunctionPointerDef(
+        ""operator_equals"",
+        __stdcall,
+        bool,
+        Pointer(ll::plugin::Dependency),
+        Pointer(ll::plugin::Dependency)
+    )
+);");
 
         throw new NotImplementedException();
     }
@@ -75,9 +101,6 @@ public static partial class LeviLaminaExportGeneration
         /// </summary>
         [GeneratedRegex("__(cdecl|fastcall|stdcall|thiscall)")]
         public static partial Regex Convention();
-
-        [GeneratedRegex("\"\"[a-zA-Z_]*\"\"")]
-        public static partial Regex NameWithQuotationMarks();
     }
 
     /// <summary>
@@ -113,7 +136,9 @@ public static partial class LeviLaminaExportGeneration
         /// <summary>
         ///     Regex string for matching all characters.
         /// </summary>
-        public const string All = ".*";
+        public const string All = @"[\s\S]*";
+
+        public const string AllWithLazyQuantifier = All + "?";
 
         /// <summary>
         ///     Alias for LeftParenthesis.
@@ -126,14 +151,24 @@ public static partial class LeviLaminaExportGeneration
         public const string Rparen = RightParenthesis;
     }
 
+    public record MatchedResult(bool Success, ParsingDataCollection Data);
+
     public class Expression
     {
+        /// <summary>
+        /// Represents a method that handles matching of an expression.
+        /// </summary>
+        /// <param name="rootExp">The root expression.</param>
+        /// <param name="symbols">The list of symbols.</param>
+        /// <param name="groups">The group collection.</param>
+        /// <returns>True if the expression is matched; otherwise, false.</returns>
+        public delegate bool MatchedHandler(ParsingDataCollection data, IReadOnlyList<Symbol> symbols, GroupCollection groups);
+
         private readonly Regex exp;
 
-        private readonly Func<IReadOnlyList<Symbol>, GroupCollection, bool>? matched;
+        private readonly MatchedHandler? matched;
 
         private readonly IReadOnlyList<int>? subExpressionIndexes;
-
 
         private GroupCollection? groups;
 
@@ -144,8 +179,7 @@ public static partial class LeviLaminaExportGeneration
         /// <param name="format">The format string.</param>
         /// <param name="symbols">The list of symbols.</param>
         /// <param name="matched">The action to be performed when a match is found.</param>
-        public Expression(string format, IList<Symbol>? symbols = null,
-            Func<IReadOnlyList<Symbol>, GroupCollection, bool>? matched = null)
+        public Expression(string format, IList<Symbol>? symbols = null, MatchedHandler? matched = null)
         {
             Format = format;
             Symbols = new ReadOnlyCollection<Symbol>(symbols ?? []);
@@ -156,7 +190,7 @@ public static partial class LeviLaminaExportGeneration
             if (symbols is not null)
             {
                 string[] strings = new string[symbols.Count];
-                List<int> indexes = new();
+                List<int> indexes = [];
 
                 for (int i = 0, istr = 0, iexp = 0, ireg = 0; i < symbols.Count; i++)
                 {
@@ -182,16 +216,48 @@ public static partial class LeviLaminaExportGeneration
         }
 
 
+        /// <summary>
+        /// Gets the format of the expression.
+        /// </summary>
         public string Format { get; }
 
+        /// <summary>
+        /// Gets the list of symbols associated with the expression.
+        /// </summary>
         public IReadOnlyList<Symbol>? Symbols { get; }
 
+        /// <summary>
+        /// Gets a value indicating whether the expression was successfully processed.
+        /// </summary>
         public bool Success { get; private set; }
 
+        /// <inheritdoc/>
         public override string ToString()
-        {
-            return exp.ToString();
-        }
+            => exp.ToString();
+
+        /// <summary>
+        /// Adds parsed data to the expression with the specified key and value.
+        /// </summary>
+        /// <param name="key">The key of the parsed data.</param>
+        /// <param name="value">The value of the parsed data.</param>
+        /// <returns>The current Expression instance.</returns>
+        //public Expression SetParsedData(string key, object value)
+        //{
+        //    parsedData[key] = value;
+        //    return this;
+        //}
+
+        //public Expression SetParsedData(IReadOnlyDictionary<string, object> data)
+        //{
+        //    foreach (var (key, value) in data) parsedData[key] = value;
+        //    return this;
+        //}
+
+        //public Expression SetParsedData(IEnumerable<KeyValuePair<string, object>> kvps)
+        //{
+        //    foreach (var (key, value) in kvps) parsedData[key] = value;
+        //    return this;
+        //}
 
         /// <summary>
         ///     Matches the input string with the expression and invokes a visitor function for each symbol match.
@@ -199,14 +265,23 @@ public static partial class LeviLaminaExportGeneration
         /// <param name="input">The input string to match.</param>
         /// <param name="visitor">The visitor function to invoke for each symbol match.</param>
         /// <returns>The updated Expression object after matching the input string.</returns>
-        public Expression Match(string input, Action<Symbol?, Group>? visitor = null)
+        public MatchedResult Match(string input, Action<Symbol?, Group>? visitor = null)
+        {
+            lock (this)
+            {
+                return MatchInternal(input, visitor, []);
+            }
+        }
+
+
+        private MatchedResult MatchInternal(string input, Action<Symbol?, Group>? visitor, ParsingDataCollection parsedData)
         {
             Success = false;
 
             Match match = exp.Match(input);
             if (match.Success is false)
             {
-                return this;
+                return new(false, parsedData);
             }
 
             // Invoke visitor function for each symbol match
@@ -214,13 +289,15 @@ public static partial class LeviLaminaExportGeneration
             {
                 for (int i = 0, istr = 0, iexp = 0, ireg = 0; i < Symbols.Count; i++)
                 {
-                    visitor?.Invoke(Symbols[i], match.Groups[Symbols[i].SymbolType switch
+                    var groupName = Symbols[i].SymbolType switch
                     {
                         Symbol.Type.String => GroupName.SubString(istr++),
                         Symbol.Type.Expression => GroupName.SubExpression(iexp++),
                         Symbol.Type.Regex => GroupName.SubRegex(ireg++),
                         _ => throw new NotSupportedException()
-                    }]);
+                    };
+                    visitor?.Invoke(Symbols[i], match.Groups[groupName]);
+                    parsedData.Add(groupName, match.Groups[groupName]);
                 }
             }
 
@@ -231,10 +308,16 @@ public static partial class LeviLaminaExportGeneration
                 foreach (int i in subExpressionIndexes)
                 {
                     Expression current = Symbols![i].Target<Expression>();
-                    if (current.Match(match.Groups[GroupName.SubExpression(expIndex++)].Value, visitor)
-                            .Success is false)
+                    var groupName = GroupName.SubExpression(expIndex++);
+                    var val = match.Groups[groupName].Value;
+                    var rlt = current.Match(val, visitor);
+                    if (rlt.Success is false)
                     {
-                        return this;
+                        return new(false, parsedData);
+                    }
+                    else
+                    {
+                        parsedData.Add($"{groupName}_data", rlt.Data);
                     }
                 }
             }
@@ -243,9 +326,9 @@ public static partial class LeviLaminaExportGeneration
             groups = match.Groups;
 
             // Invoke the matched event
-            matched?.Invoke(Symbols ?? [], groups);
+            matched?.Invoke(parsedData, Symbols ?? [], groups);
 
-            return this;
+            return new(true, parsedData);
         }
 
         /// <summary>
@@ -374,7 +457,7 @@ public static partial class LeviLaminaExportGeneration
         public static Expression CppFundamentalTypeExp { get; } = new(
             "{0}",
             [RegexStrings.String],
-            (symbols, groups) =>
+            (exp, symbols, groups) =>
             {
                 string? str = groups[Expression.GroupName.SubString(0)].Value;
                 try
@@ -382,6 +465,7 @@ public static partial class LeviLaminaExportGeneration
                     TypeData type = new(new() { Kind = 0, Name = str });
                     if (type.Analyzer.CppTypeHandle.RootType.FundamentalType is not null)
                     {
+                        exp.Add("Type", type.ToString());
                         return true;
                     }
                 }
@@ -392,24 +476,57 @@ public static partial class LeviLaminaExportGeneration
                 return false;
             });
 
+        [Flags] public enum SupportedType { Fundamental, Filler, Fptr, Pointer, Reference };
+
         public static Expression SupportedTypeExp { get; } = new(
             "{0}",
             [RegexStrings.String],
-            (symbols, groups) =>
+            (data, symbols, groups) =>
             {
-                string? str = groups[Expression.GroupName.SubString(0)].Value.Trim();
+                string? str = groups[GroupName.SubString(0)].Value.Trim();
 
-                if (FillerDefinitionExp!.Match(str).Success)
+                var rlt = FillerDefinitionExp!.Match(str);
+                if (rlt.Success)
                 {
+                    data.Add("Type", SupportedType.Filler);
+                    data.Add("TypeData", rlt.Data);
+
+                    return true;
+                };
+
+                rlt = PointerExp!.Match(str);
+                if (rlt.Success)
+                {
+                    data.Add("Type", SupportedType.Pointer);
+                    data.Add("TypeData", rlt.Data);
                     return true;
                 }
 
-                if (FunctionPointerDefinitionExp!.Match(str).Success)
+                rlt = ReferenceExp!.Match(str);
+                if (rlt.Success)
                 {
+                    data.Add("Type", SupportedType.Reference);
+                    data.Add("TypeData", rlt.Data);
                     return true;
                 }
 
-                return CppFundamentalTypeExp.Match(str).Success;
+                rlt = FunctionPointerDefinitionExp!.Match(str);
+                if (rlt.Success)
+                {
+                    data.Add("Type", SupportedType.Fptr);
+                    data.Add("TypeData", rlt.Data);
+                    return true;
+                }
+
+                rlt = CppFundamentalTypeExp!.Match(str);
+                if (rlt.Success)
+                {
+                    data.Add("Type", SupportedType.Fundamental);
+                    data.Add("TypeData", rlt.Data);
+                    return true;
+                }
+
+                return false;
             });
 
 
@@ -436,7 +553,7 @@ public static partial class LeviLaminaExportGeneration
         public static Expression ExportAutoGenerateExp { get; } = new(
             @"{0}\s+{1}",
             [AutoGenerate, ExportFunctionExp],
-            (symbols, groups) =>
+            (data, symbols, groups) =>
             {
                 ExportManuallyMatched?.Invoke(null, new(symbols, groups));
                 return true;
@@ -448,7 +565,7 @@ public static partial class LeviLaminaExportGeneration
         public static Expression ExportManuallyExp { get; } = new(
             @"{0}\s+{1}",
             [Manually, ExportFunctionExp],
-            (symbols, groups) =>
+            (data, symbols, groups) =>
             {
                 ExportManuallyMatched?.Invoke(null, new(symbols, groups));
                 return true;
@@ -460,39 +577,175 @@ public static partial class LeviLaminaExportGeneration
             [
                 RecordField,
                 SupportedTypeExp,
-                NameWithQuotationMarks()
-            ]);
+                All
+            ],
+            (data, symbols, groups) =>
+            {
+                var name = groups[GroupName.SubString(1)].Value;
+                if ((name.StartsWith('"') && name.EndsWith('"')) is false) return false;
+                name = name.Trim('"');
+
+                data.Add("FieldName", name);
+                return true;
+            });
 
         public static Expression FunctionPointerDefinitionExp { get; } = new(
-            @$"{{0}}{Lparen}{{1}}{Comma}{{2}}{Comma}{{3}}{Comma}{{4}}",
+            @$"{{0}}{Lparen}{{1}}{Comma}{{2}}{Comma}{{3}}{Comma}{{4}}{Rparen}",
             [
                 FunctionPointerDef,
                 All,
                 Convention(),
-                SupportedTypeExp,
+                AllWithLazyQuantifier,
                 All
             ],
-            (symbols, groups) =>
+            (exp, symbols, groups) =>
             {
-                IEnumerable<string>? parameters = from str in groups[Expression.GroupName.SubString(1)].Value.Split(',')
-                    where SupportedTypeExp.Match(str).Success
-                    select str.Trim();
-                throw new NotImplementedException();
+                var name = groups[GroupName.SubString(1)].Value;
+                if ((name.StartsWith('"') && name.EndsWith('"')) is false) return false;
+                name = name.Trim('"');
+                if (Name().IsMatch(name) is false) return false;
+                exp.Add("FptrName", name);
+
+                var ret = groups[GroupName.SubString(2)].Value;
+                var rlt = SupportedTypeExp.Match(ret);
+                if (rlt.Success is false) return false;
+                exp.Add("ReturnType", rlt.Data);
+
+                IEnumerable<string> parameters;
+
+                {
+                    string parametersString = groups[GroupName.SubString(3)].Value;
+                    List<string> parameterList = [];
+                    StringBuilder builder = new(0xf);
+                    bool innerExp = false;
+                    foreach (var c in parametersString)
+                    {
+                        switch (c)
+                        {
+                            case '(': innerExp = true; builder.Append(c); break;
+                            case ')': innerExp = false; builder.Append(c); break;
+
+                            case ',':
+                                if (innerExp is false)
+                                {
+                                    parameterList.Add(builder.ToString().Trim());
+                                    builder.Clear();
+                                }
+                                break;
+
+                            default: builder.Append(c); break;
+                        }
+                    }
+                    parameterList.Add(builder.ToString().Trim());
+                    parameters = parameterList;
+                }
+
+                Dictionary<string, object> paramData = new(parameters.Count());
+                int i = 0;
+                foreach (string parameter in parameters)
+                {
+                    rlt = SupportedTypeExp.Match(parameter);
+                    if (rlt.Success)
+                        paramData.Add($"param_{i++}", rlt.Data);
+                    else
+                        return false;
+                }
+
+                exp.Add("Parameters", paramData);
+
+                return true;
             });
 
         public static Expression FillerDefinitionExp { get; } = new(
             @$"{{0}}{Lparen}{{1}}{Rparen}",
-            [FillerDef, Number()]
+            [FillerDef, Number()],
+            (exp, symbols, groups) =>
+            {
+                exp.Add("FillerSize", groups[GroupName.SubRegex(0)].Value);
+                return true;
+            }
         );
 
         public static Expression PointerExp { get; } = new(
             @$"{{0}}{Lparen}{{1}}{Rparen}",
-            [Pointer, SupportedTypeExp]
+            [Pointer, All],
+            (exp, symbols, groups) =>
+            {
+                exp.Add("PointerType", groups[GroupName.SubString(1)].Value);
+                return true;
+            }
         );
 
         public static Expression ReferenceExp { get; } = new(
             @$"{{0}}{Lparen}{{1}}{Rparen}",
-            [Reference, SupportedTypeExp]
+            [Reference, All],
+            (exp, symbols, groups) =>
+            {
+                exp.Add("ReferenceType", groups[GroupName.SubString(1)].Value);
+                return true;
+            }
+        );
+
+        public static Expression InteropRecordDefinitionExp { get; } = new(
+            @$"{{0}}{Lparen}{{1}}{Comma}{{2}}{Rparen}",
+            [
+                InteropRecordDefinition,
+                AllWithLazyQuantifier,
+                All
+            ],
+            (data, symbols, groups) =>
+            {
+                var name = groups[GroupName.SubString(1)].Value;
+                if (Name().IsMatch(name) is false) return false;
+
+                IEnumerable<string> fields;
+                var fieldsStr = groups[GroupName.SubString(2)].Value;
+                {
+                    List<string> fieldList = [];
+                    StringBuilder builder = new(0xf);
+                    bool innerExp = false;
+                    foreach (var c in fieldsStr)
+                    {
+                        switch (c)
+                        {
+                            case '(': innerExp = true; builder.Append(c); break;
+                            case ')': innerExp = false; builder.Append(c); break;
+
+                            case ',':
+                                if (innerExp is false)
+                                {
+                                    fieldList.Add(builder.ToString().Trim());
+                                    builder.Clear();
+                                }
+                                break;
+
+                            default: builder.Append(c); break;
+                        }
+                    }
+                    fieldList.Add(builder.ToString().Trim());
+                    fields = fieldList;
+                }
+
+                Dictionary<string, string> fieldsWithName = [];
+                int i = 0;
+                foreach (string field in fields)
+                {
+                    var rlt = RecordFieldExp.Match(field);
+                    if (rlt.Success)
+                    {
+                        data.Add($"field_{i++}_data", rlt.Data);
+                        continue;
+                    }
+
+                    rlt = SupportedTypeExp.Match(field);
+                    if (rlt.Success)
+                    {
+                        data.Add($"field_{i++}_data", rlt.Data);
+                    }
+                }
+
+                return true;
+            }
         );
 
 
@@ -515,15 +768,6 @@ public static partial class LeviLaminaExportGeneration
             /// </summary>
             public GroupCollection Groups => groups;
         }
-
-
-        //public static Expression InteropRecordDefinition { get; } = new(
-        //    @"{0}\s*\(\s*{1}\s\)\s*;", [
-        //        Defines.InteropRecordDefinition,
-        //        new Expression(@"([\s\S])+", null, (symbols, groups) => {
-        //            throw new NotImplementedException();
-        //        })
-        //    ]);
 
         //todo
     }
