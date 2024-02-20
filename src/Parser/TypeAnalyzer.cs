@@ -326,7 +326,7 @@ public sealed class TypeAnalyzer
             "short" or "INT16" => CppFundamentalType.Int16,
             "int" or "long" or "INT32" => CppFundamentalType.Int32,
             "__int64" or "long long" or "INT64" => CppFundamentalType.Int64,
-            _ => default
+            _ => null
         };
 
         if (isSigned)
