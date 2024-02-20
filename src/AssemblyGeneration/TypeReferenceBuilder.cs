@@ -25,21 +25,20 @@ public static class TypeReferenceBuilder
         // Load assemblies from the specified directory
         IEnumerable<Assembly> assemblies = new DirectoryInfo(config.RefAssemblyDir)
             .EnumerateFiles()
-            .Where(file => file.Extension is ".dll"
-            && file.Name is not "Hosihikari.NativeInterop.dll")
+            .Where(file => file is { Extension: ".dll", Name: not "Hosihikari.NativeInterop.dll" })
             .Select(file => Assembly.LoadFrom(file.FullName))
             .Append(typeof(Pointer<>).Assembly);
 
         foreach (Type type in from assembly in assemblies
-                              from type in assembly.GetExportedTypes()
-                              where !type.IsGenericTypeDefinition
-                              select type)
+                 from type in assembly.GetExportedTypes()
+                 where !type.IsGenericTypeDefinition
+                 select type)
         {
             PredefinedTypeAttribute? attribute = type.GetCustomAttribute<PredefinedTypeAttribute>();
             if (attribute is not null)
             {
                 Dictionary<string, Type> keyValues;
-                if (predefinedTypes.ContainsKey(attribute.NativeTypeNamespace ??= string.Empty) is false)
+                if (!predefinedTypes.ContainsKey(attribute.NativeTypeNamespace ??= string.Empty))
                 {
                     keyValues = [];
                     predefinedTypes.Add(attribute.NativeTypeNamespace, keyValues);
@@ -125,7 +124,7 @@ public static class TypeReferenceBuilder
 
     public static bool TryGetPredefinedType(CppTypeNode node, bool isEnum, [NotNullWhen(true)] out Type? predefinedType)
     {
-        predefinedType = null;
+        predefinedType = default;
 
         string @namespace = string.Empty;
         if (node.Namespaces is not null)
@@ -137,7 +136,7 @@ public static class TypeReferenceBuilder
         {
             if (types.TryGetValue(node.TypeIdentifierWithTemplateArgs ?? string.Empty, out Type? type))
             {
-                if (isEnum && type.IsEnum is false)
+                if (isEnum && !type.IsEnum)
                 {
                     return false;
                 }
@@ -175,7 +174,7 @@ public static class TypeReferenceBuilder
     private static bool TryBuildPredefinedTypeReference(ModuleDefinition module, CppTypeNode node, bool isEnum,
         [NotNullWhen(true)] out TypeReference? reference)
     {
-        reference = null;
+        reference = default;
 
         if (!TryGetPredefinedType(node, isEnum, out Type? predefinedType))
         {
@@ -194,7 +193,7 @@ public static class TypeReferenceBuilder
     {
         IEnumerable<CppTypeNode> arr = type.Analyzer.CppTypeHandle.ToEnumerable().Reverse();
 
-        TypeReference? reference = null;
+        TypeReference? reference = default;
         bool isUnmanagedType = false;
         bool rootTypeParsed = false;
 
@@ -220,16 +219,16 @@ public static class TypeReferenceBuilder
                         throw new InvalidOperationException();
                     }
 
+                {
+                    if (TryBuildPredefinedTypeReference(module, item, true, out TypeReference? @ref))
                     {
-                        if (TryBuildPredefinedTypeReference(module, item, true, out TypeReference? @ref))
-                        {
-                            reference = @ref;
-                            isUnmanagedType = true;
-                            break;
-                        }
-
-                        goto ENUM_DEFAULT_PARSE;
+                        reference = @ref;
+                        isUnmanagedType = true;
+                        break;
                     }
+
+                    goto ENUM_DEFAULT_PARSE;
+                }
 
                 case CppTypeEnum.Array:
                 case CppTypeEnum.Pointer:
@@ -275,17 +274,17 @@ public static class TypeReferenceBuilder
                         throw new InvalidOperationException();
                     }
 
+                {
+                    if (TryBuildPredefinedTypeReference(module, item, false, out TypeReference? @ref))
                     {
-                        if (TryBuildPredefinedTypeReference(module, item, false, out TypeReference? @ref))
-                        {
-                            reference = @ref;
-                            isUnmanagedType = @ref.IsValueType;
-                            rootTypeParsed = true;
-                            break;
-                        }
-
-                        goto TYPE_DEFAULT_PARSE;
+                        reference = @ref;
+                        isUnmanagedType = @ref.IsValueType;
+                        rootTypeParsed = true;
+                        break;
                     }
+
+                    goto TYPE_DEFAULT_PARSE;
+                }
 
                 ENUM_DEFAULT_PARSE:
                     reference = module.ImportReference(typeof(int));
@@ -293,7 +292,7 @@ public static class TypeReferenceBuilder
                     break;
 
                 TYPE_DEFAULT_PARSE:
-                    if (definedTypes.TryGetValue(type.FullTypeIdentifier, out TypeDefinition? t) is false)
+                    if (!definedTypes.TryGetValue(type.FullTypeIdentifier, out TypeDefinition? t))
                     {
                         reference = module.ImportReference(typeof(nint));
                         return reference!;
@@ -309,7 +308,11 @@ public static class TypeReferenceBuilder
             }
         }
 
-        if (rootTypeParsed && isUnmanagedType is false)
+        if (!rootTypeParsed || isUnmanagedType)
+        {
+            return reference!;
+        }
+
         {
             if (isResult)
             {

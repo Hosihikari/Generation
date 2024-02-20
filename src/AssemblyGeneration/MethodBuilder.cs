@@ -26,7 +26,8 @@ public class MethodBuilder(ModuleDefinition module)
     /// <param name="classSize">The size of the class.</param>
     /// <param name="t">The item.</param>
     /// <returns>The constructed method definition.</returns>
-    private MethodDefinition BuildCtor(PropertyDefinition fptrProperty, IMethodSignature functionPointer, bool isVarArg,
+    private MethodDefinition BuildCtor(PropertyDefinition fptrProperty, FunctionPointerType functionPointer,
+        bool isVarArg,
         FieldReference field_Pointer, FieldReference field_IsOwner, FieldReference field_IsTempStackValue,
         ulong classSize, in Item t)
     {
@@ -118,11 +119,10 @@ public class MethodBuilder(ModuleDefinition module)
         return ctor;
     }
 
-
     private MethodDefinition BuildFunction(
         ItemAccessType itemAccessType,
         PropertyDefinition fptrProperty,
-        IMethodSignature functionPointer,
+        FunctionPointerType functionPointer,
         bool isVarArg,
         FieldReference field_Pointer,
         in Item t)
@@ -130,7 +130,7 @@ public class MethodBuilder(ModuleDefinition module)
         bool hasThis = Utils.HasThis(itemAccessType);
 
         MethodAttributes attributes = MethodAttributes.Public;
-        if (Utils.HasThis(itemAccessType) is false)
+        if (!Utils.HasThis(itemAccessType))
         {
             attributes |= MethodAttributes.Static;
         }
@@ -215,7 +215,7 @@ public class MethodBuilder(ModuleDefinition module)
         in Item t,
         Action ifIsDtor)
     {
-        MethodDefinition? ret = null;
+        MethodDefinition? ret = default;
 
         switch ((SymbolType)t.SymbolType)
         {
@@ -267,7 +267,7 @@ public class MethodBuilder(ModuleDefinition module)
         if ((SymbolType)t.SymbolType is SymbolType.Destructor)
         {
             ifIsDtor();
-            return null;
+            return default;
         }
 
         if (virtIndex < 0)
@@ -340,7 +340,6 @@ public class MethodBuilder(ModuleDefinition module)
             il.Emit(OC.Ret);
         }
 
-
         return method;
     }
 
@@ -353,7 +352,7 @@ public class MethodBuilder(ModuleDefinition module)
         Type extensionType,
         Action ifIsDtor)
     {
-        MethodDefinition? ret = null;
+        MethodDefinition? ret = default;
 
         switch ((SymbolType)t.SymbolType)
         {
@@ -396,7 +395,7 @@ public class MethodBuilder(ModuleDefinition module)
     private MethodDefinition BuildExtensionFunction(
         ItemAccessType itemAccessType,
         PropertyDefinition fptrProperty,
-        IMethodSignature functionPointer,
+        FunctionPointerType functionPointer,
         bool isVarArg,
         Type extensionType,
         in Item t)
@@ -438,7 +437,6 @@ public class MethodBuilder(ModuleDefinition module)
                 functionPointer.Parameters[i].ParameterType));
         }
 
-
         ILProcessor? il = method.Body.GetILProcessor();
 
         il.Emit(OC.Ldarg_0);
@@ -474,7 +472,7 @@ public class MethodBuilder(ModuleDefinition module)
     private MethodDefinition BuildExtensionFunctionValueType(
         ItemAccessType itemAccessType,
         PropertyDefinition fptrProperty,
-        IMethodSignature functionPointer,
+        FunctionPointerType functionPointer,
         bool isVarArg,
         Type extensionType,
         in Item t)
@@ -555,9 +553,8 @@ public class MethodBuilder(ModuleDefinition module)
         return method;
     }
 
-
     private MethodDefinition BuildExtensionCtor(PropertyDefinition fptrProperty,
-        IMethodSignature functionPointer,
+        FunctionPointerType functionPointer,
         bool isVarArg,
         Type extensionType,
         in Item t)
@@ -567,8 +564,9 @@ public class MethodBuilder(ModuleDefinition module)
             return BuildExtensionCtorValueType(fptrProperty, functionPointer, isVarArg, extensionType, t);
         }
 
-        int classSize = extensionType.GetProperty(nameof(ICppInstanceNonGeneric.ClassSize))!.GetValue(null) as int? ??
-                        0;
+        int classSize =
+            extensionType.GetProperty(nameof(ICppInstanceNonGeneric.ClassSize))!.GetValue(default) as int? ??
+            0;
 
         (int begin, int end) loopRange = (1, functionPointer.Parameters.Count);
         if (isVarArg)
@@ -582,7 +580,6 @@ public class MethodBuilder(ModuleDefinition module)
         {
             method.CallingConvention |= MethodCallingConvention.VarArg;
         }
-
 
         if (classSize is 0)
         {
@@ -651,7 +648,7 @@ public class MethodBuilder(ModuleDefinition module)
     }
 
     private MethodDefinition BuildExtensionCtorValueType(PropertyDefinition fptrProperty,
-        IMethodSignature functionPointer,
+        FunctionPointerType functionPointer,
         bool isVarArg,
         Type extensionType,
         in Item t)
@@ -711,7 +708,6 @@ public class MethodBuilder(ModuleDefinition module)
         return method;
     }
 
-
     public MethodDefinition? BuildExtensionVirtualMethod(
         FunctionPointerType functionPointer,
         bool isVarArg,
@@ -723,7 +719,7 @@ public class MethodBuilder(ModuleDefinition module)
         if ((SymbolType)t.SymbolType is SymbolType.Destructor)
         {
             ifIsDtor();
-            return null;
+            return default;
         }
 
         if (extensionType.IsValueType)
@@ -747,11 +743,9 @@ public class MethodBuilder(ModuleDefinition module)
             method.CallingConvention |= MethodCallingConvention.VarArg;
         }
 
-
         method.Parameters.Add(new("this", ParameterAttributes.None, module.ImportReference(extensionType)));
         CustomAttribute attr = new(module.ImportReference(typeof(ExtensionAttribute).GetConstructors().First()));
         method.CustomAttributes.Add(attr);
-
 
         for (int i = loopRange.begin; i < loopRange.end; i++)
         {
@@ -772,7 +766,6 @@ public class MethodBuilder(ModuleDefinition module)
             .First(f => f is
                 { Name: nameof(CppTypeSystem.GetVurtualFunctionPointerByIndex), IsGenericMethodDefinition: false })));
         il.Emit(OC.Stloc, fptr);
-
 
         il.Emit(OC.Ldarg_0);
         il.Emit(OC.Callvirt,
@@ -805,7 +798,7 @@ public class MethodBuilder(ModuleDefinition module)
     }
 
     private MethodDefinition BuildExtensionVirtualMethodValueType(
-        IMethodSignature functionPointer,
+        FunctionPointerType functionPointer,
         bool isVarArg,
         int virtIndex,
         in Item t)

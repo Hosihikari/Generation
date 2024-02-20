@@ -24,8 +24,8 @@ public readonly struct TypeData
         }
 
         if (handle.Type is not CppTypeEnum.VarArgs
-            && handle.RootType.IsFundamentalType is false &&
-            TypeAnalyzer.IsLegalName(handle.RootType.TypeIdentifier!) is false)
+            && !handle.RootType.IsFundamentalType &&
+            !TypeAnalyzer.IsLegalName(handle.RootType.TypeIdentifier!))
         {
             throw new InvalidDataException();
         }
@@ -34,7 +34,7 @@ public readonly struct TypeData
 
         string[]? namespaces = handle.RootType.Namespaces;
 
-        Namespaces = namespaces ?? Array.Empty<string>();
+        Namespaces = namespaces ?? [];
         TypeIdentifier = handle.RootType.TypeIdentifier!;
         FullTypeIdentifier =
             $"{string.Join('.', Namespaces)}{Utils.StrIfTrue(".", Namespaces.Count is not 0)}{TypeIdentifier}";
@@ -114,21 +114,21 @@ public readonly struct TypeData
 
                 case CppTypeEnum.Class:
                     {
-                        string namespaces = string.Join('.', item.Namespaces ?? Array.Empty<string>());
+                        string namespaces = string.Join('.', item.Namespaces ?? []);
                         builder.Append(
                             $"{namespaces}{(string.IsNullOrWhiteSpace(namespaces) ? string.Empty : ".")}{item.TypeIdentifier}");
                     }
                     break;
                 case CppTypeEnum.Struct:
                     {
-                        string namespaces = string.Join('.', item.Namespaces ?? Array.Empty<string>());
+                        string namespaces = string.Join('.', item.Namespaces ?? []);
                         builder.Append(
                             $"{namespaces}{(string.IsNullOrWhiteSpace(namespaces) ? string.Empty : ".")}{item.TypeIdentifier}");
                     }
                     break;
                 case CppTypeEnum.Union:
                     {
-                        string namespaces = string.Join('.', item.Namespaces ?? Array.Empty<string>());
+                        string namespaces = string.Join('.', item.Namespaces ?? []);
                         builder.Append(
                             $"{namespaces}{(string.IsNullOrWhiteSpace(namespaces) ? string.Empty : ".")}{item.TypeIdentifier}");
                     }

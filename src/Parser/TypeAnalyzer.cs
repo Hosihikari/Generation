@@ -75,10 +75,10 @@ public class CppTypeNode
             CppTypeEnum.Pointer => "*",
             CppTypeEnum.Ref => "&",
             CppTypeEnum.Array => "[]",
-            CppTypeEnum.Enum => $"enum {string.Join(".", Namespaces ?? Array.Empty<string>())} {TypeIdentifier}",
-            CppTypeEnum.Class => $"class {string.Join(".", Namespaces ?? Array.Empty<string>())} {TypeIdentifier}",
-            CppTypeEnum.Struct => $"struct {string.Join(".", Namespaces ?? Array.Empty<string>())} {TypeIdentifier}",
-            CppTypeEnum.Union => $"union {string.Join(".", Namespaces ?? Array.Empty<string>())} {TypeIdentifier}",
+            CppTypeEnum.Enum => $"enum {string.Join(".", Namespaces ?? [])} {TypeIdentifier}",
+            CppTypeEnum.Class => $"class {string.Join(".", Namespaces ?? [])} {TypeIdentifier}",
+            CppTypeEnum.Struct => $"struct {string.Join(".", Namespaces ?? [])} {TypeIdentifier}",
+            CppTypeEnum.Union => $"union {string.Join(".", Namespaces ?? [])} {TypeIdentifier}",
             _ => string.Empty
         };
     }
@@ -111,7 +111,6 @@ public sealed class TypeAnalyzer
         CppTypeHandle = AnalyzeCppType(OriginalType);
     }
 
-
     private string OriginalType { get; }
 
     public CppTypeNode CppTypeHandle { get; private set; }
@@ -125,7 +124,7 @@ public sealed class TypeAnalyzer
     {
         CppTypeNode ret = __AnalyzeCppType(typeStr);
 
-        CppTypeNode? root = null;
+        CppTypeNode? root = default;
         ret.ForEach((node, _, isroot) =>
         {
             if (isroot)
@@ -153,7 +152,6 @@ public sealed class TypeAnalyzer
 
         StringBuilder identifierBulider = new();
         int templateArgsStartIndex = 0, templateArgsEndIndex = 0;
-
 
         for (int i = typeStr.Length - 1, searchDepth = 0; i >= 0; --i)
         {
@@ -190,7 +188,6 @@ public sealed class TypeAnalyzer
                             {
                                 ret.Type = CppTypeEnum.Ref;
                             }
-
 
                             string subTypeStr = typeStr[..i].Trim();
                             if (subTypeStr.Length > 0)
@@ -294,7 +291,6 @@ public sealed class TypeAnalyzer
 
         ret.TypeIdentifier = new(identifierBulider.ToString().Reverse().ToArray());
 
-
         string typeId;
         bool isUnsigned = false, isSigned = false;
         if (ret.TypeIdentifier.StartsWith("unsigned "))
@@ -305,7 +301,6 @@ public sealed class TypeAnalyzer
         {
             isSigned = true;
         }
-
 
         if (isSigned)
         {
@@ -320,7 +315,6 @@ public sealed class TypeAnalyzer
             typeId = ret.TypeIdentifier;
         }
 
-
         ret.FundamentalType = typeId switch
         {
             "void" => CppFundamentalType.Void,
@@ -332,7 +326,7 @@ public sealed class TypeAnalyzer
             "short" or "INT16" => CppFundamentalType.Int16,
             "int" or "long" or "INT32" => CppFundamentalType.Int32,
             "__int64" or "long long" or "INT64" => CppFundamentalType.Int64,
-            _ => null
+            _ => default
         };
 
         if (isSigned)
@@ -352,9 +346,8 @@ public sealed class TypeAnalyzer
 
         string typeIdentifier = ret.TypeIdentifier;
 
-        (CppTypeEnum type, bool removePrefix) temp = default;
-
-        temp = typeIdentifier.StartsWith("union ") ? (CppTypeEnum.Union, true) :
+        (CppTypeEnum type, bool removePrefix) temp =
+            typeIdentifier.StartsWith("union ") ? (CppTypeEnum.Union, true) :
             typeIdentifier.StartsWith("class ") ? (CppTypeEnum.Class, true) :
             typeIdentifier.StartsWith("struct ") ? (CppTypeEnum.Struct, true) :
             typeIdentifier.StartsWith("enum class ") ? (CppTypeEnum.Enum, true) :
@@ -368,12 +361,12 @@ public sealed class TypeAnalyzer
         }
 
         string templateArgs = string.Empty;
-        if ((templateArgsStartIndex != 0) || (templateArgsEndIndex != 0))
+        if (templateArgsStartIndex is not 0 || templateArgsEndIndex is not 0)
         {
             templateArgs = typeStr.Substring(templateArgsStartIndex + 1,
                 templateArgsEndIndex - templateArgsStartIndex - 1);
 
-            List<int> indexs = new(templateArgs.Length / 2); // Pre-allocate the size
+            List<int> indexes = new(templateArgs.Length / 2); // Pre-allocate the size
 
             for (int i = 0, searchDepth = 0; i < templateArgs.Length; ++i)
             {
@@ -385,31 +378,31 @@ public sealed class TypeAnalyzer
                     case '>':
                         --searchDepth;
                         break;
-                    case ',' when searchDepth == 0:
-                        indexs.Add(i);
+                    case ',' when searchDepth is 0:
+                        indexes.Add(i);
                         break;
                 }
             }
 
-            indexs.Add(templateArgs.Length);
+            indexes.Add(templateArgs.Length);
 
             ReadOnlySpan<char> templateArgsSpan = templateArgs.AsSpan(); // Use Span<T> for substring operations
 
-            CppTypeNode[] templateTypes = new CppTypeNode[indexs.Count];
+            CppTypeNode[] templateTypes = new CppTypeNode[indexes.Count];
 
             int currentIndex = -2;
 
-            for (int i = 0; i < indexs.Count; ++i)
+            for (int i = 0; i < indexes.Count; ++i)
             {
                 templateTypes[i] = __AnalyzeCppType(templateArgsSpan
-                    .Slice(currentIndex + 2, indexs[i] - currentIndex - 2).Trim().ToString());
-                currentIndex = indexs[i];
+                    .Slice(currentIndex + 2, indexes[i] - currentIndex - 2).Trim().ToString());
+                currentIndex = indexes[i];
             }
         }
 
         string[] arr = ret.TypeIdentifier.Split("::");
         ret.TypeIdentifier = arr.LastOrDefault();
-        ret.Namespaces = arr.Length > 0 ? arr.Take(arr.Length - 1).ToArray() : null;
+        ret.Namespaces = arr.Length > 0 ? arr.Take(arr.Length - 1).ToArray() : default;
 
         ret.TypeIdentifierWithTemplateArgs = ret.TypeIdentifier;
 
@@ -440,14 +433,14 @@ public sealed class TypeAnalyzer
 
         fixed (char* ptr = typeName)
         {
-            if (IsLetterOrUnderline(*ptr) is false)
+            if (!IsLetterOrUnderline(*ptr))
             {
                 return false;
             }
 
             for (int i = 1; i < typeName.Length; ++i)
             {
-                if ((IsLetterOrUnderline(ptr[i]) || IsDigit(ptr[i]) || ptr[i] is '.') is false)
+                if (!IsLetterOrUnderline(ptr[i]) && !IsDigit(ptr[i]) && ptr[i] is not '.')
                 {
                     return false;
                 }

@@ -176,7 +176,6 @@ public static class Utils
             fptrName = $"constructor_{fptrName}";
         }
 
-
         if (!fptrFieldNames.Contains(fptrName))
         {
             return fptrName;
@@ -206,7 +205,7 @@ public static class Utils
         ItemAccessType itemAccessType,
         in Item t,
         bool isExtension = false,
-        Type? extensionType = null)
+        Type? extensionType = default)
     {
         bool isVarArg = false;
         FunctionPointerType fptrType = new() { CallingConvention = MethodCallingConvention.Unmanaged };
@@ -266,11 +265,10 @@ public static class Utils
         return (fptrType, isVarArg);
     }
 
-
     public static bool IsPropertyMethod(MethodDefinition method,
         [NotNullWhen(true)] out (PropertyMethodType propertyMethodType, string proeprtyName)? tuple)
     {
-        tuple = null;
+        tuple = default;
 
         if (method.Name.Length > 3)
         {

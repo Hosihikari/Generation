@@ -82,7 +82,7 @@ public class DestructorBuilder(ModuleDefinition module)
                 }
                 break;
             default:
-                throw new ArgumentOutOfRangeException(nameof(type), type, null);
+                throw new ArgumentOutOfRangeException(nameof(type), type, default);
         }
 
         definition.Methods.Add(method_DestructInstance);
@@ -137,7 +137,6 @@ public class DestructorBuilder(ModuleDefinition module)
 
             il.Emit(OC.Ldarg_0);
             il.Emit(OC.Ldfld, field_IsTempStackValue);
-
 
             il.Emit(OC.Brtrue_S, instruction_disposedValue_equals_true);
 
@@ -216,7 +215,7 @@ public class DestructorBuilder(ModuleDefinition module)
 
     public struct DtorArgs()
     {
-        public int? virtualIndex = null;
-        public PropertyDefinition? propertyDef = null;
+        public int? virtualIndex = default;
+        public PropertyDefinition? propertyDef = default;
     }
 }

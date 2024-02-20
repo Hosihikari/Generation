@@ -64,7 +64,7 @@ public class InterfaceImplBuilder(ModuleDefinition module)
         TypeDefinition definition,
         ulong classSize = 0)
     {
-        if (definition.IsClass is false)
+        if (!definition.IsClass)
         {
             throw new InvalidOperationException();
         }
@@ -404,7 +404,6 @@ public class InterfaceImplBuilder(ModuleDefinition module)
         field_IsTempStackValue = isTempStackValueField;
     }
 
-
     [MemberNotNull(nameof(method_op_Implicit_nint), nameof(method_op_Implicit_voidPtr))]
     private void BuildImplicitOperator(TypeDefinition definition)
     {
@@ -420,7 +419,6 @@ public class InterfaceImplBuilder(ModuleDefinition module)
             module.ImportReference(typeof(nint)));
         op_2_nint.Parameters.Add(new("ins", ParameterAttributes.None, definition));
 
-
         op_2_nint.Overrides.Add(
             new("op_Implicit", module.ImportReference(typeof(nint)), IcppInstanceType)
             {
@@ -434,7 +432,6 @@ public class InterfaceImplBuilder(ModuleDefinition module)
             il.Emit(OC.Ret);
         }
 
-
         MethodDefinition op_2_voidPtr = new(
             "op_Implicit",
             MethodAttributes.Public |
@@ -443,7 +440,6 @@ public class InterfaceImplBuilder(ModuleDefinition module)
             MethodAttributes.Static,
             module.ImportReference(typeof(void).MakePointerType()));
         op_2_voidPtr.Parameters.Add(new("ins", ParameterAttributes.None, definition));
-
 
         op_2_voidPtr.Overrides.Add(
             new("op_Implicit", module.ImportReference(typeof(void).MakePointerType()), IcppInstanceType)

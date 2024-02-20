@@ -60,17 +60,19 @@ public class TypeBuilder(
 
         BuildProperties();
 
-        if (dtorType is null)
+        if (dtorType is not null)
         {
-            destructorBuilder.BuildDtor(
-                definition,
-                DestructorBuilder.DtorType.Empty,
-                default,
-                interfaceImplBuilder.field_IsOwner!,
-                interfaceImplBuilder.field_Pointer!,
-                interfaceImplBuilder.field_IsTempStackValue!);
-            dtorType = DestructorBuilder.DtorType.Empty;
+            return;
         }
+
+        destructorBuilder.BuildDtor(
+            definition,
+            DestructorBuilder.DtorType.Empty,
+            default,
+            interfaceImplBuilder.field_IsOwner!,
+            interfaceImplBuilder.field_Pointer!,
+            interfaceImplBuilder.field_IsTempStackValue!);
+        dtorType = DestructorBuilder.DtorType.Empty;
     }
 
     [MemberNotNull(nameof(originalTypeDefinition))]
@@ -127,7 +129,7 @@ public class TypeBuilder(
         items = items1;
     }
 
-    public void SetVirtualFunctrions(List<Item> items)
+    public void SetVirtualFunctions(List<Item> items)
     {
         functions = items;
     }
@@ -161,7 +163,9 @@ public class TypeBuilder(
                 () =>
                 {
                     if (dtorType is not null)
+                    {
                         return;
+                    }
 
                     destructorBuilder.BuildDtor(
                         definition,
@@ -195,7 +199,9 @@ public class TypeBuilder(
                     interfaceImplBuilder.field_Pointer!, i, functions[i], () =>
                     {
                         if (dtorType is not null)
+                        {
                             return;
+                        }
 
                         destructorBuilder.BuildDtor(
                             definition,
@@ -232,7 +238,7 @@ public class TypeBuilder(
 
         string sig = builder.ToString();
 
-        if (functionSig.Add(sig) is false)
+        if (!functionSig.Add(sig))
         {
             return;
         }
@@ -302,7 +308,7 @@ public class TypeBuilder(
                             MethodAttributes.SpecialName |
                             MethodAttributes.NewSlot;
 
-                        propertyMethods.Add(tuple.Value.proeprtyName, (method, null));
+                        propertyMethods.Add(tuple.Value.proeprtyName, (method, default));
                         break;
                     case Utils.PropertyMethodType.Set:
                         method.Name = $"set_{tuple.Value.proeprtyName}";
@@ -312,7 +318,7 @@ public class TypeBuilder(
                             MethodAttributes.SpecialName |
                             MethodAttributes.NewSlot;
 
-                        propertyMethods.Add(tuple.Value.proeprtyName, (null, method));
+                        propertyMethods.Add(tuple.Value.proeprtyName, (default, method));
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();

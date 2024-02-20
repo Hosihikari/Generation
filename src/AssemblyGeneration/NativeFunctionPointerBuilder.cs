@@ -19,7 +19,6 @@ public class NativeFunctionPointerBuilder(ModuleDefinition module)
             TypeAttributes.Abstract);
     }
 
-
     public TypeDefinition BuildFptrStorageType(string fptrId, in Item t, out FieldDefinition fptrField)
     {
         TypeDefinition fptrStorageType = new(string.Empty, $"__FptrStorageType_{fptrId}",
@@ -58,14 +57,13 @@ public class NativeFunctionPointerBuilder(ModuleDefinition module)
             in Item t,
             FieldDefinition fptrField,
             bool isExtension = false,
-            Type? extensionType = null)
+            Type? extensionType = default)
     {
         string fptrName = Utils.BuildFptrName(fptrFieldNames, t);
         fptrFieldNames.Add(fptrName);
 
         (FunctionPointerType fptrType, _) =
             Utils.BuildFunctionPointerType(module, definedTypes, itemAccessType, t, isExtension, extensionType);
-
 
         PropertyDefinition fptrPropertyDef = new(
             $"FunctionPointer_{fptrName}",

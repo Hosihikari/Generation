@@ -1,14 +1,12 @@
 ﻿using Hosihikari.Generation.Generator;
 using System.Collections.ObjectModel;
+using System.Text;
 using System.Text.RegularExpressions;
 using static Hosihikari.Generation.LeviLaminaExportGeneration.LeviLaminaExportGeneration.RegexStrings;
 using static Hosihikari.Generation.LeviLaminaExportGeneration.LeviLaminaExportGeneration.Regexes;
 using static Hosihikari.Generation.LeviLaminaExportGeneration.LeviLaminaExportGeneration.Defines;
 using GroupName = Hosihikari.Generation.LeviLaminaExportGeneration.LeviLaminaExportGeneration.Expression.GroupName;
-
 using ParsingDataCollection = System.Collections.Generic.Dictionary<string, object>;
-
-using System.Text;
 
 namespace Hosihikari.Generation.LeviLaminaExportGeneration;
 
@@ -156,13 +154,14 @@ public static partial class LeviLaminaExportGeneration
     public class Expression
     {
         /// <summary>
-        /// Represents a method that handles matching of an expression.
+        ///     Represents a method that handles matching of an expression.
         /// </summary>
         /// <param name="rootExp">The root expression.</param>
         /// <param name="symbols">The list of symbols.</param>
         /// <param name="groups">The group collection.</param>
         /// <returns>True if the expression is matched; otherwise, false.</returns>
-        public delegate bool MatchedHandler(ParsingDataCollection data, IReadOnlyList<Symbol> symbols, GroupCollection groups);
+        public delegate bool MatchedHandler(ParsingDataCollection data, IReadOnlyList<Symbol> symbols,
+            GroupCollection groups);
 
         private readonly Regex exp;
 
@@ -172,14 +171,13 @@ public static partial class LeviLaminaExportGeneration
 
         private GroupCollection? groups;
 
-
         /// <summary>
         ///     Initializes a new instance of the Expression class.
         /// </summary>
         /// <param name="format">The format string.</param>
         /// <param name="symbols">The list of symbols.</param>
         /// <param name="matched">The action to be performed when a match is found.</param>
-        public Expression(string format, IList<Symbol>? symbols = null, MatchedHandler? matched = null)
+        public Expression(string format, IList<Symbol>? symbols = default, MatchedHandler? matched = default)
         {
             Format = format;
             Symbols = new ReadOnlyCollection<Symbol>(symbols ?? []);
@@ -202,7 +200,7 @@ public static partial class LeviLaminaExportGeneration
                         Symbol.Type.Regex => $"(?<{GroupName.SubRegex(ireg++)}>{symbols[i]})",
                         _ => throw new NotSupportedException()
                     };
-                    if (symbolType == Symbol.Type.Expression)
+                    if (symbolType is Symbol.Type.Expression)
                     {
                         indexes.Add(i);
                     }
@@ -215,25 +213,26 @@ public static partial class LeviLaminaExportGeneration
             exp = new(expStr, RegexOptions.Compiled);
         }
 
-
         /// <summary>
-        /// Gets the format of the expression.
+        ///     Gets the format of the expression.
         /// </summary>
         public string Format { get; }
 
         /// <summary>
-        /// Gets the list of symbols associated with the expression.
+        ///     Gets the list of symbols associated with the expression.
         /// </summary>
         public IReadOnlyList<Symbol>? Symbols { get; }
 
         /// <summary>
-        /// Gets a value indicating whether the expression was successfully processed.
+        ///     Gets a value indicating whether the expression was successfully processed.
         /// </summary>
         public bool Success { get; private set; }
 
-        /// <inheritdoc/>
+        /// <inheritdoc />
         public override string ToString()
-            => exp.ToString();
+        {
+            return exp.ToString();
+        }
 
         /// <summary>
         /// Adds parsed data to the expression with the specified key and value.
@@ -265,7 +264,7 @@ public static partial class LeviLaminaExportGeneration
         /// <param name="input">The input string to match.</param>
         /// <param name="visitor">The visitor function to invoke for each symbol match.</param>
         /// <returns>The updated Expression object after matching the input string.</returns>
-        public MatchedResult Match(string input, Action<Symbol?, Group>? visitor = null)
+        public MatchedResult Match(string input, Action<Symbol?, Group>? visitor = default)
         {
             lock (this)
             {
@@ -273,13 +272,13 @@ public static partial class LeviLaminaExportGeneration
             }
         }
 
-
-        private MatchedResult MatchInternal(string input, Action<Symbol?, Group>? visitor, ParsingDataCollection parsedData)
+        private MatchedResult MatchInternal(string input, Action<Symbol?, Group>? visitor,
+            ParsingDataCollection parsedData)
         {
             Success = false;
 
             Match match = exp.Match(input);
-            if (match.Success is false)
+            if (!match.Success)
             {
                 return new(false, parsedData);
             }
@@ -289,7 +288,7 @@ public static partial class LeviLaminaExportGeneration
             {
                 for (int i = 0, istr = 0, iexp = 0, ireg = 0; i < Symbols.Count; i++)
                 {
-                    var groupName = Symbols[i].SymbolType switch
+                    string groupName = Symbols[i].SymbolType switch
                     {
                         Symbol.Type.String => GroupName.SubString(istr++),
                         Symbol.Type.Expression => GroupName.SubExpression(iexp++),
@@ -308,17 +307,15 @@ public static partial class LeviLaminaExportGeneration
                 foreach (int i in subExpressionIndexes)
                 {
                     Expression current = Symbols![i].Target<Expression>();
-                    var groupName = GroupName.SubExpression(expIndex++);
-                    var val = match.Groups[groupName].Value;
-                    var rlt = current.Match(val, visitor);
-                    if (rlt.Success is false)
+                    string groupName = GroupName.SubExpression(expIndex++);
+                    string val = match.Groups[groupName].Value;
+                    MatchedResult rlt = current.Match(val, visitor);
+                    if (!rlt.Success)
                     {
                         return new(false, parsedData);
                     }
-                    else
-                    {
-                        parsedData.Add($"{groupName}_data", rlt.Data);
-                    }
+
+                    parsedData.Add($"{groupName}_data", rlt.Data);
                 }
             }
 
@@ -454,12 +451,22 @@ public static partial class LeviLaminaExportGeneration
 
     public static class Expressions
     {
+        [Flags]
+        public enum SupportedType
+        {
+            Fundamental,
+            Filler,
+            Fptr,
+            Pointer,
+            Reference
+        }
+
         public static Expression CppFundamentalTypeExp { get; } = new(
             "{0}",
             [RegexStrings.String],
             (exp, symbols, groups) =>
             {
-                string? str = groups[Expression.GroupName.SubString(0)].Value;
+                string str = groups[GroupName.SubString(0)].Value;
                 try
                 {
                     TypeData type = new(new() { Kind = 0, Name = str });
@@ -476,25 +483,23 @@ public static partial class LeviLaminaExportGeneration
                 return false;
             });
 
-        [Flags] public enum SupportedType { Fundamental, Filler, Fptr, Pointer, Reference };
-
         public static Expression SupportedTypeExp { get; } = new(
             "{0}",
             [RegexStrings.String],
             (data, symbols, groups) =>
             {
-                string? str = groups[GroupName.SubString(0)].Value.Trim();
+                string str = groups[GroupName.SubString(0)].Value.Trim();
 
-                var rlt = FillerDefinitionExp!.Match(str);
+                MatchedResult rlt = FillerDefinitionExp.Match(str);
                 if (rlt.Success)
                 {
                     data.Add("Type", SupportedType.Filler);
                     data.Add("TypeData", rlt.Data);
 
                     return true;
-                };
+                }
 
-                rlt = PointerExp!.Match(str);
+                rlt = PointerExp.Match(str);
                 if (rlt.Success)
                 {
                     data.Add("Type", SupportedType.Pointer);
@@ -502,7 +507,7 @@ public static partial class LeviLaminaExportGeneration
                     return true;
                 }
 
-                rlt = ReferenceExp!.Match(str);
+                rlt = ReferenceExp.Match(str);
                 if (rlt.Success)
                 {
                     data.Add("Type", SupportedType.Reference);
@@ -519,16 +524,15 @@ public static partial class LeviLaminaExportGeneration
                 }
 
                 rlt = CppFundamentalTypeExp!.Match(str);
-                if (rlt.Success)
+                if (!rlt.Success)
                 {
-                    data.Add("Type", SupportedType.Fundamental);
-                    data.Add("TypeData", rlt.Data);
-                    return true;
+                    return false;
                 }
 
-                return false;
+                data.Add("Type", SupportedType.Fundamental);
+                data.Add("TypeData", rlt.Data);
+                return true;
             });
-
 
         /// <summary>
         ///     HosihikariExport(<return_type> ExportFuncName(<function_name>))(<parameters>)
@@ -555,7 +559,7 @@ public static partial class LeviLaminaExportGeneration
             [AutoGenerate, ExportFunctionExp],
             (data, symbols, groups) =>
             {
-                ExportManuallyMatched?.Invoke(null, new(symbols, groups));
+                ExportManuallyMatched?.Invoke(default, new(symbols, groups));
                 return true;
             });
 
@@ -567,10 +571,9 @@ public static partial class LeviLaminaExportGeneration
             [Manually, ExportFunctionExp],
             (data, symbols, groups) =>
             {
-                ExportManuallyMatched?.Invoke(null, new(symbols, groups));
+                ExportManuallyMatched?.Invoke(default, new(symbols, groups));
                 return true;
             });
-
 
         public static Expression RecordFieldExp { get; } = new(
             @$"{{0}}{Lparen}{{1}}{Comma}{{2}}{Rparen}",
@@ -581,8 +584,12 @@ public static partial class LeviLaminaExportGeneration
             ],
             (data, symbols, groups) =>
             {
-                var name = groups[GroupName.SubString(1)].Value;
-                if ((name.StartsWith('"') && name.EndsWith('"')) is false) return false;
+                string name = groups[GroupName.SubString(1)].Value;
+                if (!(name.StartsWith('"') && name.EndsWith('"')))
+                {
+                    return false;
+                }
+
                 name = name.Trim('"');
 
                 data.Add("FieldName", name);
@@ -600,15 +607,27 @@ public static partial class LeviLaminaExportGeneration
             ],
             (exp, symbols, groups) =>
             {
-                var name = groups[GroupName.SubString(1)].Value;
-                if ((name.StartsWith('"') && name.EndsWith('"')) is false) return false;
+                string name = groups[GroupName.SubString(1)].Value;
+                if (!(name.StartsWith('"') && name.EndsWith('"')))
+                {
+                    return false;
+                }
+
                 name = name.Trim('"');
-                if (Name().IsMatch(name) is false) return false;
+                if (!Name().IsMatch(name))
+                {
+                    return false;
+                }
+
                 exp.Add("FptrName", name);
 
-                var ret = groups[GroupName.SubString(2)].Value;
-                var rlt = SupportedTypeExp.Match(ret);
-                if (rlt.Success is false) return false;
+                string ret = groups[GroupName.SubString(2)].Value;
+                MatchedResult rlt = SupportedTypeExp.Match(ret);
+                if (!rlt.Success)
+                {
+                    return false;
+                }
+
                 exp.Add("ReturnType", rlt.Data);
 
                 IEnumerable<string> parameters;
@@ -618,37 +637,51 @@ public static partial class LeviLaminaExportGeneration
                     List<string> parameterList = [];
                     StringBuilder builder = new(0xf);
                     bool innerExp = false;
-                    foreach (var c in parametersString)
+                    foreach (char c in parametersString)
                     {
                         switch (c)
                         {
-                            case '(': innerExp = true; builder.Append(c); break;
-                            case ')': innerExp = false; builder.Append(c); break;
+                            case '(':
+                                innerExp = true;
+                                builder.Append(c);
+                                break;
+                            case ')':
+                                innerExp = false;
+                                builder.Append(c);
+                                break;
 
                             case ',':
-                                if (innerExp is false)
+                                if (!innerExp)
                                 {
                                     parameterList.Add(builder.ToString().Trim());
                                     builder.Clear();
                                 }
+
                                 break;
 
-                            default: builder.Append(c); break;
+                            default:
+                                builder.Append(c);
+                                break;
                         }
                     }
+
                     parameterList.Add(builder.ToString().Trim());
                     parameters = parameterList;
                 }
 
-                Dictionary<string, object> paramData = new(parameters.Count());
+                ParsingDataCollection paramData = new(parameters.Count());
                 int i = 0;
                 foreach (string parameter in parameters)
                 {
                     rlt = SupportedTypeExp.Match(parameter);
                     if (rlt.Success)
+                    {
                         paramData.Add($"param_{i++}", rlt.Data);
+                    }
                     else
+                    {
                         return false;
+                    }
                 }
 
                 exp.Add("Parameters", paramData);
@@ -695,33 +728,46 @@ public static partial class LeviLaminaExportGeneration
             ],
             (data, symbols, groups) =>
             {
-                var name = groups[GroupName.SubString(1)].Value;
-                if (Name().IsMatch(name) is false) return false;
+                string name = groups[GroupName.SubString(1)].Value;
+                if (!Name().IsMatch(name))
+                {
+                    return false;
+                }
 
                 IEnumerable<string> fields;
-                var fieldsStr = groups[GroupName.SubString(2)].Value;
+                string fieldsStr = groups[GroupName.SubString(2)].Value;
                 {
                     List<string> fieldList = [];
                     StringBuilder builder = new(0xf);
                     bool innerExp = false;
-                    foreach (var c in fieldsStr)
+                    foreach (char c in fieldsStr)
                     {
                         switch (c)
                         {
-                            case '(': innerExp = true; builder.Append(c); break;
-                            case ')': innerExp = false; builder.Append(c); break;
+                            case '(':
+                                innerExp = true;
+                                builder.Append(c);
+                                break;
+                            case ')':
+                                innerExp = false;
+                                builder.Append(c);
+                                break;
 
                             case ',':
-                                if (innerExp is false)
+                                if (!innerExp)
                                 {
                                     fieldList.Add(builder.ToString().Trim());
                                     builder.Clear();
                                 }
+
                                 break;
 
-                            default: builder.Append(c); break;
+                            default:
+                                builder.Append(c);
+                                break;
                         }
                     }
+
                     fieldList.Add(builder.ToString().Trim());
                     fields = fieldList;
                 }
@@ -730,7 +776,7 @@ public static partial class LeviLaminaExportGeneration
                 int i = 0;
                 foreach (string field in fields)
                 {
-                    var rlt = RecordFieldExp.Match(field);
+                    MatchedResult rlt = RecordFieldExp.Match(field);
                     if (rlt.Success)
                     {
                         data.Add($"field_{i++}_data", rlt.Data);
@@ -747,7 +793,6 @@ public static partial class LeviLaminaExportGeneration
                 return true;
             }
         );
-
 
         public static event EventHandler<MatchedEventArgs>? ExportAutoGenerateMatched;
 

@@ -21,7 +21,7 @@ public class VftableStructBuilder
     private void AppendUnknownVfunc(
         TypeDefinition definition,
         int currentIndex,
-        string? funcName = null)
+        string? funcName = default)
     {
         FieldDefinition fieldDef =
             new(funcName ?? $"__UnknownVirtualFunction_{currentIndex}",
@@ -50,7 +50,7 @@ public class VftableStructBuilder
         }
     }
 
-    private void InsertVirtualCppClassAttribute(ICustomAttributeProvider definition)
+    private void InsertVirtualCppClassAttribute(TypeDefinition definition)
     {
         CustomAttribute attribute =
             new(module.ImportReference(typeof(VirtualCppClassAttribute).GetConstructors().First()));
@@ -90,7 +90,7 @@ public class VftableStructBuilder
     {
         if (virtualFunctions is null || virtualFunctions.Count is 0)
         {
-            return null;
+            return default;
         }
 
         InsertVirtualCppClassAttribute(definition);
@@ -106,7 +106,6 @@ public class VftableStructBuilder
             module.ImportReference(Utils.ValueType));
 
         BuildVtableLengthProperty(vtableStructType, (ulong)virtualFunctions.Count);
-
 
         for (int i = 0; i < virtualFunctions.Count; i++)
         {

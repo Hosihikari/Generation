@@ -29,7 +29,6 @@ mcExportCommnad.SetHandler((path, outputPath, dotnetSdkDir, refAssemblyDir, vers
     logger.LogInformation("Generated successfully at {DateTime}, which took {TimeSpan}", DateTime.Now, watcher.Elapsed);
 }, pathOption, outputPathOption, dotnetSdkDirOption, refAssemblyDirOption, versionOption);
 
-
 Option<string> sourceDirOption = new("--sourcedir", "The directory of the source code");
 Command leviLaminaExportCommnad = new("leviexport");
 leviLaminaExportCommnad.AddOption(sourceDirOption);

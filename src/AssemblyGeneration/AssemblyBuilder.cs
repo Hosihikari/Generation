@@ -86,11 +86,11 @@ public class AssemblyBuilder
             {
                 string @namespace = typeData.Namespaces[i];
 
-                if (namespaceNode.SubNamespaces.TryGetValue(@namespace, out NamespaceNode? node) is false)
+                if (!namespaceNode.SubNamespaces.TryGetValue(@namespace, out NamespaceNode? node))
                 {
                     string typeStr =
                         $"{string.Join('.', typeData.Namespaces.Take(i))}{(i > 0 ? "." : string.Empty)}{@namespace}";
-                    if (definedTypes.TryGetValue(typeStr, out TypeDefinition? definedType) is false)
+                    if (!definedTypes.TryGetValue(typeStr, out TypeDefinition? definedType))
                     {
                         if (TryCreateTypeBuilder(
                                 new(new()
@@ -129,7 +129,7 @@ public class AssemblyBuilder
         }
     }
 
-    public static AssemblyBuilder Create(string name, Version version, string outputDir, string? moduleName = null)
+    public static AssemblyBuilder Create(string name, Version version, string outputDir, string? moduleName = default)
     {
         AssemblyDefinition? assemblyDef =
             AssemblyDefinition.CreateAssembly(new(name, version), moduleName ?? name, ModuleKind.Dll);
@@ -184,7 +184,7 @@ public class AssemblyBuilder
 
     private bool TryCreateTypeBuilder(in TypeData typeData, [NotNullWhen(true)] out TypeBuilder? builder)
     {
-        builder = null;
+        builder = default;
 
         CppTypeNode type = typeData.Analyzer.CppTypeHandle.RootType;
         switch (type.Type)
@@ -202,7 +202,7 @@ public class AssemblyBuilder
 
                 TypeDefinition definition = new(string.Empty, typeIdentifier,
                     TypeAttributes.Class, module.ImportReference(Utils.Object));
-                builder = new(definedTypes, null, module, definition, null, 0);
+                builder = new(definedTypes, default, module, definition, default, 0);
                 typeBuilders.Enqueue(builder);
                 builders.Add(definition, (typeData, builder));
 
@@ -226,7 +226,7 @@ public class AssemblyBuilder
     private bool TryCreatePredefinedTypeBuilder(in TypeData typeData, Type predefinedType,
         [NotNullWhen(true)] out PredefinedTypeExtensionBuilder? builder)
     {
-        builder = null;
+        builder = default;
 
         CppTypeNode type = typeData.Analyzer.CppTypeHandle.RootType;
         switch (type.Type)
@@ -239,7 +239,7 @@ public class AssemblyBuilder
                     $"{predefinedType.Name}MinecraftExtension",
                     TypeAttributes.Public | TypeAttributes.Class | TypeAttributes.Sealed | TypeAttributes.Abstract,
                     module.ImportReference(Utils.Object));
-                builder = new(predefinedType, definedTypes, null, module, definition, null);
+                builder = new(predefinedType, definedTypes, default, module, definition, default);
                 predefinedTypeBuilders.Enqueue(builder);
                 predefinedBuilders.Add(definition, builder);
 
@@ -259,7 +259,7 @@ public class AssemblyBuilder
 
     private void CreateBuilderAndAddTypeDefinition(in TypeData typeData, out object? builder)
     {
-        builder = null;
+        builder = default;
 
         if (definedTypes.ContainsKey(typeData.FullTypeIdentifier))
         {
@@ -289,7 +289,7 @@ public class AssemblyBuilder
         }
     }
 
-    private void ForeachItemsForBuildTypeDefinition(ICollection<(ItemAccessType, Item, int?)> items, List<Item>? list,
+    private void ForeachItemsForBuildTypeDefinition(List<(ItemAccessType, Item, int?)> items, List<Item>? list,
         ItemAccessType accessType, bool isVirt = false)
     {
         if (list is null)
@@ -302,24 +302,24 @@ public class AssemblyBuilder
             try
             {
                 Item item = list[i];
-                if (string.IsNullOrEmpty(item.Type.Name) is false)
+                if (!string.IsNullOrEmpty(item.Type.Name))
                 {
-                    CreateBuilderAndAddTypeDefinition(new(item.Type), out object? _);
+                    CreateBuilderAndAddTypeDefinition(new(item.Type), out _);
                 }
 
                 if (item.Params is not null)
                 {
                     foreach (Item.TypeData param in item.Params)
                     {
-                        CreateBuilderAndAddTypeDefinition(new(param), out object? _);
+                        CreateBuilderAndAddTypeDefinition(new(param), out _);
                     }
                 }
 
-                items.Add((accessType, item, isVirt ? i : null));
+                items.Add((accessType, item, isVirt ? i : default));
             }
             catch
             {
-                /*0.o*/
+                /*O.o*/
             }
         }
     }
@@ -331,7 +331,7 @@ public class AssemblyBuilder
             try
             {
                 TypeData typeData = new(new() { Name = key });
-                if (definedTypes.TryGetValue(typeData.FullTypeIdentifier, out TypeDefinition? type) is false)
+                if (!definedTypes.TryGetValue(typeData.FullTypeIdentifier, out TypeDefinition? type))
                 {
                     CreateBuilderAndAddTypeDefinition(typeData, out object? builder);
                     switch (builder)
@@ -349,7 +349,6 @@ public class AssemblyBuilder
 
                 TypeDefinition definition = type;
 
-
                 List<(ItemAccessType, Item, int?)> items = [];
 
                 if (builders.TryGetValue(definition, out (TypeData typData, TypeBuilder builder) pair))
@@ -357,7 +356,7 @@ public class AssemblyBuilder
                     (_, TypeBuilder builder) = pair;
 
                     builder.SetItems(items);
-                    builder.SetVirtualFunctrions(value.Virtual);
+                    builder.SetVirtualFunctions(value.Virtual);
                     builder.SetClassSize(0);
                 }
                 else if (predefinedBuilders.TryGetValue(definition,
