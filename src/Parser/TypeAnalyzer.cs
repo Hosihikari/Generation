@@ -125,9 +125,9 @@ public sealed class TypeAnalyzer
         CppTypeNode ret = __AnalyzeCppType(typeStr);
 
         CppTypeNode? root = default;
-        ret.ForEach((node, _, isroot) =>
+        ret.ForEach((node, _, isRoot) =>
         {
-            if (isroot)
+            if (isRoot)
             {
                 root = node;
             }
@@ -150,7 +150,7 @@ public sealed class TypeAnalyzer
             return ret;
         }
 
-        StringBuilder identifierBulider = new();
+        StringBuilder identifierBuilder = new();
         int templateArgsStartIndex = 0, templateArgsEndIndex = 0;
 
         for (int i = typeStr.Length - 1, searchDepth = 0; i >= 0; --i)
@@ -266,7 +266,7 @@ public sealed class TypeAnalyzer
                             if (((typeStr.Length - i) >= 5) && typeStr[i..(i + 5)] is "const")
                             {
                                 typeStr = typeStr.Remove(i, 5).Trim();
-                                identifierBulider.Clear();
+                                identifierBuilder.Clear();
 
                                 i = typeStr.Length;
                             }
@@ -282,14 +282,14 @@ public sealed class TypeAnalyzer
                     {
                         if (searchDepth is 0)
                         {
-                            identifierBulider.Append(c);
+                            identifierBuilder.Append(c);
                         }
                     }
                     continue;
             }
         }
 
-        ret.TypeIdentifier = new(identifierBulider.ToString().Reverse().ToArray());
+        ret.TypeIdentifier = new(identifierBuilder.ToString().Reverse().ToArray());
 
         string typeId;
         bool isUnsigned = false, isSigned = false;

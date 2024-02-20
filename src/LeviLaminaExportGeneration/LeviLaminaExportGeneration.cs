@@ -187,7 +187,7 @@ public static partial class LeviLaminaExportGeneration
             // If symbols are provided, create the string representations and indexes
             if (symbols is not null)
             {
-                string[] strings = new string[symbols.Count];
+                object[] strings = new object[symbols.Count];
                 List<int> indexes = [];
 
                 for (int i = 0, istr = 0, iexp = 0, ireg = 0; i < symbols.Count; i++)
@@ -365,9 +365,9 @@ public static partial class LeviLaminaExportGeneration
             /// </summary>
             public Type SymbolType => Value switch
             {
-                Regex _ => Type.Regex,
-                string _ => Type.String,
-                Expression _ => Type.Expression,
+                Regex => Type.Regex,
+                string => Type.String,
+                Expression => Type.Expression,
                 _ => throw new NotSupportedException()
             };
 
@@ -490,7 +490,7 @@ public static partial class LeviLaminaExportGeneration
             {
                 string str = groups[GroupName.SubString(0)].Value.Trim();
 
-                MatchedResult rlt = FillerDefinitionExp.Match(str);
+                MatchedResult rlt = FillerDefinitionExp!.Match(str);
                 if (rlt.Success)
                 {
                     data.Add("Type", SupportedType.Filler);
@@ -499,7 +499,7 @@ public static partial class LeviLaminaExportGeneration
                     return true;
                 }
 
-                rlt = PointerExp.Match(str);
+                rlt = PointerExp!.Match(str);
                 if (rlt.Success)
                 {
                     data.Add("Type", SupportedType.Pointer);
@@ -507,7 +507,7 @@ public static partial class LeviLaminaExportGeneration
                     return true;
                 }
 
-                rlt = ReferenceExp.Match(str);
+                rlt = ReferenceExp!.Match(str);
                 if (rlt.Success)
                 {
                     data.Add("Type", SupportedType.Reference);
@@ -523,7 +523,7 @@ public static partial class LeviLaminaExportGeneration
                     return true;
                 }
 
-                rlt = CppFundamentalTypeExp!.Match(str);
+                rlt = CppFundamentalTypeExp.Match(str);
                 if (!rlt.Success)
                 {
                     return false;
@@ -596,7 +596,7 @@ public static partial class LeviLaminaExportGeneration
                 return true;
             });
 
-        public static Expression FunctionPointerDefinitionExp { get; } = new(
+        public static Expression? FunctionPointerDefinitionExp { get; } = new(
             @$"{{0}}{Lparen}{{1}}{Comma}{{2}}{Comma}{{3}}{Comma}{{4}}{Rparen}",
             [
                 FunctionPointerDef,
@@ -689,7 +689,7 @@ public static partial class LeviLaminaExportGeneration
                 return true;
             });
 
-        public static Expression FillerDefinitionExp { get; } = new(
+        public static Expression? FillerDefinitionExp { get; } = new(
             @$"{{0}}{Lparen}{{1}}{Rparen}",
             [FillerDef, Number()],
             (exp, symbols, groups) =>
@@ -699,7 +699,7 @@ public static partial class LeviLaminaExportGeneration
             }
         );
 
-        public static Expression PointerExp { get; } = new(
+        public static Expression? PointerExp { get; } = new(
             @$"{{0}}{Lparen}{{1}}{Rparen}",
             [Pointer, All],
             (exp, symbols, groups) =>
@@ -709,7 +709,7 @@ public static partial class LeviLaminaExportGeneration
             }
         );
 
-        public static Expression ReferenceExp { get; } = new(
+        public static Expression? ReferenceExp { get; } = new(
             @$"{{0}}{Lparen}{{1}}{Rparen}",
             [Reference, All],
             (exp, symbols, groups) =>

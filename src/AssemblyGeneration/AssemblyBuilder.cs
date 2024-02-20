@@ -78,54 +78,53 @@ public class AssemblyBuilder
 
     private void InsertTypeIntoNamespaces(in TypeData typeData, TypeDefinition definition)
     {
-        if (typeData.Namespaces.Count is not 0)
-        {
-            NamespaceNode namespaceNode = rootNamespace;
-
-            for (int i = 0; i < typeData.Namespaces.Count; i++)
-            {
-                string @namespace = typeData.Namespaces[i];
-
-                if (!namespaceNode.SubNamespaces.TryGetValue(@namespace, out NamespaceNode? node))
-                {
-                    string typeStr =
-                        $"{string.Join('.', typeData.Namespaces.Take(i))}{(i > 0 ? "." : string.Empty)}{@namespace}";
-                    if (!definedTypes.TryGetValue(typeStr, out TypeDefinition? definedType))
-                    {
-                        if (TryCreateTypeBuilder(
-                                new(new()
-                                {
-                                    Name =
-                                        $"{string.Join("::", typeData.Namespaces.Take(i))}{(i > 0 ? "::" : string.Empty)}{@namespace}"
-                                }),
-                                out TypeBuilder? builder))
-                        {
-                            definedType = builder.definition;
-                        }
-                        else
-                        {
-                            throw new InvalidDataException();
-                        }
-                    }
-
-                    node = new(module, definedType);
-                    namespaceNode.SubNamespaces.Add(@namespace, node);
-                }
-
-                namespaceNode = node;
-
-                if (i != (typeData.Namespaces.Count - 1))
-                {
-                    continue;
-                }
-
-                node.Types.Add(definition);
-                return;
-            }
-        }
-        else
+        if (typeData.Namespaces.Count is 0)
         {
             rootNamespace.Types.Add(definition);
+            return;
+        }
+
+        NamespaceNode namespaceNode = rootNamespace;
+
+        for (int i = 0; i < typeData.Namespaces.Count; i++)
+        {
+            string @namespace = typeData.Namespaces[i];
+
+            if (!namespaceNode.SubNamespaces.TryGetValue(@namespace, out NamespaceNode? node))
+            {
+                string typeStr =
+                    $"{string.Join('.', typeData.Namespaces.Take(i))}{(i > 0 ? "." : string.Empty)}{@namespace}";
+                if (!definedTypes.TryGetValue(typeStr, out TypeDefinition? definedType))
+                {
+                    if (TryCreateTypeBuilder(
+                            new(new()
+                            {
+                                Name =
+                                    $"{string.Join("::", typeData.Namespaces.Take(i))}{(i > 0 ? "::" : string.Empty)}{@namespace}"
+                            }),
+                            out TypeBuilder? builder))
+                    {
+                        definedType = builder.definition;
+                    }
+                    else
+                    {
+                        throw new InvalidDataException();
+                    }
+                }
+
+                node = new(module, definedType);
+                namespaceNode.SubNamespaces.Add(@namespace, node);
+            }
+
+            namespaceNode = node;
+
+            if (i != (typeData.Namespaces.Count - 1))
+            {
+                continue;
+            }
+
+            node.Types.Add(definition);
+            return;
         }
     }
 
@@ -363,7 +362,7 @@ public class AssemblyBuilder
                              out PredefinedTypeExtensionBuilder? predefinedBuilder))
                 {
                     predefinedBuilder.SetItems(items);
-                    predefinedBuilder.SetVirtualFunctrions(value.Virtual);
+                    predefinedBuilder.SetVirtualFunctions(value.Virtual);
                 }
 
                 ForeachItemsForBuildTypeDefinition(items, value.PublicStatic, ItemAccessType.PublicStatic);

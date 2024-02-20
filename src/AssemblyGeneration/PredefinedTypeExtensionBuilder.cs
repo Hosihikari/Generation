@@ -51,7 +51,7 @@ public class PredefinedTypeExtensionBuilder
         this.items = items;
     }
 
-    public void SetVirtualFunctrions(List<Item> items)
+    public void SetVirtualFunctions(List<Item> items)
     {
         virtualFunctions = items;
     }
