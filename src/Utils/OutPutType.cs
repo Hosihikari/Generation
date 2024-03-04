@@ -1,6 +1,6 @@
 namespace Hosihikari.Generation.Utils;
 
-public enum OutPutType
+internal enum OutPutType
 {
     Minecraft,
     LeviLamina

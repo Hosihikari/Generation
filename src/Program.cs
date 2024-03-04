@@ -1,4 +1,4 @@
-﻿using Hosihikari.Generation;
+using Hosihikari.Generation;
 using Hosihikari.Generation.LeviLaminaExport;
 using Hosihikari.Generation.MinecraftExport;
 using Hosihikari.Generation.Utils;
@@ -20,9 +20,9 @@ RootCommand rootCommand = [typeOption, inputPathOption, outputPathOption, versio
 rootCommand.SetHandler((type, inputPath, outputPath, sdkPath, refPath, version) =>
 {
     Stopwatch watcher = new();
-    GeneratorBase generator = type switch
+    IGenerator generator = type switch
     {
-        OutPutType.Minecraft => new McGenerator(),
+        OutPutType.Minecraft => new McGenerator(inputPath),
         OutPutType.LeviLamina => new LlGenerator(),
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
     };
@@ -33,7 +33,6 @@ rootCommand.SetHandler((type, inputPath, outputPath, sdkPath, refPath, version) 
     watcher.Stop();
     logger.LogInformation("Generated successfully at {DateTime}, which took {TimeSpan}. Saving...", DateTime.Now,
         watcher.Elapsed);
-    generator.Save();
-    Environment.Exit(0);
+    generator.Save(outputPath);
 }, typeOption, inputPathOption, outputPathOption, sdkPathOption, refPathOption, versionOption);
 await rootCommand.InvokeAsync(args);

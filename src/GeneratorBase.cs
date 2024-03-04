@@ -1,8 +1,8 @@
 namespace Hosihikari.Generation;
 
-public abstract class GeneratorBase
+internal interface IGenerator
 {
-    public abstract void Initialize();
-    public abstract void Run();
-    public abstract void Save();
+    void Initialize();
+    void Run();
+    void Save(string path);
 }

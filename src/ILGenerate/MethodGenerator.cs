@@ -1,5 +1,5 @@
 namespace Hosihikari.Generation.ILGenerate;
 
-public class MethodGenerator
+internal class MethodGenerator
 {
 }
