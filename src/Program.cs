@@ -26,6 +26,7 @@ rootCommand.SetHandler((type, inputPath, outputPath, sdkPath, refPath, version) 
         OutPutType.LeviLamina => new LlGenerator(),
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
     };
+    logger.LogInformation("Start preparing at {DateTime}", DateTime.Now);
     generator.Initialize();
     logger.LogInformation("Start generating at {DateTime}", DateTime.Now);
     watcher.Start();
@@ -34,5 +35,6 @@ rootCommand.SetHandler((type, inputPath, outputPath, sdkPath, refPath, version) 
     logger.LogInformation("Generated successfully at {DateTime}, which took {TimeSpan}. Saving...", DateTime.Now,
         watcher.Elapsed);
     generator.Save(outputPath);
+    logger.LogInformation("Save finished at {DateTime}", DateTime.Now);
 }, typeOption, inputPathOption, outputPathOption, sdkPathOption, refPathOption, versionOption);
 await rootCommand.InvokeAsync(args);
