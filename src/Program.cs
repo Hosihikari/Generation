@@ -15,7 +15,14 @@ Option<string> outputPathOption = new("--out", "The path of the output directory
 Option<string?> sdkPathOption = new("--sdk", "The directory of dotnet sdk");
 Option<string?> refPathOption = new("--ref", "The directory of reference assemblies");
 Option<string?> versionOption = new("--ver", "The version of the assembly");
-RootCommand rootCommand = [typeOption, inputPathOption, outputPathOption, versionOption, sdkPathOption, refPathOption];
+
+RootCommand rootCommand = [];
+rootCommand.Add(typeOption);
+rootCommand.Add(inputPathOption);
+rootCommand.Add(outputPathOption);
+rootCommand.Add(versionOption);
+rootCommand.Add(sdkPathOption);
+rootCommand.Add(refPathOption);
 
 rootCommand.SetHandler((type, inputPath, outputPath, sdkPath, refPath, version) =>
 {

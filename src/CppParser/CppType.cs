@@ -46,7 +46,7 @@ public class CppType
     /// <summary>
     /// Gets or sets the original type string.
     /// </summary>
-    public string? OriginalTypeString;
+    public required string? OriginalTypeString;
 
     /// <summary>
     /// Gets or sets the root type.
@@ -71,12 +71,12 @@ public class CppType
     /// <summary>
     /// Gets or sets the type.
     /// </summary>
-    public CppTypeEnum Type;
+    public required CppTypeEnum Type;
 
     /// <summary>
     /// Gets or sets the type identifier.
     /// </summary>
-    public string? TypeIdentifier;
+    public required string? TypeIdentifier;
 
     /// <summary>
     /// Gets or sets the type identifier with template arguments.

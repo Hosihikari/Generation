@@ -1,9 +1,10 @@
-
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 25.0.1706.0
+# Visual Studio Version 17
+VisualStudioVersion = 17.10.34607.79
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hosihikari.Generation", "src\Hosihikari.Generation.csproj", "{75A07373-EDC0-4BC4-BBD8-719A9F51EE86}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Hosihikari.Generation", "src\Hosihikari.Generation.csproj", "{75A07373-EDC0-4BC4-BBD8-719A9F51EE86}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test", "test\Test\Test.csproj", "{D9F7D3FE-A3F9-46E8-8363-6A6E030E2B76}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +16,10 @@ Global
 		{75A07373-EDC0-4BC4-BBD8-719A9F51EE86}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{75A07373-EDC0-4BC4-BBD8-719A9F51EE86}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{75A07373-EDC0-4BC4-BBD8-719A9F51EE86}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D9F7D3FE-A3F9-46E8-8363-6A6E030E2B76}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D9F7D3FE-A3F9-46E8-8363-6A6E030E2B76}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D9F7D3FE-A3F9-46E8-8363-6A6E030E2B76}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D9F7D3FE-A3F9-46E8-8363-6A6E030E2B76}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
