@@ -70,62 +70,63 @@ public class ParserTest
         return
         [
             [
-                "class TestType", (CppType? type) =>
+                "class TestType", (CppType? type) => type is
                 {
-                    return type is not null &&
-                           (type.RootType == type) &&
-                           type.Type is CppTypeEnum.Class &&
-                           type.TypeIdentifier is "TestType" &&
-                           type.TemplateTypes is null;
+                    Type: CppTypeEnum.Class,
+                    TypeIdentifier: "TestType",
+                    TemplateTypes: null
+                } && (type.RootType == type)
+            ],
+            [
+                "struct TestType  &&", (CppType? type) => type is
+                {
+                    SubType.Type: CppTypeEnum.RValueRef
                 }
             ],
             [
-                "struct TestType  &&", (CppType? type) =>
+                "struct TestType[]", (CppType? type) => type is
                 {
-                    return type is not null &&
-                           type.SubType is not null &&
-                           type.SubType.Type is CppTypeEnum.RValueRef;
+                    SubType.Type: CppTypeEnum.Array
                 }
             ],
             [
-                "struct TestType[]", (CppType? type) =>
+                "union TestType const  *  &", (CppType? type) => type is
                 {
-                    return type is not null &&
-                           type.SubType is not null &&
-                           type.SubType.Type is CppTypeEnum.Array;
+                    Type: CppTypeEnum.Union,
+                    TypeIdentifier: "TestType",
+                    TemplateTypes: null,
+                    SubType:
+                    {
+                        Type: CppTypeEnum.Pointer,
+                        IsConst: true,
+                        SubType.Type: CppTypeEnum.Ref
+                    }
                 }
             ],
             [
-                "union TestType const  *  &", (CppType? type) =>
+                "class test::details::TestType<std::tuple<std::string>> const&", (CppType? type) => type is
                 {
-                    return type is not null &&
-                           type.Type is CppTypeEnum.Union &&
-                           type.TypeIdentifier is "TestType" &&
-                           type.TemplateTypes is null &&
-                           type.SubType is not null &&
-                           type.SubType.Type is CppTypeEnum.Pointer &&
-                           type.SubType.IsConst &&
-                           type.SubType.SubType is not null &&
-                           type.SubType.SubType.Type is CppTypeEnum.Ref;
-                }
-            ],
-            [
-                "class test::details::TestType<std::tuple<std::string>> const&", (CppType? type) =>
-                {
-                    return type is not null &&
-                           type.Type is CppTypeEnum.Class &&
-                           type.TypeIdentifier is "test::details::TestType" &&
-                           type.SubType is not null &&
-                           type.SubType.Type is CppTypeEnum.Ref &&
-                           type.SubType.IsConst &&
-                           type.TemplateTypes is not null &&
-                           type.TemplateTypes.Length is 1 &&
-                           type.TemplateTypes[0].Type is CppTypeEnum.Class &&
-                           type.TemplateTypes[0].TypeIdentifier is "std::tuple" &&
-                           type.TemplateTypes[0].TemplateTypes is not null &&
-                           type.TemplateTypes[0].TemplateTypes!.Length is 1 &&
-                           type.TemplateTypes[0].TemplateTypes![0].Type is CppTypeEnum.Class &&
-                           type.TemplateTypes[0].TemplateTypes![0].TypeIdentifier is "std::string";
+                    Type: CppTypeEnum.Class,
+                    TypeIdentifier: "test::details::TestType",
+                    SubType:
+                    {
+                        Type: CppTypeEnum.Ref,
+                        IsConst: true
+                    },
+                    TemplateTypes:
+                    [
+                        {
+                            Type: CppTypeEnum.Class,
+                            TypeIdentifier: "std::tuple",
+                            TemplateTypes:
+                            [
+                                {
+                                    Type: CppTypeEnum.Class,
+                                    TypeIdentifier: "std::string"
+                                }
+                            ]
+                        }
+                    ]
                 }
             ],
             ["", (CppType? type) => false],
