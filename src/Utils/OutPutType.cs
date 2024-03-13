@@ -1,8 +1,7 @@
-namespace Hosihikari.Generation.Utils
+namespace Hosihikari.Generation.Utils;
+
+internal enum OutPutType
 {
-    internal enum OutPutType
-    {
-        Minecraft,
-        LeviLamina
-    }
+    Minecraft,
+    LeviLamina
 }

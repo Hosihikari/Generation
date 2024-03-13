@@ -7,14 +7,6 @@ namespace Hosihikari.Generation.MinecraftExport;
 
 internal sealed class McGenerator : IGenerator
 {
-    #region ---Private field---
-
-    private readonly AssemblyBuilder assemblyBuilder;
-    private readonly ModuleBuilder moduleBuilder;
-    private readonly OriginalData originalData;
-
-    #endregion
-
     #region ---Constructor---
 
     public McGenerator(string originalFilePath)
@@ -26,6 +18,23 @@ internal sealed class McGenerator : IGenerator
         assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess. /* Save */ Run);
         moduleBuilder = assemblyBuilder.DefineDynamicModule("Hosihikari.Minecraft");
     }
+
+    #endregion
+
+    #region ---Private method---
+
+    private void HandleMembers(Item[] member)
+    {
+        throw new NotImplementedException();
+    }
+
+    #endregion
+
+    #region ---Private field---
+
+    private readonly AssemblyBuilder assemblyBuilder;
+    private readonly ModuleBuilder moduleBuilder;
+    private readonly OriginalData originalData;
 
     #endregion
 
@@ -54,15 +63,6 @@ internal sealed class McGenerator : IGenerator
     public void Save(string path)
     {
         assemblyBuilder.Save(path);
-    }
-
-    #endregion
-
-    #region ---Private method---
-
-    private void HandleMembers(Item[] member)
-    {
-        throw new NotImplementedException();
     }
 
     #endregion
