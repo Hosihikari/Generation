@@ -5,11 +5,11 @@ using System.Text.Json;
 
 namespace Hosihikari.Generation.MinecraftExport;
 
-internal sealed class McGenerator : GeneratorBase
+internal sealed class McGenerator : IGenerator
 {
     #region ---Constructor---
 
-    public McGenerator(string originalFilePath) : base(originalFilePath)
+    public McGenerator(string originalFilePath)
     {
         string originalDataJson = File.ReadAllText(originalFilePath);
         originalData = JsonSerializer.Deserialize<OriginalData>(originalDataJson) ??
@@ -40,7 +40,7 @@ internal sealed class McGenerator : GeneratorBase
 
     #region ---Public method---
 
-    public override void Initialize()
+    public void Initialize()
     {
         using StreamWriter logFile = File.AppendText($"SkipedClass-{DateTime.Now:yyyy-M-dTHH-mm-ss}.log");
         foreach ((string name, _) in originalData.Classes)
@@ -55,12 +55,12 @@ internal sealed class McGenerator : GeneratorBase
         }
     }
 
-    public override void Run()
+    public void Run()
     {
         throw new NotImplementedException();
     }
 
-    public override void Save(string path)
+    public void Save(string path)
     {
         assemblyBuilder.Save(path);
     }
