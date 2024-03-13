@@ -1,12 +1,13 @@
-namespace Hosihikari.Generation.Utils;
-
-internal static class Shared
+namespace Hosihikari.Generation.Utils
 {
-    public static readonly string[] SkippedOnContain =
-    [
-        "::",
-        "<",
-        ">",
-        " "
-    ];
+    internal static class Shared
+    {
+        public static readonly string[] SkippedOnContain =
+        [
+            "::",
+            "<",
+            ">",
+            " "
+        ];
+    }
 }
