@@ -107,7 +107,6 @@ public class CppType
     /// <returns>A string that represents the current object.</returns>
     public override string ToString()
     {
-        string GetString() => string.Join("::", Namespaces ?? []) + ' ' + TypeIdentifier;
         return Type switch
         {
             CppTypeEnum.FundamentalType => FundamentalType.ToString()!,
@@ -120,6 +119,11 @@ public class CppType
             CppTypeEnum.Union => $"union {GetString()}",
             _ => string.Empty
         };
+
+        string GetString()
+        {
+            return $"{string.Join("::", Namespaces ?? [])} {TypeIdentifier}";
+        }
     }
 
     /// <summary>

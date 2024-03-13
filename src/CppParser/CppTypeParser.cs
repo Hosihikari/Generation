@@ -292,14 +292,16 @@ public static class CppTypeParser
                     break;
             }
 
-            // Handle const modifiers
-            if (constSigned)
+            if (!constSigned)
             {
-                constSigned = false;
-                if (latest is not null)
-                {
-                    latest.IsConst = true;
-                }
+                continue;
+            }
+
+            // Handle const modifiers
+            constSigned = false;
+            if (latest is not null)
+            {
+                latest.IsConst = true;
             }
         }
 
@@ -362,7 +364,7 @@ public static class CppTypeParser
 
         // Check if the current character is '&'
         char c = ctx.Current;
-        if (c != '&')
+        if (c is not '&')
         {
             return false;
         }
@@ -371,7 +373,7 @@ public static class CppTypeParser
         ctx.MoveNext();
 
         // Check if the next character is '&'
-        if (ctx.Current == '&')
+        if (ctx.Current is '&')
         {
             ctx.MoveNext();
             // Create a new CppType for RValueRef
@@ -408,13 +410,13 @@ public static class CppTypeParser
         type = null;
 
         // Check if the current character is not ']'
-        if (ctx.Current != ']')
+        if (ctx.Current is not ']')
         {
             return false;
         }
 
         // Check if the next character is not '['
-        if (ctx.Next != '[')
+        if (ctx.Next is not '[')
         {
             return false;
         }
@@ -497,17 +499,16 @@ public static class CppTypeParser
     public static bool IsConst(in CppTypeParseContext ctx)
     {
         int length = ctx.Index + 1;
-        if (length > 5)
+        if (length <= 5 || ctx[length - 1] is not 't' || ctx[length - 2] is not 's' || ctx[length - 3] is not 'n' ||
+            ctx[length - 4] is not 'o' ||
+            ctx[length - 5] is not 'c')
         {
-            if (ctx[length - 1] is 't' && ctx[length - 2] is 's' && ctx[length - 3] is 'n' && ctx[length - 4] is 'o' &&
-                ctx[length - 5] is 'c')
-            {
-                ctx.Skip(5);
-                return true;
-            }
+            return false;
         }
 
-        return false;
+        ctx.Skip(5);
+        return true;
+
     }
 
 
@@ -522,7 +523,7 @@ public static class CppTypeParser
         types.Reverse();
 
         // Return null if the list is empty
-        if (types.Count == 0)
+        if (types.Count is 0)
         {
             return null;
         }
@@ -532,16 +533,18 @@ public static class CppTypeParser
         root.RootType = root;
         CppType current = root;
 
-        // Link the types together
-        if (types.Count > 1)
+        if (types.Count <= 1)
         {
-            foreach (CppType type in types.Skip(1))
-            {
-                type.RootType = root;
-                type.Parent = current;
-                current.SubType = type;
-                current = type;
-            }
+            return root;
+        }
+
+        // Link the types together
+        foreach (CppType type in types.Skip(1))
+        {
+            type.RootType = root;
+            type.Parent = current;
+            current.SubType = type;
+            current = type;
         }
 
         // Return the root type
