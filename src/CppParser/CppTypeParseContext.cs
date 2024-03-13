@@ -2,7 +2,7 @@
 
 public class CppTypeParseContext
 {
-    private readonly string type;
+    private readonly string? type;
 
     public ReadOnlySpan<char> Type
     {
@@ -52,7 +52,7 @@ public class CppTypeParseContext
 
     public void SkipWhitespace()
     {
-        while (IsEnd is false)
+        while (!IsEnd)
         {
             if (char.IsWhiteSpace(Current))
             {
