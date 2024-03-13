@@ -499,7 +499,7 @@ public static class CppTypeParser
     public static bool IsConst(in CppTypeParseContext ctx)
     {
         int length = ctx.Index + 1;
-        if (length <= 5 || ctx[length - 1] is not 't' || ctx[length - 2] is not 's' || ctx[length - 3] is not 'n' ||
+        if ((length <= 5) || ctx[length - 1] is not 't' || ctx[length - 2] is not 's' || ctx[length - 3] is not 'n' ||
             ctx[length - 4] is not 'o' ||
             ctx[length - 5] is not 'c')
         {
@@ -508,7 +508,6 @@ public static class CppTypeParser
 
         ctx.Skip(5);
         return true;
-
     }
 
 
