@@ -3,9 +3,67 @@
 public class CppType
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="CppType"/> class.
+    ///     Gets or sets the fundamental type.
     /// </summary>
-    public CppType() => Parent = RootType = this;
+    public CppFundamentalType? FundamentalType;
+
+    /// <summary>
+    ///     Gets or sets a value indicating whether the type is a const type.
+    /// </summary>
+    public bool IsConst;
+
+    /// <summary>
+    ///     Gets or sets the namespaces.
+    /// </summary>
+    public string[]? Namespaces;
+
+    /// <summary>
+    ///     Gets or sets the original type string.
+    /// </summary>
+    public required string? OriginalTypeString;
+
+    /// <summary>
+    ///     Gets or sets the parent.
+    /// </summary>
+    public CppType? Parent;
+
+    /// <summary>
+    ///     Gets or sets the root type.
+    /// </summary>
+    public CppType RootType;
+
+    /// <summary>
+    ///     Gets or sets the sub type.
+    /// </summary>
+    public CppType? SubType;
+
+    /// <summary>
+    ///     Gets or sets the template types.
+    /// </summary>
+    public CppType[]? TemplateTypes;
+
+    /// <summary>
+    ///     Gets or sets the type.
+    /// </summary>
+    public required CppTypeEnum Type;
+
+    /// <summary>
+    ///     Gets or sets the type identifier.
+    /// </summary>
+    public required string? TypeIdentifier;
+
+    /// <summary>
+    ///     Gets or sets the type identifier with template arguments.
+    /// </summary>
+    public string? TypeIdentifierWithTemplateArgs;
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="CppType" /> class.
+    /// </summary>
+    public CppType()
+    {
+        Parent = RootType = this;
+    }
 
     public CppType(
         CppFundamentalType? fundamentalType,
@@ -34,72 +92,17 @@ public class CppType
     }
 
     /// <summary>
-    /// Gets or sets the fundamental type.
-    /// </summary>
-    public CppFundamentalType? FundamentalType;
-
-    /// <summary>
-    /// Gets or sets the namespaces.
-    /// </summary>
-    public string[]? Namespaces;
-
-    /// <summary>
-    /// Gets or sets the original type string.
-    /// </summary>
-    public required string? OriginalTypeString;
-
-    /// <summary>
-    /// Gets or sets the root type.
-    /// </summary>
-    public CppType RootType;
-
-    /// <summary>
-    /// Gets or sets the sub type.
-    /// </summary>
-    public CppType? SubType;
-
-    /// <summary>
-    /// Gets or sets the parent.
-    /// </summary>
-    public CppType? Parent;
-
-    /// <summary>
-    /// Gets or sets the template types.
-    /// </summary>
-    public CppType[]? TemplateTypes;
-
-    /// <summary>
-    /// Gets or sets the type.
-    /// </summary>
-    public required CppTypeEnum Type;
-
-    /// <summary>
-    /// Gets or sets the type identifier.
-    /// </summary>
-    public required string? TypeIdentifier;
-
-    /// <summary>
-    /// Gets or sets the type identifier with template arguments.
-    /// </summary>
-    public string? TypeIdentifierWithTemplateArgs;
-
-    /// <summary>
-    /// Gets or sets a value indicating whether the type is a const type.
-    /// </summary>
-    public bool IsConst;
-
-    /// <summary>
-    /// Gets a value indicating whether the type is a fundamental type.
+    ///     Gets a value indicating whether the type is a fundamental type.
     /// </summary>
     public bool IsFundamentalType => FundamentalType is not null;
 
     /// <summary>
-    /// Gets a value indicating whether the type is a template type.
+    ///     Gets a value indicating whether the type is a template type.
     /// </summary>
     public bool IsTemplate => TemplateTypes is not null;
 
     /// <summary>
-    /// Returns a string that represents the current object.
+    ///     Returns a string that represents the current object.
     /// </summary>
     /// <returns>A string that represents the current object.</returns>
     public override string ToString()
@@ -119,9 +122,9 @@ public class CppType
     }
 
     /// <summary>
-    /// Performs the specified action on each element of the <see cref="CppType"/>.
+    ///     Performs the specified action on each element of the <see cref="CppType" />.
     /// </summary>
-    /// <param name="action">The <see cref="Action{T1, T2, T3}"/> to perform on each element.</param>
+    /// <param name="action">The <see cref="Action{T1, T2, T3}" /> to perform on each element.</param>
     public void ForEach(Action<CppType, int, bool> action)
     {
         CppType? current = this;
@@ -135,9 +138,9 @@ public class CppType
     }
 
     /// <summary>
-    /// Returns an <see cref="IEnumerable{T}"/> that contains the elements of the <see cref="CppType"/>.
+    ///     Returns an <see cref="IEnumerable{T}" /> that contains the elements of the <see cref="CppType" />.
     /// </summary>
-    /// <returns>An <see cref="IEnumerable{T}"/> that contains the elements of the <see cref="CppType"/>.</returns>
+    /// <returns>An <see cref="IEnumerable{T}" /> that contains the elements of the <see cref="CppType" />.</returns>
     public IEnumerable<CppType> ToEnumerable()
     {
         List<CppType> nodes = [];
@@ -145,5 +148,8 @@ public class CppType
         return [.. nodes];
     }
 
-    public IEnumerable<CppType> ToEnumerableReversed() => ToEnumerable().Reverse();
+    public IEnumerable<CppType> ToEnumerableReversed()
+    {
+        return ToEnumerable().Reverse();
+    }
 }
