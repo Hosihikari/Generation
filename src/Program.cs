@@ -17,6 +17,7 @@ public static class Program
         Option<OutPutType> typeOption = new("--type", "The type of the output");
         Option<string> inputPathOption = new("--in", "The path of the input");
         Option<string> outputPathOption = new("--out", "The path of the output directory");
+        Option<string?> sdkPathOption = new("--sdk", "The directory of dotnet sdk");
         Option<string?> refPathOption = new("--ref", "The directory of reference assemblies");
         Option<string?> versionOption = new("--ver", "The version of the assembly");
 
@@ -25,6 +26,7 @@ public static class Program
         rootCommand.Add(inputPathOption);
         rootCommand.Add(outputPathOption);
         rootCommand.Add(versionOption);
+        rootCommand.Add(sdkPathOption);
         rootCommand.Add(refPathOption);
 
         rootCommand.SetHandler((type, inputPath, outputPath, sdkPath, refPath, version) =>
