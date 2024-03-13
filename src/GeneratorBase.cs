@@ -4,11 +4,16 @@ using System.Runtime.CompilerServices;
 
 namespace Hosihikari.Generation;
 
-internal interface IGenerator
+internal abstract class GeneratorBase
 {
-    public void Initialize();
+    public GeneratorBase(string originalFilePath)
+    {
+        _ = originalFilePath;
+    }
 
-    public void Run();
+    public abstract void Initialize();
 
-    public void Save(string path);
+    public abstract void Run();
+
+    public abstract void Save(string path);
 }
