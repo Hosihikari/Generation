@@ -27,7 +27,7 @@ public static class Program
         rootCommand.Add(versionOption);
         rootCommand.Add(refPathOption);
 
-        rootCommand.SetHandler((type, inputPath, outputPath, sdkPath, refPath, version) =>
+        rootCommand.SetHandler((type, inputPath, outputPath, refPath, version) =>
         {
             Stopwatch watcher = new();
             IGenerator generator = type switch
@@ -46,7 +46,7 @@ public static class Program
                 DateTime.Now, watcher.Elapsed);
             generator.Save(outputPath);
             logger.LogInformation("Save finished at {DateTime}", DateTime.Now);
-        }, typeOption, inputPathOption, outputPathOption, sdkPathOption, refPathOption, versionOption);
+        }, typeOption, inputPathOption, outputPathOption, refPathOption, versionOption);
 
         await rootCommand.InvokeAsync(args);
     }
