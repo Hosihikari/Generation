@@ -107,16 +107,17 @@ public class CppType
     /// <returns>A string that represents the current object.</returns>
     public override string ToString()
     {
+        string GetString() => string.Join("::", Namespaces ?? []) + ' ' + TypeIdentifier;
         return Type switch
         {
             CppTypeEnum.FundamentalType => FundamentalType.ToString()!,
             CppTypeEnum.Pointer => "*",
             CppTypeEnum.Ref => "&",
             CppTypeEnum.Array => "[]",
-            CppTypeEnum.Enum => $"enum {string.Join("::", Namespaces ?? [])} {TypeIdentifier}",
-            CppTypeEnum.Class => $"class {string.Join("::", Namespaces ?? [])} {TypeIdentifier}",
-            CppTypeEnum.Struct => $"struct {string.Join("::", Namespaces ?? [])} {TypeIdentifier}",
-            CppTypeEnum.Union => $"union {string.Join("::", Namespaces ?? [])} {TypeIdentifier}",
+            CppTypeEnum.Enum => $"enum {GetString()}",
+            CppTypeEnum.Class => $"class {GetString()}",
+            CppTypeEnum.Struct => $"struct {GetString()}",
+            CppTypeEnum.Union => $"union {GetString()}",
             _ => string.Empty
         };
     }
