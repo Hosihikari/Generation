@@ -205,7 +205,7 @@ public static class CppTypeParser
         CppTypeParseContext ctx = new() { Type = type };
 
         // Iterate through the characters in the string
-        while (ctx.IsEnd is false)
+        while (!ctx.IsEnd)
         {
             char c = ctx.Current;
             CppType? temp;
@@ -216,7 +216,7 @@ public static class CppTypeParser
             {
                 // If the character is '*', try to pack a pointer type and add it to cppTypes list
                 case '*':
-                    if (TryPackPointerType(original, in ctx, out temp) is false)
+                    if (!TryPackPointerType(original, in ctx, out temp))
                     {
                         return false;
                     }
@@ -228,7 +228,7 @@ public static class CppTypeParser
 
                 // If the character is '&', try to pack a reference type and add it to cppTypes list
                 case '&':
-                    if (TryPackReferenceType(original, in ctx, out temp) is false)
+                    if (!TryPackReferenceType(original, in ctx, out temp))
                     {
                         return false;
                     }
@@ -240,7 +240,7 @@ public static class CppTypeParser
 
                 // If the character is ']', try to pack an array type and add it to cppTypes list
                 case ']':
-                    if (TryPackArrayType(original, in ctx, out temp) is false)
+                    if (!TryPackArrayType(original, in ctx, out temp))
                     {
                         return false;
                     }
@@ -252,7 +252,7 @@ public static class CppTypeParser
 
                 // If the character is 't' and it is const, set IsConst flag for the latest type
                 case 't':
-                    if (IsConst(in ctx) is false)
+                    if (!IsConst(in ctx))
                     {
                         goto default;
                     }
@@ -277,7 +277,7 @@ public static class CppTypeParser
                         goto SKIP_WHITESPACE;
                     }
 
-                    if (TryPackType(original, in ctx, out temp, result.Item1) is false)
+                    if (!TryPackType(original, in ctx, out temp, result.Item1))
                     {
                         return false;
                     }
@@ -362,7 +362,7 @@ public static class CppTypeParser
 
         // Check if the current character is '&'
         char c = ctx.Current;
-        if (c is not '&')
+        if (c != '&')
         {
             return false;
         }
@@ -371,7 +371,7 @@ public static class CppTypeParser
         ctx.MoveNext();
 
         // Check if the next character is '&'
-        if (ctx.Current is '&')
+        if (ctx.Current == '&')
         {
             ctx.MoveNext();
             // Create a new CppType for RValueRef
@@ -408,13 +408,13 @@ public static class CppTypeParser
         type = null;
 
         // Check if the current character is not ']'
-        if (ctx.Current is not ']')
+        if (ctx.Current != ']')
         {
             return false;
         }
 
         // Check if the next character is not '['
-        if (ctx.Next is not '[')
+        if (ctx.Next != '[')
         {
             return false;
         }
@@ -460,8 +460,8 @@ public static class CppTypeParser
         ctx.Skip(length);
 
         // Check if the type is a template type and parse the template arguments if necessary
-        if (TryGetTemplateType(type.TypeIdentifier,
-                out (string[] templateArgs, string typeWithoutTemplateArgs) templateArgs) is false)
+        if (!TryGetTemplateType(type.TypeIdentifier,
+                out (string[] templateArgs, string typeWithoutTemplateArgs) templateArgs))
         {
             return true;
         }
@@ -477,7 +477,7 @@ public static class CppTypeParser
             string args = templateArgs.templateArgs[i];
 
             // Try to parse the template argument
-            if (TryParseCppTypeNodes(args, out CppType? temp) is false)
+            if (!TryParseCppTypeNodes(args, out CppType? temp))
             {
                 return false;
             }
@@ -522,7 +522,7 @@ public static class CppTypeParser
         types.Reverse();
 
         // Return null if the list is empty
-        if (types.Count is 0)
+        if (types.Count == 0)
         {
             return null;
         }
