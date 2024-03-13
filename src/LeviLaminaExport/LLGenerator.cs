@@ -1,19 +1,20 @@
-namespace Hosihikari.Generation.LeviLaminaExport;
-
-internal sealed class LlGenerator : IGenerator
+namespace Hosihikari.Generation.LeviLaminaExport
 {
-    public void Initialize()
+    internal sealed class LlGenerator : IGenerator
     {
-        throw new NotImplementedException();
-    }
+        public void Initialize()
+        {
+            throw new NotImplementedException();
+        }
 
-    public void Run()
-    {
-        throw new NotImplementedException();
-    }
+        public void Run()
+        {
+            throw new NotImplementedException();
+        }
 
-    public void Save(string path)
-    {
-        throw new NotImplementedException();
+        public void Save(string path)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

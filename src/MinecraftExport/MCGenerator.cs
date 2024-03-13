@@ -58,7 +58,6 @@ namespace Hosihikari.Generation.MinecraftExport
 
         #endregion
 
-
         #region ---Private method---
 
         private void HandleMembers(Item[] member)
