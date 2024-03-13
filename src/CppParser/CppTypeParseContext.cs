@@ -2,51 +2,53 @@
 
 public class CppTypeParseContext
 {
-    private string type;
+    private readonly string type;
 
     public ReadOnlySpan<char> Type
     {
         get => type;
         init
         {
-            index = value.Length - 1;
+            Index = value.Length - 1;
             type = new(value);
         }
     }
 
-    private int index;
+    public int Index { get; private set; }
 
-    public int Index => index;
+    public char Next => Type[Index - 1];
 
-    public bool MoveNext()
-    {
-        --index;
-        return index >= 0;
-    }
-    public bool MovePrevious()
-    {
-        ++index;
-        return index < Type.Length;
-    }
-
-    public void Skip(int count)
-    {
-        if (count - 1 > index)
-            throw new IndexOutOfRangeException();
-        index -= count;
-    }
-
-    public char Next => Type[index - 1];
-
-    public char Previous => Type[index + 1];
+    public char Previous => Type[Index + 1];
 
     public bool IsEnd => Index <= 0;
 
-    public char Current => Type[index];
+    public char Current => Type[Index];
 
     public int Length => Type.Length;
 
     public int this[int index] => Type[index];
+
+    public bool MoveNext()
+    {
+        --Index;
+        return Index >= 0;
+    }
+
+    public bool MovePrevious()
+    {
+        ++Index;
+        return Index < Type.Length;
+    }
+
+    public void Skip(int count)
+    {
+        if ((count - 1) > Index)
+        {
+            throw new IndexOutOfRangeException();
+        }
+
+        Index -= count;
+    }
 
     public void SkipWhitespace()
     {
@@ -57,10 +59,8 @@ public class CppTypeParseContext
                 MoveNext();
                 continue;
             }
-            else
-            {
-                break;
-            }
+
+            break;
         }
     }
 }
