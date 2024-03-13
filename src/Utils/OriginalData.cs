@@ -1,111 +1,111 @@
 using System.Text.Json.Serialization;
 
-namespace Hosihikari.Generation.Utils
-{
-    public record OriginalData(
-        [property: JsonPropertyName("classes")]
-        Dictionary<string, Class> Classes,
+namespace Hosihikari.Generation.Utils;
 
-        [property: JsonPropertyName("identifier")]
-        IdentifierData Identifier,
+public record OriginalData(
+    [property: JsonPropertyName("classes")]
+    Dictionary<string, Class> Classes,
 
-        [property: JsonPropertyName("sha_256_hash")]
-        Hashes Sha256Hash
-    );
+    [property: JsonPropertyName("identifier")]
+    IdentifierData Identifier,
 
-    public record Class(
-        [property: JsonPropertyName("parent_types")]
-        string[]? ParentTypes,
+    [property: JsonPropertyName("sha_256_hash")]
+    Hashes Sha256Hash
+);
 
-        [property: JsonPropertyName("vtbl_entry")]
-        string[]? VtblEntry,
+public record Class(
+    [property: JsonPropertyName("parent_types")]
+    string[]? ParentTypes,
 
-        [property: JsonPropertyName("child_types")]
-        string[]? ChildTypes,
+    [property: JsonPropertyName("vtbl_entry")]
+    string[]? VtblEntry,
 
-        [property: JsonPropertyName("public")]
-        Item[]? Public,
+    [property: JsonPropertyName("child_types")]
+    string[]? ChildTypes,
 
-        [property: JsonPropertyName("protected")]
-        Item[]? Protected,
+    [property: JsonPropertyName("public")]
+    Item[]? Public,
 
-        [property: JsonPropertyName("private")]
-        Item[]? Private,
+    [property: JsonPropertyName("protected")]
+    Item[]? Protected,
 
-        [property: JsonPropertyName("public.static")]
-        Item[]? PublicStatic,
+    [property: JsonPropertyName("private")]
+    Item[]? Private,
 
-        [property: JsonPropertyName("protected.static")]
-        Item[]? ProtectedStatic,
+    [property: JsonPropertyName("public.static")]
+    Item[]? PublicStatic,
 
-        [property: JsonPropertyName("private.static")]
-        Item[]? PrivateStatic,
+    [property: JsonPropertyName("protected.static")]
+    Item[]? ProtectedStatic,
 
-        [property: JsonPropertyName("virtual")]
-        Item[]? Virtual,
+    [property: JsonPropertyName("private.static")]
+    Item[]? PrivateStatic,
 
-        [property: JsonPropertyName("virtual.unordered")]
-        Item[]? VirtualUnordered);
+    [property: JsonPropertyName("virtual")]
+    Item[]? Virtual,
 
-    public record IdentifierData(
-        [property: JsonPropertyName("class")]
-        string[] Class,
+    [property: JsonPropertyName("virtual.unordered")]
+    Item[]? VirtualUnordered
+);
 
-        [property: JsonPropertyName("struct")]
-        string[] Struct
-    );
+public record IdentifierData(
+    [property: JsonPropertyName("class")]
+    string[] Class,
 
-    public record Hashes(
-        [property: JsonPropertyName("bedrock_server.exe")]
-        string Exe,
+    [property: JsonPropertyName("struct")]
+    string[] Struct
+);
 
-        [property: JsonPropertyName("bedrock_server.pdb")]
-        string Pdb,
+public record Hashes(
+    [property: JsonPropertyName("bedrock_server.exe")]
+    string Exe,
 
-        [property: JsonPropertyName("bedrock_server_symbols.debug")]
-        string Elf
-    );
+    [property: JsonPropertyName("bedrock_server.pdb")]
+    string Pdb,
 
-    public record Item(
-        [property: JsonPropertyName("access_type")]
-        int AccessType,
+    [property: JsonPropertyName("bedrock_server_symbols.debug")]
+    string Elf
+);
 
-        [property: JsonPropertyName("fake_symbol")]
-        string FakeSymbol,
+public record Item(
+    [property: JsonPropertyName("access_type")]
+    int AccessType,
 
-        [property: JsonPropertyName("flag_bits")]
-        int FlagBits,
+    [property: JsonPropertyName("fake_symbol")]
+    string FakeSymbol,
 
-        [property: JsonPropertyName("name")]
-        string Name,
+    [property: JsonPropertyName("flag_bits")]
+    int FlagBits,
 
-        [property: JsonPropertyName("namespace")]
-        string Namespace,
+    [property: JsonPropertyName("name")]
+    string Name,
 
-        [property: JsonPropertyName("params")]
-        TypeData[]? Params,
+    [property: JsonPropertyName("namespace")]
+    string Namespace,
 
-        [property: JsonPropertyName("rva")]
-        ulong Rva,
-        
-        [property: JsonPropertyName("storage_class")]
-        int StorageClass,
+    [property: JsonPropertyName("params")]
+    TypeData[]? Params,
 
-        [property: JsonPropertyName("symbol")]
-        string Symbol,
+    [property: JsonPropertyName("rva")]
+    ulong Rva,
 
-        [property: JsonPropertyName("symbol_type")]
+    [property: JsonPropertyName("storage_class")]
+    int StorageClass,
 
-        int SymbolType,
-        [property: JsonPropertyName("type")]
-        TypeData Type
-    );
+    [property: JsonPropertyName("symbol")]
+    string Symbol,
 
-    public record TypeData(
-        [property: JsonPropertyName("kind")]
-        int Kind,
+    [property: JsonPropertyName("symbol_type")]
+    int SymbolType,
 
-        [property: JsonPropertyName("name")]
-        string Name
-    );
-}
+    [property: JsonPropertyName("type")]
+    TypeData Type
+);
+
+public record TypeData(
+    [property: JsonPropertyName("kind")]
+    int Kind,
+
+    [property: JsonPropertyName("name")]
+    string Name
+);

@@ -1,7 +1,6 @@
-namespace Hosihikari.Generation.ILGenerate
-{
-    internal class AssemblyGenerator
-    {
+namespace Hosihikari.Generation.ILGenerate;
 
-    }
+internal class AssemblyGenerator
+{
+
 }
