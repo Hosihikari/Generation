@@ -4,7 +4,6 @@ namespace Hosihikari.Generation.CppParser;
 
 public static class CppTypeParser
 {
-
     public static bool TryParse(string type, [NotNullWhen(true)] out CppType? result)
     {
         throw new NotImplementedException();
@@ -27,7 +26,7 @@ public static class CppTypeParser
     /// Tries to get the C++ type from the input type string.
     /// </summary>
     /// <param name="type">The input type string.</param>
-    /// <param name="result">The tuple containing the CppTypeEnum and the handled type.</param>
+    /// <param name="result">The tuple containing the <see cref="CppTypeEnum"/> and the handled type.</param>
     /// <returns>True if the C++ type is successfully obtained, otherwise false.</returns>
     public static bool TryGetCppType(string type, out (CppTypeEnum type, string handledType) result)
     {
@@ -148,9 +147,354 @@ public static class CppTypeParser
         }
 
         // Set the result and return true
-        result.typeWithoutTemplateArgs = typeWithoutPrefix[..templateArgsStartIndex].Trim();
+        result.typeWithoutTemplateArgs
+            = typeWithoutPrefix.Remove(templateArgsStartIndex, templateArgsEndIndex - templateArgsStartIndex + 1);
+
         result.templateArgs = templateArgs;
         return true;
     }
+
+    /// <summary>
+    /// Tries to parse CppType nodes from the given string.
+    /// </summary>
+    /// <param name="original">The original string to parse.</param>
+    /// <param name="cppType">The parsed CppType if successful.</param>
+    /// <returns>True if parsing was successful, false otherwise.</returns>
+    public static bool TryParseCppTypeNodes(string original, [NotNullWhen(true)] out CppType? cppType)
+    {
+        // Initialize variables
+        var type = original;
+        cppType = null;
+
+        // Check if the input string is empty
+        if (string.IsNullOrWhiteSpace(type))
+            return false;
+
+        // Trim the input string
+        type = type.Trim();
+        if (TryGetCppType(type, out (CppTypeEnum, string) result))
+            type = result.Item2;
+        else
+            result.Item1 = CppTypeEnum.Class;
+
+        // Parse the CppType nodes
+        CppType? latest = null;
+        bool constSigned = false;
+        List<CppType> cppTypes = [];
+        var ctx = new CppTypeParseContext() { Type = type };
+
+        // Iterate through the characters in the string
+        while (ctx.IsEnd is false)
+        {
+            var c = ctx.Current;
+            CppType? temp;
+
+            // This switch statement processes different characters and performs corresponding actions
+            // based on the input character.
+            switch (c)
+            {
+                // If the character is '*', try to pack a pointer type and add it to cppTypes list
+                case '*':
+                    if (TryPackPointerType(original, in ctx, out temp) is false)
+                        return false;
+
+                    cppTypes.Add(temp);
+                    latest = temp;
+
+                    goto SKIP_WHITESPACE;
+
+                // If the character is '&', try to pack a reference type and add it to cppTypes list
+                case '&':
+                    if (TryPackReferenceType(original, in ctx, out temp) is false)
+                        return false;
+
+                    cppTypes.Add(temp);
+                    latest = temp;
+
+                    goto SKIP_WHITESPACE;
+
+                // If the character is ']', try to pack an array type and add it to cppTypes list
+                case ']':
+                    if (TryPackArrayType(original, in ctx, out temp) is false)
+                        return false;
+
+                    cppTypes.Add(temp);
+                    latest = temp;
+
+                    goto SKIP_WHITESPACE;
+
+                // If the character is 't' and it is const, set IsConst flag for the latest type
+                case 't':
+                    if (IsConst(in ctx) is false)
+                        goto default;
+
+                    ctx.SkipWhitespace();
+
+                    if (latest is null)
+                        constSigned = true;
+                    else
+                        latest.IsConst = true;
+
+                    continue;
+
+                // Default case handles non-matching characters
+                default:
+                    if (char.IsWhiteSpace(c))
+                        goto SKIP_WHITESPACE;
+
+                    if (TryPackType(original, in ctx, out temp, result.Item1) is false)
+                        return false;
+
+                    cppTypes.Add(temp);
+                    latest = temp;
+
+                    break;
+
+                SKIP_WHITESPACE:
+                    ctx.SkipWhitespace();
+                    break;
+            }
+
+            // Handle const modifiers
+            if (constSigned)
+            {
+                constSigned = false;
+                if (latest is not null)
+                    latest.IsConst = true;
+            }
+        }
+
+        // Link the parsed CppType nodes
+        cppType = LinkTypes(cppTypes);
+        return cppType is not null;
+    }
+
+
+    /// <summary>
+    /// Tries to pack a pointer type from the original string based on the context provided.
+    /// </summary>
+    /// <param name="original">The original string to parse.</param>
+    /// <param name="ctx">The context for parsing.</param>
+    /// <param name="type">The parsed CppType if successful.</param>
+    /// <returns>True if a pointer type was successfully packed, false otherwise.</returns>
+    public static bool TryPackPointerType(string original, in CppTypeParseContext ctx, [NotNullWhen(true)] out CppType? type)
+    {
+        // Initialize the output parameter
+        type = null;
+
+        // Check if the current character is a pointer symbol '*'
+        var c = ctx.Current;
+        if (c is not '*')
+            return false;
+
+        // Move to the next character in the context
+        ctx.MoveNext();
+
+        // Create a new CppType for pointer type
+        var cppType = new CppType()
+        {
+            OriginalTypeString = original,
+            Type = CppTypeEnum.Pointer,
+            TypeIdentifier = "*"
+        };
+
+        // Assign the created CppType to the output parameter
+        type = cppType;
+
+        return true;
+    }
+
+
+    /// <summary>
+    /// Tries to pack a reference type based on the input string and context.
+    /// </summary>
+    /// <param name="original">The original type string.</param>
+    /// <param name="ctx">The context for parsing.</param>
+    /// <param name="type">The packed CppType if successful, null otherwise.</param>
+    /// <returns>True if packing was successful, false otherwise.</returns>
+    public static bool TryPackReferenceType(string original, in CppTypeParseContext ctx, [NotNullWhen(true)] out CppType? type)
+    {
+        // Initialize the output type as null
+        type = null;
+
+        // Check if the current character is '&'
+        var c = ctx.Current;
+        if (c is not '&')
+            return false;
+
+        // Move to the next character
+        ctx.MoveNext();
+
+        // Check if the next character is '&'
+        if (ctx.Current is '&')
+        {
+            ctx.MoveNext();
+            // Create a new CppType for RValueRef
+            type = new CppType()
+            {
+                OriginalTypeString = original,
+                Type = CppTypeEnum.RValueRef,
+                TypeIdentifier = "&&"
+            };
+            return true;
+        }
+        else
+        {
+            // Create a new CppType for Ref
+            type = new CppType()
+            {
+                OriginalTypeString = original,
+                Type = CppTypeEnum.Ref,
+                TypeIdentifier = "&"
+            };
+            return true;
+        }
+    }
+
+
+    /// <summary>
+    /// Tries to pack an array type from the original type string.
+    /// </summary>
+    /// <param name="original">The original type string.</param>
+    /// <param name="ctx">The CppTypeParseContext.</param>
+    /// <param name="type">The packed array type, if successful.</param>
+    /// <returns>True if the array type was successfully packed, otherwise false.</returns>
+    public static bool TryPackArrayType(string original, in CppTypeParseContext ctx, [NotNullWhen(true)] out CppType? type)
+    {
+        type = null;
+
+        // Check if the current character is not ']'
+        if (ctx.Current is not ']')
+            return false;
+
+        // Check if the next character is not '['
+        if (ctx.Next is not '[')
+            return false;
+
+        // Skip the next two characters
+        ctx.Skip(2);
+
+        // Pack the array type
+        type = new CppType()
+        {
+            OriginalTypeString = original,
+            Type = CppTypeEnum.Array,
+            TypeIdentifier = "[]"
+        };
+
+        return true;
+    }
+
+
+    /// <summary>
+    /// Tries to pack the type based on the provided original type string and context.
+    /// </summary>
+    /// <param name="original">The original type string to pack.</param>
+    /// <param name="ctx">The context containing the parsing information.</param>
+    /// <param name="type">The packed CppType if successful, otherwise null.</param>
+    /// <param name="cppType">The CppTypeEnum representing the type.</param>
+    /// <returns>True if the packing was successful, false otherwise.</returns>
+    public static bool TryPackType(string original, in CppTypeParseContext ctx, [NotNullWhen(true)] out CppType? type, CppTypeEnum cppType)
+    {
+        // Calculate the length to extract the type
+        var length = ctx.Index + 1;
+
+        // Create a new CppType instance with the necessary information
+        type = new CppType()
+        {
+            OriginalTypeString = original,
+            Type = cppType,
+            TypeIdentifier = new string(ctx.Type[..length])
+        };
+
+        // Move the context index
+        ctx.Skip(length);
+
+        // Check if the type is a template type and parse the template arguments if necessary
+        if (TryGetTemplateType(type.TypeIdentifier, out var templateArgs) is false)
+        {
+            return true;
+        }
+        else
+        {
+            // Initialize the template types array and update the type identifier
+            type.TemplateTypes = new CppType[templateArgs.templateArgs.Length];
+            type.TypeIdentifierWithTemplateArgs = type.TypeIdentifier;
+            type.TypeIdentifier = templateArgs.typeWithoutTemplateArgs;
+
+            // Parse and store each template argument
+            for (int i = 0; i < templateArgs.templateArgs.Length; i++)
+            {
+                var args = templateArgs.templateArgs[i];
+
+                // Try to parse the template argument
+                if (TryParseCppTypeNodes(args, out var temp) is false)
+                    return false;
+                else
+                {
+                    type.TemplateTypes[i] = temp;
+                }
+            }
+            return true;
+        }
+    }
+
+
+    /// <summary>
+    /// Check if the given CppTypeParseContext represents a const keyword.
+    /// </summary>
+    /// <param name="ctx">The CppTypeParseContext to be checked.</param>
+    /// <returns>True if the CppTypeParseContext represents a const keyword, otherwise false.</returns>
+    public static bool IsConst(in CppTypeParseContext ctx)
+    {
+        var length = ctx.Index + 1;
+        if (length > 5)
+        {
+            if (ctx[length - 1] is 't' && ctx[length - 2] is 's' && ctx[length - 3] is 'n' && ctx[length - 4] is 'o' && ctx[length - 5] is 'c')
+            {
+                ctx.Skip(5);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+
+    /// <summary>
+    /// Links the given list of CppType instances and returns the root CppType.
+    /// </summary>
+    /// <param name="types">The list of CppType instances to be linked.</param>
+    /// <returns>The root CppType of the linked types, or null if the list is empty.</returns>
+    public static CppType? LinkTypes(List<CppType> types)
+    {
+        // Reverse the list of types
+        types.Reverse();
+
+        // Return null if the list is empty
+        if (types.Count is 0)
+            return null;
+
+        // Set the root type and initialize the current type
+        var root = types[0];
+        root.RootType = root;
+        var current = root;
+
+        // Link the types together
+        if (types.Count > 1)
+        {
+            foreach (var type in types.Skip(1))
+            {
+                type.RootType = root;
+                type.Parent = current;
+                current.SubType = type;
+                current = type;
+            }
+        }
+
+        // Return the root type
+        return root;
+    }
+
 
 }
