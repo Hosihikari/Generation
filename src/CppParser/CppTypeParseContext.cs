@@ -1,4 +1,4 @@
-﻿namespace Hosihikari.Generation.CppParser;
+namespace Hosihikari.Generation.CppParser;
 
 public class CppTypeParseContext
 {
