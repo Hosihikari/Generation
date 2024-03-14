@@ -145,4 +145,19 @@ public class ParserTest
         bool rlt = func(result);
         Assert.AreEqual(success, rlt);
     }
+
+    [TestMethod]
+    [DataRow("int", true, CppFundamentalType.Int32)]
+    [DataRow("float", true, CppFundamentalType.Float)]
+    [DataRow("char", true, CppFundamentalType.Char)]
+    [DataRow("signed char", true, CppFundamentalType.SChar)]
+    [DataRow("wchar_t", true, CppFundamentalType.WChar)]
+    [DataRow("unsigned __int64", true, CppFundamentalType.UInt64)]
+    public void TestTryGetFundamentalType(string input, bool val, CppFundamentalType? type)
+    {
+        bool result = CppTypeParser.TryGetFundamentalType(input, out var fundamentalType);
+
+        Assert.AreEqual(result, val);
+        Assert.AreEqual(type, fundamentalType);
+    }
 }

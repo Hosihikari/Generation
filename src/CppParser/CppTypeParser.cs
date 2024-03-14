@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Hosihikari.Generation.CppParser;
 
@@ -509,6 +510,66 @@ public static class CppTypeParser
         ctx.Skip(5);
         return true;
     }
+
+    /// <summary>
+    /// Tries to get the fundamental C++ type based on the input string.
+    /// </summary>
+    /// <param name="type">The input string representing the C++ type.</param>
+    /// <param name="result">When this method returns, contains the fundamental type if the conversion succeeded,
+    /// or the default value if the conversion failed.</param>
+    /// <returns>True if the conversion was successful; otherwise, false.</returns>
+    public static bool TryGetFundamentalType(string type, [NotNullWhen(true)] out CppFundamentalType? result)
+    {
+        // Initialize the result
+        result = default;
+
+        // Initialize variables
+        bool isUnsigned = false, isSigned = false;
+        string temp;
+        CppFundamentalType? fundamentalType;
+
+        // Check if the type is signed or unsigned
+        if (type.StartsWith("unsigned "))
+            isUnsigned = true;
+        else if (type.StartsWith("signed "))
+            isSigned = true;
+
+        // Extract the base type
+        if (isSigned)
+            temp = type["signed ".Length..];
+        else if (isUnsigned)
+            temp = type["unsigned ".Length..];
+        else
+            temp = type;
+
+        // Map the base type to the corresponding CppFundamentalType
+        fundamentalType = temp switch
+        {
+            "void" => CppFundamentalType.Void,
+            "bool" => CppFundamentalType.Boolean,
+            "float" => CppFundamentalType.Float,
+            "double" => CppFundamentalType.Double,
+            "wchar_t" => CppFundamentalType.WChar,
+            "char" => CppFundamentalType.Char,
+            "short" or "INT16" => CppFundamentalType.Int16,
+            "int" or "long" or "INT32" => CppFundamentalType.Int32,
+            "__int64" or "long long" or "INT64" => CppFundamentalType.Int64,
+            _ => null
+        };
+
+        // Adjust the fundamental type based on signed or unsigned
+        if (isSigned) fundamentalType -= 8;
+        else if (isUnsigned) fundamentalType += 8;
+
+        // Check if the conversion was successful
+        if (fundamentalType is null)
+            return false;
+
+        // Set the result
+        result = fundamentalType.Value;
+        return true;
+    }
+
 
 
     /// <summary>
