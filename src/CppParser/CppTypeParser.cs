@@ -448,19 +448,35 @@ public static class CppTypeParser
     public static bool TryPackType(string original, in CppTypeParseContext ctx, [NotNullWhen(true)] out CppType? type,
         CppTypeEnum cppType)
     {
+
         // Calculate the length to extract the type
         int length = ctx.Index + 1;
+
+        var span = ctx.Type[..length];
+        var typeStr = span.ToString();
+        
+        // Move the context index
+        ctx.Skip(length);
+
+        if (TryGetFundamentalType(typeStr, out var fundamentalType))
+        {
+            type = new()
+            {
+                OriginalTypeString = original,
+                Type = CppTypeEnum.FundamentalType,
+                TypeIdentifier = typeStr,
+                FundamentalType = fundamentalType
+            };
+            return true;
+        }
 
         // Create a new CppType instance with the necessary information
         type = new()
         {
             OriginalTypeString = original,
             Type = cppType,
-            TypeIdentifier = new(ctx.Type[..length])
+            TypeIdentifier = new(span)
         };
-
-        // Move the context index
-        ctx.Skip(length);
 
         // Check if the type is a template type and parse the template arguments if necessary
         if (!TryGetTemplateType(type.TypeIdentifier,

@@ -129,6 +129,38 @@ public class ParserTest
                     ]
                 }
             ],
+            [
+                "class test::TestType<class std::pair<int, double* const>>", (CppType? type)=> type is
+                {
+                    Type: CppTypeEnum.Class,
+                    TypeIdentifier: "test::TestType",
+                    TemplateTypes:
+                    [
+                        {
+                            Type: CppTypeEnum.Class,
+                            TypeIdentifier: "std::pair",
+                            TemplateTypes:
+                            [
+                                {
+                                    Type: CppTypeEnum.FundamentalType,
+                                    TypeIdentifier: "int",
+                                    FundamentalType: CppFundamentalType.Int32,
+                                },
+                                {
+                                    Type: CppTypeEnum.FundamentalType,
+                                    TypeIdentifier: "double",
+                                    FundamentalType: CppFundamentalType.Double,
+                                    SubType:
+                                    {
+                                        Type: CppTypeEnum.Pointer,
+                                        IsConst: true,
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ],
             ["", (CppType? type) => false],
             ["TestType[&*]", (CppType? type) => false]
         ];
