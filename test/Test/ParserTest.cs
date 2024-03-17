@@ -130,7 +130,7 @@ public class ParserTest
                 }
             ],
             [
-                "class test::TestType<class std::pair<int, double* const>>", (CppType? type)=> type is
+                "class test::TestType<class std::pair<int, double* const>>", (CppType? type) => type is
                 {
                     Type: CppTypeEnum.Class,
                     TypeIdentifier: "test::TestType",
@@ -144,7 +144,7 @@ public class ParserTest
                                 {
                                     Type: CppTypeEnum.FundamentalType,
                                     TypeIdentifier: "int",
-                                    FundamentalType: CppFundamentalType.Int32,
+                                    FundamentalType: CppFundamentalType.Int32
                                 },
                                 {
                                     Type: CppTypeEnum.FundamentalType,
@@ -153,7 +153,7 @@ public class ParserTest
                                     SubType:
                                     {
                                         Type: CppTypeEnum.Pointer,
-                                        IsConst: true,
+                                        IsConst: true
                                     }
                                 }
                             ]
@@ -187,7 +187,7 @@ public class ParserTest
     [DataRow("unsigned __int64", true, CppFundamentalType.UInt64)]
     public void TestTryGetFundamentalType(string input, bool val, CppFundamentalType? type)
     {
-        bool result = CppTypeParser.TryGetFundamentalType(input, out var fundamentalType);
+        bool result = CppTypeParser.TryGetFundamentalType(input, out CppFundamentalType? fundamentalType);
 
         Assert.AreEqual(result, val);
         Assert.AreEqual(type, fundamentalType);
