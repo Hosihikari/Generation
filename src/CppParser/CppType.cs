@@ -110,6 +110,8 @@ public class CppType
         return Type switch
         {
             CppTypeEnum.FundamentalType => FundamentalType.ToString()!,
+            CppTypeEnum.VarArgs => "...",
+            CppTypeEnum.RValueRef => "&&",
             CppTypeEnum.Pointer => "*",
             CppTypeEnum.Ref => "&",
             CppTypeEnum.Array => "[]",

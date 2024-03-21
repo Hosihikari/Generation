@@ -6,9 +6,12 @@ public static class CppTypeParser
 {
     public static bool TryParse(string type, [NotNullWhen(true)] out CppType? result)
     {
-        throw new NotImplementedException();
-
         result = null;
+
+        type = type.Trim();
+
+        if (type.Contains('(') || type.Contains(')'))
+            return false;// TODO
 
         if (type is "...")
         {
@@ -20,6 +23,8 @@ public static class CppTypeParser
             };
             return true;
         }
+
+        return TryParseCppTypeNodes(type, out result);
     }
 
     /// <summary>
