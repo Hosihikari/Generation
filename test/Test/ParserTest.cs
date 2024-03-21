@@ -107,7 +107,12 @@ public class ParserTest
                 "class test::details::TestType<std::tuple<std::string>> const&", (CppType? type) => type is
                 {
                     Type: CppTypeEnum.Class,
-                    TypeIdentifier: "test::details::TestType",
+                    TypeIdentifier: "TestType",
+                    Namespaces:
+                    [
+                        "test",
+                        "details"
+                    ],
                     SubType:
                     {
                         Type: CppTypeEnum.Ref,
@@ -117,12 +122,20 @@ public class ParserTest
                     [
                         {
                             Type: CppTypeEnum.Class,
-                            TypeIdentifier: "std::tuple",
+                            TypeIdentifier: "tuple",
+                            Namespaces:
+                            [
+                                "std"
+                            ],
                             TemplateTypes:
                             [
                                 {
                                     Type: CppTypeEnum.Class,
-                                    TypeIdentifier: "std::string"
+                                    TypeIdentifier: "string",
+                                    Namespaces:
+                                    [
+                                        "std"
+                                    ]
                                 }
                             ]
                         }
@@ -133,12 +146,20 @@ public class ParserTest
                 "class test::TestType<class std::pair<int, double* const>>", (CppType? type) => type is
                 {
                     Type: CppTypeEnum.Class,
-                    TypeIdentifier: "test::TestType",
+                    TypeIdentifier: "TestType",
+                    Namespaces:
+                    [
+                        "test"
+                    ],
                     TemplateTypes:
                     [
                         {
                             Type: CppTypeEnum.Class,
-                            TypeIdentifier: "std::pair",
+                            TypeIdentifier: "pair",
+                            Namespaces:
+                            [
+                                "std"
+                            ],
                             TemplateTypes:
                             [
                                 {

@@ -473,34 +473,38 @@ public static class CppTypeParser
         {
             OriginalTypeString = original,
             Type = cppType,
-            TypeIdentifier = new(span)
+            TypeIdentifier = typeStr
         };
 
-        // Check if the type is a template type and parse the template arguments if necessary
-        if (!TryGetTemplateType(type.TypeIdentifier,
-                out (string[] templateArgs, string typeWithoutTemplateArgs) templateArgs))
+        if (TryGetTemplateType(typeStr, out (string[] templateArgs, string typeWithoutTemplateArgs) templateArgs))
         {
-            return true;
-        }
+            // Initialize the template types array and update the type identifier
+            type.TemplateTypes = new CppType[templateArgs.templateArgs.Length];
+            type.TypeIdentifierWithTemplateArgs = type.TypeIdentifier;
+            type.TypeIdentifier = templateArgs.typeWithoutTemplateArgs;
 
-        // Initialize the template types array and update the type identifier
-        type.TemplateTypes = new CppType[templateArgs.templateArgs.Length];
-        type.TypeIdentifierWithTemplateArgs = type.TypeIdentifier;
-        type.TypeIdentifier = templateArgs.typeWithoutTemplateArgs;
-
-        // Parse and store each template argument
-        for (int i = 0; i < templateArgs.templateArgs.Length; i++)
-        {
-            string args = templateArgs.templateArgs[i];
-
-            // Try to parse the template argument
-            if (!TryParseCppTypeNodes(args, out CppType? temp))
+            // Parse and store each template argument
+            for (int i = 0; i < templateArgs.templateArgs.Length; i++)
             {
-                return false;
-            }
+                string args = templateArgs.templateArgs[i];
 
-            type.TemplateTypes[i] = temp;
+                // Try to parse the template argument
+                if (!TryParseCppTypeNodes(args, out CppType? temp))
+                {
+                    return false;
+                }
+
+                type.TemplateTypes[i] = temp;
+            }
         }
+
+        var namespaces = type.TypeIdentifier.Split("::");
+        if (namespaces.Length > 1)
+        {
+            type.Namespaces = namespaces[..^1];
+            type.TypeIdentifier = namespaces[^1];
+        }
+
 
         return true;
     }
