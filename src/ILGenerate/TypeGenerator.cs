@@ -38,11 +38,11 @@ public class TypeGenerator
         TypeBuilder = assemblyGenerator.MainModuleBuilder.DefineType(cppType.RootType.TypeIdentifier, TypeAttributes.Class | TypeAttributes.Public);
     }
 
-    public static bool TryCreateTypeGenerator(string type, OriginalClass @class, AssemblyGenerator assemblyGenerator, [NotNullWhen(true)] out TypeGenerator? typeGenerator)
+    public static bool TryCreateTypeGenerator(AssemblyGenerator assemblyGenerator, string type, OriginalClass @class, [NotNullWhen(true)] out TypeGenerator? typeGenerator)
     {
         if (CppTypeParser.TryParse(type, out var cppType))
         {
-            typeGenerator = new(assemblyGenerator, @class, cppType);
+            typeGenerator = new(assemblyGenerator, @class, cppType.RootType);
             return true;
         }
         else
@@ -56,7 +56,7 @@ public class TypeGenerator
     {
         if (CppTypeParser.TryParse(type, out var cppType))
         {
-            typeGenerator = new(assemblyGenerator, cppType);
+            typeGenerator = new(assemblyGenerator, cppType.RootType);
             return true;
         }
         else
@@ -64,5 +64,17 @@ public class TypeGenerator
             typeGenerator = null;
             return false;
         }
+    }
+
+    public static bool TryCreateTypeGenerator(AssemblyGenerator assemblyGenerator, CppType type, OriginalClass @class, [NotNullWhen(true)] out TypeGenerator? typeGenerator)
+    {
+        typeGenerator = new(assemblyGenerator, @class, type.RootType);
+        return true;
+    }
+
+    public static bool TryCreateEmptyTypeGenerator(AssemblyGenerator assemblyGenerator, CppType type, [NotNullWhen(true)] out TypeGenerator? typeGenerator)
+    {
+        typeGenerator = new(assemblyGenerator, type.RootType);
+        return true;
     }
 }

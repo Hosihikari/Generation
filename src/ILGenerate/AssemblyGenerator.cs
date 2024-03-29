@@ -1,4 +1,3 @@
-using Hosihikari.Generation.CppParser;
 using Hosihikari.Generation.Utils;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -16,7 +15,7 @@ public class AssemblyGenerator
 
     private AssemblyGenerator(OriginalData originalData, AssemblyName assemblyName)
     {
-        this.OriginalData = originalData;
+        OriginalData = originalData;
         AssemblyBuilder = AssemblyBuilder.DefinePersistedAssembly(assemblyName, typeof(object).Assembly);
         MainModuleBuilder = AssemblyBuilder.DefineDynamicModule("MainModule");
 
