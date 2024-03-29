@@ -23,7 +23,7 @@ internal sealed class McGenerator : IGenerator
 
     #region ---Private method---
 
-    private void HandleMembers(Item[] member)
+    private void HandleMembers(OriginalItem[] member)
     {
         throw new NotImplementedException();
     }

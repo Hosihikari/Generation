@@ -50,7 +50,7 @@ public class CppType
     /// <summary>
     ///     Gets or sets the type identifier.
     /// </summary>
-    public required string? TypeIdentifier;
+    public required string TypeIdentifier;
 
     /// <summary>
     ///     Gets or sets the type identifier with template arguments.
@@ -74,7 +74,7 @@ public class CppType
         CppType? parent,
         CppType[]? templateTypes,
         CppTypeEnum type,
-        string? typeIdentifier,
+        string typeIdentifier,
         string? typeIdentifierWithTemplateArgs,
         bool isConst)
     {
@@ -159,4 +159,6 @@ public class CppType
     {
         return ToEnumerable().Reverse();
     }
+
+    public override int GetHashCode() => ToString().GetHashCode();
 }

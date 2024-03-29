@@ -2,45 +2,97 @@ using System.Text.Json.Serialization;
 
 namespace Hosihikari.Generation.Utils;
 
+[Flags]
+public enum AccessType
+{
+    Public,
+    Protected,
+    Private,
+    PublicStatic,
+    ProtectedStatic,
+    PrivateStatic,
+    Virtual,
+    VirtualUnordered
+}
+
+[Flags]
+public enum SymbolType
+{
+    Function = 0,
+    Constructor = 1,
+    Destructor = 2,
+    Operator = 3,
+    StaticField = 4,
+    UnknownFunction = 5
+}
+
+public static class OriginalDataExtensions
+{
+    public static OriginalItem[]?[] GetAllItems(this OriginalClass @class) =>
+        [
+            @class.Public,
+            @class.Protected,
+            @class.Private,
+            @class.PublicStatic,
+            @class.ProtectedStatic,
+            @class.PrivateStatic,
+            @class.Virtual,
+            @class.VirtualUnordered
+        ];
+
+    public static (AccessType, OriginalItem[]?)[] GetAllItemsWithAccessType(this OriginalClass @class) =>
+        [
+            (AccessType.Public, @class.Public),
+            (AccessType.Protected, @class.Protected),
+            (AccessType.Private, @class.Private),
+            (AccessType.PublicStatic, @class.PublicStatic),
+            (AccessType.ProtectedStatic, @class.ProtectedStatic),
+            (AccessType.PrivateStatic, @class.PrivateStatic),
+            (AccessType.Virtual, @class.Virtual),
+            (AccessType.VirtualUnordered, @class.VirtualUnordered)
+        ];
+}
+
 public record OriginalData(
     [property: JsonPropertyName("classes")]
-    Dictionary<string, Class> Classes,
+    Dictionary<string, OriginalClass> Classes,
     [property: JsonPropertyName("identifier")]
-    IdentifierData Identifier,
+    OriginalIdentifierData Identifier,
     [property: JsonPropertyName("sha_256_hash")]
-    Hashes Sha256Hash
+    OriginalHashes Sha256Hash
 );
 
-public record Class(
+public record OriginalClass(
     [property: JsonPropertyName("parent_types")]
     string[]? ParentTypes,
     [property: JsonPropertyName("vtbl_entry")]
     string[]? VtblEntry,
     [property: JsonPropertyName("child_types")]
     string[]? ChildTypes,
-    [property: JsonPropertyName("public")] Item[]? Public,
+    [property: JsonPropertyName("public")]
+    OriginalItem[]? Public,
     [property: JsonPropertyName("protected")]
-    Item[]? Protected,
+    OriginalItem[]? Protected,
     [property: JsonPropertyName("private")]
-    Item[]? Private,
+    OriginalItem[]? Private,
     [property: JsonPropertyName("public.static")]
-    Item[]? PublicStatic,
+    OriginalItem[]? PublicStatic,
     [property: JsonPropertyName("protected.static")]
-    Item[]? ProtectedStatic,
+    OriginalItem[]? ProtectedStatic,
     [property: JsonPropertyName("private.static")]
-    Item[]? PrivateStatic,
+    OriginalItem[]? PrivateStatic,
     [property: JsonPropertyName("virtual")]
-    Item[]? Virtual,
+    OriginalItem[]? Virtual,
     [property: JsonPropertyName("virtual.unordered")]
-    Item[]? VirtualUnordered
+    OriginalItem[]? VirtualUnordered
 );
 
-public record IdentifierData(
+public record OriginalIdentifierData(
     [property: JsonPropertyName("class")] string[] Class,
     [property: JsonPropertyName("struct")] string[] Struct
 );
 
-public record Hashes(
+public record OriginalHashes(
     [property: JsonPropertyName("bedrock_server.exe")]
     string Exe,
     [property: JsonPropertyName("bedrock_server.pdb")]
@@ -49,7 +101,7 @@ public record Hashes(
     string Elf
 );
 
-public record Item(
+public record OriginalItem(
     [property: JsonPropertyName("access_type")]
     int AccessType,
     [property: JsonPropertyName("fake_symbol")]
@@ -59,17 +111,17 @@ public record Item(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("namespace")]
     string Namespace,
-    [property: JsonPropertyName("params")] TypeData[]? Params,
+    [property: JsonPropertyName("params")] OriginalTypeData[]? Params,
     [property: JsonPropertyName("rva")] ulong Rva,
     [property: JsonPropertyName("storage_class")]
     int StorageClass,
     [property: JsonPropertyName("symbol")] string Symbol,
     [property: JsonPropertyName("symbol_type")]
     int SymbolType,
-    [property: JsonPropertyName("type")] TypeData Type
+    [property: JsonPropertyName("type")] OriginalTypeData Type
 );
 
-public record TypeData(
+public record OriginalTypeData(
     [property: JsonPropertyName("kind")] int Kind,
     [property: JsonPropertyName("name")] string Name
 );
