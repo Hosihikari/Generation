@@ -161,4 +161,12 @@ public class CppType
     }
 
     public override int GetHashCode() => ToString().GetHashCode();
+
+    public override bool Equals(object? obj)
+    {
+        if (obj is not CppType other)
+            return false;
+
+        return GetHashCode() == other.GetHashCode();
+    }
 }
