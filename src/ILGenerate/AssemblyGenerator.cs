@@ -1,3 +1,4 @@
+using Hosihikari.Generation.CppParser;
 using Hosihikari.Generation.Utils;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -30,18 +31,27 @@ public class AssemblyGenerator
 
     public async ValueTask<bool> GenerateAsync()
     {
-        throw new NotImplementedException();
-
-        foreach (var (typeStr, @class) in OriginalData.Classes)
+        try
         {
-            if (!TypeGenerator.TryCreateTypeGenerator(typeStr, @class, this, out var typeGenerator))
-                continue;
+            foreach (var (typeStr, @class) in OriginalData.Classes)
+            {
+                if (CppTypeParser.TryParse(typeStr, out var cppType) is false)
+                    continue;
 
+                var generator = await TypeRegistry.RegisterTypeAsync(cppType, @class);
+                if (generator is null)
+                    continue;
+
+                await generator.GenerateAsync();
+            }
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
         }
     }
 
     public async ValueTask SaveAsync(FileInfo file)
-    {
-        throw new NotImplementedException();
-    }
+        => await Task.Run(() => AssemblyBuilder.Save(file.FullName));
 }

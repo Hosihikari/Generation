@@ -50,6 +50,12 @@ public class TypeRegistry
         return rlt;
     }
 
+    /// <summary>
+    /// Resolves the given CppType asynchronously, returning the corresponding Type.
+    /// </summary>
+    /// <param name="type">The CppType to resolve.</param>
+    /// <param name="autoRegister">Flag indicating whether to automatically register the type if not found.</param>
+    /// <returns>The resolved Type or null.</returns>
     public async ValueTask<Type?> ResolveTypeAsync(CppType type, bool autoRegister = true)
     {
         var rootType = type.RootType;
@@ -57,10 +63,10 @@ public class TypeRegistry
         switch (rootType.Type)
         {
             case CppTypeEnum.FundamentalType:
-                return await ResolveFoundationTypeAsync(type);
+                return await ResolveFundamentalTypeAsync(type);  
 
             case CppTypeEnum.Enum:
-                return await ResolvePredefinedEnumTypeAsync(type);
+                return await ResolveEnumTypeAsync(type);
 
             case CppTypeEnum.Class:
             case CppTypeEnum.Struct:
@@ -76,7 +82,8 @@ public class TypeRegistry
                 }
 
             case CppTypeEnum.Function:
-                throw new NotImplementedException("Not implemented");
+                //throw new NotImplementedException("Not implemented");
+                return null;
 
             case CppTypeEnum.VarArgs:
             case CppTypeEnum.Pointer:
@@ -84,26 +91,18 @@ public class TypeRegistry
             case CppTypeEnum.RValueRef:
             case CppTypeEnum.Array:
             default:
-                throw new InvalidOperationException();
+                //throw new InvalidOperationException();
+                return null;
         }
-
-        //type = type.RootType;
-
-        //if (Types.TryGetValue(type, out var typeGenerator))
-        //    return typeGenerator.TypeBuilder;
-
-        //if (autoRegister)
-        //    return (await RegisterTypeAsync(type, null))?.TypeBuilder;
-
-        //return null;
     }
+
 
     /// <summary>
     /// Resolves the foundation type asynchronously.
     /// </summary>
     /// <param name="type">The CppType to resolve.</param>
     /// <returns>The resolved Type or null if not found.</returns>
-    private static async ValueTask<Type?> ResolveFoundationTypeAsync(CppType type)
+    private static async ValueTask<Type?> ResolveFundamentalTypeAsync(CppType type)
     {
         // Check if the type is a fundamental type
         if (type.RootType.Type is not CppTypeEnum.FundamentalType)
@@ -148,7 +147,7 @@ public class TypeRegistry
     /// </summary>
     /// <param name="type">The CppType to resolve.</param>
     /// <returns>A ValueTask containing the resolved Type, or null if unable to resolve.</returns>
-    private async ValueTask<Type?> ResolvePredefinedEnumTypeAsync(CppType type)
+    private async ValueTask<Type?> ResolveEnumTypeAsync(CppType type)
     {
         // Get the root type
         var rootType = type.RootType;

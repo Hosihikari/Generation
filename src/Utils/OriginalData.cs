@@ -40,16 +40,16 @@ public static class OriginalDataExtensions
             @class.VirtualUnordered
         ];
 
-    public static (AccessType, OriginalItem[]?)[] GetAllItemsWithAccessType(this OriginalClass @class) =>
+    public static (AccessType accessType, bool isStatic, OriginalItem[]? item)[] GetAllItemsWithAccessType(this OriginalClass @class) =>
         [
-            (AccessType.Public, @class.Public),
-            (AccessType.Protected, @class.Protected),
-            (AccessType.Private, @class.Private),
-            (AccessType.PublicStatic, @class.PublicStatic),
-            (AccessType.ProtectedStatic, @class.ProtectedStatic),
-            (AccessType.PrivateStatic, @class.PrivateStatic),
-            (AccessType.Virtual, @class.Virtual),
-            (AccessType.VirtualUnordered, @class.VirtualUnordered)
+            (AccessType.Public,false, @class.Public),
+            (AccessType.Protected,false, @class.Protected),
+            (AccessType.Private,false, @class.Private),
+            (AccessType.PublicStatic,true, @class.PublicStatic),
+            (AccessType.ProtectedStatic,true, @class.ProtectedStatic),
+            (AccessType.PrivateStatic,true, @class.PrivateStatic),
+            (AccessType.Virtual,false, @class.Virtual),
+            (AccessType.VirtualUnordered,false, @class.VirtualUnordered)
         ];
 }
 
