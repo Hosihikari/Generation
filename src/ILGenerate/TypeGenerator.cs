@@ -10,7 +10,7 @@ public class TypeGenerator
 {
     public AssemblyGenerator AssemblyGenerator { get; }
 
-    public OriginalClass? Class { get; }
+    public OriginalClass? Class { get; private set; }
 
     public CppType ParsedType { get; }
 
@@ -21,6 +21,10 @@ public class TypeGenerator
 
     public TypeBuilder OriginalTypeBuilder { get; }
 
+    public bool IsEmpty => Class is null;
+
+    public bool Generated { get; private set; }
+
     private TypeGenerator(AssemblyGenerator assemblyGenerator, OriginalClass @class, CppType cppType)
     {
         AssemblyGenerator = assemblyGenerator;
@@ -28,8 +32,18 @@ public class TypeGenerator
         Class = @class;
         ParsedType = cppType;
 
-        TypeBuilder = assemblyGenerator.MainModuleBuilder.DefineType(cppType.RootType.TypeIdentifier, TypeAttributes.Class | TypeAttributes.Public);
-        OriginalTypeBuilder = TypeBuilder.DefineNestedType("Original", TypeAttributes.NestedPublic | TypeAttributes.Interface);
+        TypeBuilder = assemblyGenerator.MainModuleBuilder.DefineType(
+            cppType.RootType.TypeIdentifier,
+            TypeAttributes.Class |
+            TypeAttributes.Public);
+
+        OriginalTypeBuilder = TypeBuilder.DefineNestedType(
+            "Original",
+            TypeAttributes.Interface |
+            TypeAttributes.NestedPublic |
+            TypeAttributes.AutoClass |
+            TypeAttributes.AnsiClass |
+            TypeAttributes.Abstract);
     }
 
     private TypeGenerator(AssemblyGenerator assemblyGenerator, CppType cppType)
@@ -40,7 +54,7 @@ public class TypeGenerator
 
         TypeBuilder = assemblyGenerator.MainModuleBuilder.DefineType(cppType.RootType.TypeIdentifier, TypeAttributes.Class | TypeAttributes.Public);
         OriginalTypeBuilder = TypeBuilder.DefineNestedType(
-            "Original", 
+            "Original",
             TypeAttributes.Interface |
             TypeAttributes.NestedPublic |
             TypeAttributes.AutoClass |
@@ -90,6 +104,9 @@ public class TypeGenerator
 
     public async ValueTask<bool> GenerateAsync()
     {
+        if (Generated)
+            return true;
+
         if (Class is null)
             return false;
 
@@ -116,6 +133,23 @@ public class TypeGenerator
             }
         }
 
+        Generated = true;
+
         return true;
+    }
+
+    public void CreateType()
+    {
+        TypeBuilder.CreateType();
+        OriginalTypeBuilder.CreateType();
+    }
+
+    public void SetOriginalClass(OriginalClass @class)
+    {
+        if (IsEmpty is false)
+            throw new InvalidOperationException("TypeGenerator is already initialized.");
+
+        Class = @class;
+        Generated = false;
     }
 }

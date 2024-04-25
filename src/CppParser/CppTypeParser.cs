@@ -312,7 +312,7 @@ public static class CppTypeParser
 
         // Link the parsed CppType nodes
         cppType = LinkTypes(cppTypes);
-        return cppType is not null;
+        return cppType is not null && string.IsNullOrWhiteSpace(cppType.RootType.TypeIdentifier) is false;
     }
 
 
@@ -591,6 +591,9 @@ public static class CppTypeParser
             "__int64" or "long long" or "INT64" => CppFundamentalType.Int64,
             _ => null
         };
+
+        if (fundamentalType is CppFundamentalType.Char && isUnsigned)
+            isUnsigned = false;
 
         // Adjust the fundamental type based on signed or unsigned
         if (isSigned)

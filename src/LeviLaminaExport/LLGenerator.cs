@@ -7,12 +7,12 @@ internal sealed class LlGenerator : IGenerator
         throw new NotImplementedException();
     }
 
-    public void Run()
+    public async ValueTask RunAsync()
     {
         throw new NotImplementedException();
     }
 
-    public void Save(string path)
+    public async ValueTask SaveAsync(string path)
     {
         throw new NotImplementedException();
     }

@@ -21,6 +21,14 @@ public class TypeRegistry
         AssemblyGenerator = assemblyGenerator;
     }
 
+    public async ValueTask<TypeGenerator?> GetOrRegisterTypeAsync(CppType type, OriginalClass? @class)
+    {
+        if (Types.TryGetValue(type, out var typeGenerator))
+            return typeGenerator;
+
+        return await RegisterTypeAsync(type, @class);
+    }
+
     public async ValueTask<TypeGenerator?> RegisterTypeAsync(CppType type, OriginalClass? @class)
     {
         type = type.RootType;
@@ -63,7 +71,7 @@ public class TypeRegistry
         switch (rootType.Type)
         {
             case CppTypeEnum.FundamentalType:
-                return await ResolveFundamentalTypeAsync(type);  
+                return await ResolveFundamentalTypeAsync(type);
 
             case CppTypeEnum.Enum:
                 return await ResolveEnumTypeAsync(type);
@@ -184,7 +192,7 @@ public class TypeRegistry
                     case CppTypeEnum.Pointer:
                     case CppTypeEnum.Array:
                         {
-                            if (current.IsValueType)
+                            if (current.IsValueType || current.IsPointer)
                                 current = current.MakePointerType();
                             else
                                 current = typeof(Pointer<>).MakeGenericType(current);
@@ -193,7 +201,7 @@ public class TypeRegistry
                     case CppTypeEnum.Ref:
                     case CppTypeEnum.RValueRef:
                         {
-                            if (current.IsValueType)
+                            if (current.IsValueType || current.IsPointer)
                                 current = current.MakeByRefType();
                             else
                                 current = typeof(Reference<>).MakeGenericType(current);
@@ -210,4 +218,11 @@ public class TypeRegistry
         return current;
     }
 
+
+    public async ValueTask CreateTypesAsync()
+        => await Task.Run(() =>
+        {
+            foreach (var (_, generator) in Types)
+                generator.CreateType();
+        });
 }

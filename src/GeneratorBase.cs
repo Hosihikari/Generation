@@ -8,7 +8,7 @@ internal interface IGenerator
 {
     public void Initialize();
 
-    public void Run();
+    public ValueTask RunAsync();
 
-    public void Save(string path);
+    public ValueTask SaveAsync(string path);
 }

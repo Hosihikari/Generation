@@ -35,15 +35,20 @@ public class AssemblyGenerator
         {
             foreach (var (typeStr, @class) in OriginalData.Classes)
             {
-                if (CppTypeParser.TryParse(typeStr, out var cppType) is false)
+                if (CppTypeParser.TryParse(typeStr, out var cppType) is false || cppType.RootType.IsTemplate)
                     continue;
 
-                var generator = await TypeRegistry.RegisterTypeAsync(cppType, @class);
+                var generator = await TypeRegistry.GetOrRegisterTypeAsync(cppType, @class);
                 if (generator is null)
                     continue;
 
+                if (generator.IsEmpty)
+                    generator.SetOriginalClass(@class);
+
                 await generator.GenerateAsync();
             }
+
+            await TypeRegistry.CreateTypesAsync();
             return true;
         }
         catch (Exception)

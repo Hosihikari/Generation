@@ -61,7 +61,7 @@ public class MethodGenerator
         if (CppTypeParser.TryParse(item.Type.Name, out var returnType) is false)
             return false;
 
-        CppType[] parameters = item.Params is not null ? new CppType[item.Params.Length] : [];
+        CppType[] parameters = item.Params is null ? [] : new CppType[item.Params.Length];
 
         if (item.Params is not null)
         {
@@ -100,15 +100,16 @@ public class MethodGenerator
             parameterTypes[i] = temp;
         }
 
+        var fptrField = await GenerateFunctionPointer(); // Generate function pointer if types are not resolved
+
         // Check if the return type or any parameter type is null
         if (returnType is null || parameterTypes.Any(x => x is null))
         {
-            await GenerateFunctionPointer(); // Generate function pointer if types are not resolved
             return false;
         }
         else
         {
-            return await GenerateMethod(); // Generate method if types are resolved
+            return await GenerateMethod(returnType, parameterTypes!, fptrField); // Generate method if types are resolved
         }
     }
 
@@ -168,13 +169,15 @@ public class MethodGenerator
             il.Emit(OC.Stsfld, field);
             il.Emit(OC.Ret);
 
+            type.CreateType();
+
             // Return the field builder
             return field;
         });
     }
 
-    public async ValueTask<bool> GenerateMethod()
+    public async ValueTask<bool> GenerateMethod(Type returnType, Type[] parameterTypes, FieldBuilder fptrField)
     {
-        throw new NotImplementedException();
+        return false;
     }
 }
