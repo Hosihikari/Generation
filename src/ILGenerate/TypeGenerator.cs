@@ -1,14 +1,28 @@
 ﻿using Hosihikari.Generation.CppParser;
 using Hosihikari.Generation.Utils;
+using Hosihikari.NativeInterop.Unmanaged;
+using Mono.Cecil;
+using Mono.Cecil.Cil;
+using Mono.Cecil.Rocks;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
-using System.Reflection.Emit;
+using System.Text;
 
 namespace Hosihikari.Generation.ILGenerate;
 
 public class TypeGenerator
 {
-    public AssemblyGenerator AssemblyGenerator { get; }
+    public const string OriginalTypeName = "Original";
+    public const string FunctionPointerDefintionTypeName = "FunctionPointerDefintion";
+    public const string PointerFieldName = "__pointer_";
+    public const string OwnsInstanceFieldName = "__isOwner_";
+    public const string OwnsMemoryFieldName = "__isTempStackValue_";
+    public const string PointerPropertyName = "Pointer";
+    public const string OwnsInstancePropertyName = "IsOwner";
+    public const string OwnsMemoryPropertyName = "IsTempStackValue";
+
+    public const string DefaultNamespace = "Hosihikari.Minecraft";
+
+    public AssemblyGenerator Assembly { get; }
 
     public OriginalClass? Class { get; private set; }
 
@@ -17,9 +31,11 @@ public class TypeGenerator
     public List<MethodGenerator> Methods { get; } = [];
     public List<StaticFieldGenerator> StaticFields { get; } = [];
 
-    public TypeBuilder TypeBuilder { get; }
+    public TypeDefinition Type { get; }
 
-    public TypeBuilder OriginalTypeBuilder { get; }
+    public TypeDefinition OriginalType { get; }
+
+    public TypeDefinition FunctionPointerDefintionType { get; }
 
     public bool IsEmpty => Class is null;
 
@@ -27,39 +43,77 @@ public class TypeGenerator
 
     private TypeGenerator(AssemblyGenerator assemblyGenerator, OriginalClass @class, CppType cppType)
     {
-        AssemblyGenerator = assemblyGenerator;
+        Assembly = assemblyGenerator;
 
         Class = @class;
         ParsedType = cppType;
 
-        TypeBuilder = assemblyGenerator.MainModuleBuilder.DefineType(
+        Type = Assembly.MainModule.DefineType(
+            GenerateNamespace(cppType.RootType.Namespaces),
             cppType.RootType.TypeIdentifier,
             TypeAttributes.Class |
             TypeAttributes.Public);
+        Type.Interfaces.Add(
+            new(
+                new GenericInstanceType(Assembly.ImportRef(typeof(ICppInstance<>)))
+                {
+                    GenericArguments = { Type }
+                }));
+        Type.Interfaces.Add(new(Assembly.ImportRef(typeof(ICppInstanceNonGeneric))));
 
-        OriginalTypeBuilder = TypeBuilder.DefineNestedType(
-            "Original",
+        OriginalType = Type.DefineType(
+            string.Empty,
+            OriginalTypeName,
             TypeAttributes.Interface |
             TypeAttributes.NestedPublic |
             TypeAttributes.AutoClass |
             TypeAttributes.AnsiClass |
             TypeAttributes.Abstract);
+
+        FunctionPointerDefintionType = OriginalType.DefineType(
+            string.Empty,
+            FunctionPointerDefintionTypeName,
+            TypeAttributes.NestedPublic |
+            TypeAttributes.Sealed |
+            TypeAttributes.Abstract |
+            TypeAttributes.Class);
     }
 
     private TypeGenerator(AssemblyGenerator assemblyGenerator, CppType cppType)
     {
-        AssemblyGenerator = assemblyGenerator;
+        Assembly = assemblyGenerator;
 
         ParsedType = cppType;
 
-        TypeBuilder = assemblyGenerator.MainModuleBuilder.DefineType(cppType.RootType.TypeIdentifier, TypeAttributes.Class | TypeAttributes.Public);
-        OriginalTypeBuilder = TypeBuilder.DefineNestedType(
-            "Original",
+        Type = Assembly.Module.DefineType(
+            GenerateNamespace(cppType.RootType.Namespaces),
+            cppType.RootType.TypeIdentifier,
+            TypeAttributes.Class |
+            TypeAttributes.Public);
+        Type.Interfaces.Add(
+            new(
+                new GenericInstanceType(Assembly.ImportRef(typeof(ICppInstance<>)))
+                {
+                    GenericArguments = { Type }
+                }));
+        Type.Interfaces.Add(new(Assembly.ImportRef(typeof(ICppInstanceNonGeneric))));
+
+        OriginalType = Type.DefineType(
+            string.Empty,
+            OriginalTypeName,
             TypeAttributes.Interface |
             TypeAttributes.NestedPublic |
             TypeAttributes.AutoClass |
             TypeAttributes.AnsiClass |
             TypeAttributes.Abstract);
+
+        FunctionPointerDefintionType = OriginalType.DefineType(
+            string.Empty,
+            FunctionPointerDefintionTypeName,
+            TypeAttributes.NestedPublic |
+            TypeAttributes.Sealed |
+            TypeAttributes.Abstract |
+            TypeAttributes.Class);
     }
 
     public static bool TryCreateTypeGenerator(AssemblyGenerator assemblyGenerator, string type, OriginalClass @class, [NotNullWhen(true)] out TypeGenerator? typeGenerator)
@@ -102,10 +156,36 @@ public class TypeGenerator
         return true;
     }
 
+    private static string GenerateNamespace(string[]? namespaces)
+    {
+        if (namespaces is null)
+            return DefaultNamespace;
+
+        StringBuilder builder = new(DefaultNamespace);
+
+        foreach (var temp in namespaces)
+        {
+            builder.Append("._");
+            foreach (var c in temp)
+            {
+                if (char.IsLetter(c) || char.IsDigit(c))
+                    builder.Append(c);
+                else
+                    builder.Append('_');
+            }
+        }
+
+        return builder.ToString();
+    }
+
     public async ValueTask<bool> GenerateAsync()
     {
         if (Generated)
             return true;
+
+        Generated = true;
+
+        await GenerateImplAsync();
 
         if (Class is null)
             return false;
@@ -133,15 +213,7 @@ public class TypeGenerator
             }
         }
 
-        Generated = true;
-
         return true;
-    }
-
-    public void CreateType()
-    {
-        TypeBuilder.CreateType();
-        OriginalTypeBuilder.CreateType();
     }
 
     public void SetOriginalClass(OriginalClass @class)
@@ -151,5 +223,262 @@ public class TypeGenerator
 
         Class = @class;
         Generated = false;
+    }
+
+    private async ValueTask GenerateImplAsync()
+        => await Task.Run(() =>
+        {
+            var (_, ptrProperty) = GenerateProperty(PointerFieldName, PointerPropertyName, Assembly.ImportRef(typeof(nint)));
+            var (_, ownsInstanceProperty) = GenerateProperty(OwnsInstanceFieldName, OwnsInstancePropertyName, Assembly.ImportRef(typeof(bool)));
+            var (_, ownsMemoryProperty) = GenerateProperty(OwnsMemoryFieldName, OwnsMemoryPropertyName, Assembly.ImportRef(typeof(bool)));
+
+            GenerateDefaultCtor(ptrProperty, ownsInstanceProperty, ownsMemoryProperty);
+            BuildClassSizeProperty(0);
+            BuildImplicitOperator();
+        });
+
+    private (FieldDefinition field, PropertyDefinition property) GenerateProperty(
+        string fieldName,
+        string propertyName,
+        TypeReference type)
+    {
+        ILProcessor il;
+
+        var field = Type.DefineField(
+            fieldName,
+            FieldAttributes.Private,
+            type);
+
+        var property = Type.DefineProperty(
+            propertyName,
+             PropertyAttributes.None,
+             type);
+        MethodDefinition getMethod = Type.DefineMethod(
+            $"get_{propertyName}",
+            MethodAttributes.Public |
+            MethodAttributes.Final |
+            MethodAttributes.HideBySig |
+            MethodAttributes.SpecialName |
+            MethodAttributes.NewSlot |
+            MethodAttributes.Virtual,
+            type);
+        il = getMethod.Body.GetILProcessor();
+        il.Emit(OC.Ldarg_0);
+        il.Emit(OC.Ldfld, field);
+        il.Emit(OC.Ret);
+
+        MethodDefinition setMethod = Type.DefineMethod(
+           $"set_{propertyName}",
+           MethodAttributes.Public |
+           MethodAttributes.Final |
+           MethodAttributes.HideBySig |
+           MethodAttributes.SpecialName |
+           MethodAttributes.NewSlot |
+           MethodAttributes.Virtual,
+           Assembly.ImportRef(typeof(void)),
+           parameterTypes: [new ParameterDefinition("value", ParameterAttributes.None, type)]);
+        il = setMethod.Body.GetILProcessor();
+        il.Emit(OC.Ldarg_0);
+        il.Emit(OC.Ldarg_1);
+        il.Emit(OC.Stfld, field);
+        il.Emit(OC.Ret);
+
+        property.BindMethods(getMethod, setMethod);
+
+        return (field, property);
+    }
+
+    private void GenerateDefaultCtor(
+        PropertyDefinition ptr,
+        PropertyDefinition owns,
+        PropertyDefinition ownsMemory)
+    {
+        MethodDefinition ctorDefault = Type.DefineMethod(
+            ".ctor",
+            MethodAttributes.Public |
+            MethodAttributes.HideBySig |
+            MethodAttributes.SpecialName |
+            MethodAttributes.RTSpecialName,
+            Assembly.ImportRef(typeof(void)));
+        ILProcessor? il = ctorDefault.Body.GetILProcessor();
+        il.Emit(OC.Ldarg_0);
+        il.Emit(OC.Call, Assembly.ImportRef(Assembly.TypeSystem.Object.GetConstructors().First()));
+        il.Emit(OC.Ldarg_0);
+        il.Emit(OC.Ldc_I8, 0L);
+        il.Emit(OC.Conv_Ovf_I);
+        il.Emit(OC.Call, ptr.SetMethod);
+        il.Emit(OC.Ldarg_0);
+        il.Emit(OC.Ldc_I4_0);
+        il.Emit(OC.Call, owns.SetMethod);
+        il.Emit(OC.Ldarg_0);
+        il.Emit(OC.Ldc_I4_0);
+        il.Emit(OC.Call, ownsMemory.SetMethod);
+        il.Emit(OC.Ret);
+
+        MethodDefinition ctor = Type.DefineMethod(
+            ".ctor",
+            MethodAttributes.Public |
+            MethodAttributes.HideBySig |
+            MethodAttributes.SpecialName |
+            MethodAttributes.RTSpecialName,
+            Assembly.ImportRef(typeof(void)),
+            parameterTypes: [
+                new("ptr", ParameterAttributes.None, Assembly.ImportRef(typeof(nint))),
+                new("owns", ParameterAttributes.Optional, Assembly.ImportRef(typeof(bool)))
+                {
+                    Constant = false
+                },
+                new("isTempStackValue", ParameterAttributes.Optional, Assembly.ImportRef(typeof(bool)))
+                {
+                    Constant = true
+                }]);
+        il = ctor.Body.GetILProcessor();
+        il.Emit(OC.Ldarg_0);
+        il.Emit(OC.Call, Assembly.ImportRef(Assembly.TypeSystem.Object.GetConstructors().First()));
+        il.Emit(OC.Ldarg_0);
+        il.Emit(OC.Ldarg_1);
+        il.Emit(OC.Call, ptr.SetMethod);
+        il.Emit(OC.Ldarg_0);
+        il.Emit(OC.Ldarg_2);
+        il.Emit(OC.Call, owns.SetMethod);
+        il.Emit(OC.Ldarg_0);
+        il.Emit(OC.Ldarg_3);
+        il.Emit(OC.Call, ownsMemory.SetMethod);
+        il.Emit(OC.Ret);
+
+        GenericInstanceType IcppInstanceType = new(Assembly.ImportRef(typeof(ICppInstance<>)))
+        {
+            GenericArguments = { Type }
+        };
+
+        MethodReference methodReference = new("ConstructInstance",
+            IcppInstanceType.Resolve().GenericParameters[0], IcppInstanceType)
+        {
+            Parameters =
+            {
+                new(Assembly.ImportRef(typeof(nint))),
+                new(Assembly.ImportRef(typeof(bool))),
+                new(Assembly.ImportRef(typeof(bool)))
+            }
+        };
+
+        MethodDefinition ConstructInstanceMethod = Type.DefineMethod(
+            "ConstructInstance",
+            MethodAttributes.Public |
+            MethodAttributes.HideBySig |
+            MethodAttributes.Static,
+            Type,
+            parameterTypes: [
+                new("ptr", ParameterAttributes.None, Assembly.ImportRef(typeof(nint))),
+                new("owns", ParameterAttributes.Optional, Assembly.ImportRef(typeof(bool)))
+                {
+                    Constant = false
+                },
+                new("isTempStackValue", ParameterAttributes.Optional, Assembly.ImportRef(typeof(bool)))
+                {
+                    Constant = true
+                }]);
+        ConstructInstanceMethod.Overrides.Add(Assembly.ImportRef(methodReference));
+        il = ConstructInstanceMethod.Body.GetILProcessor();
+        il.Emit(OC.Ldarg_0);
+        il.Emit(OC.Ldarg_1);
+        il.Emit(OC.Ldarg_2);
+        il.Emit(OC.Newobj, ctor);
+        il.Emit(OC.Ret);
+
+        MethodDefinition ConstructInstanceNonGenericMethod = Type.DefineMethod(
+            $"{typeof(ICppInstanceNonGeneric).FullName}.ConstructInstance",
+            MethodAttributes.Private |
+            MethodAttributes.HideBySig |
+            MethodAttributes.Static,
+            Assembly.ImportRef(typeof(object)),
+            parameterTypes: [
+                new("ptr", ParameterAttributes.None, Assembly.ImportRef((typeof(nint)))),
+                new("owns", ParameterAttributes.None, Assembly.ImportRef((typeof(bool)))),
+                new("isTempStackValue", ParameterAttributes.None, Assembly.ImportRef(typeof(bool)))
+                ]);
+        ConstructInstanceNonGenericMethod.Overrides.Add(
+            Assembly.ImportRef(
+                typeof(ICppInstanceNonGeneric)
+                .GetMethods()
+                .First(f => f.Name == nameof(ICppInstanceNonGeneric.ConstructInstance))));
+        il = ConstructInstanceNonGenericMethod.Body.GetILProcessor();
+        il.Emit(OC.Ldarg_0);
+        il.Emit(OC.Ldarg_1);
+        il.Emit(OC.Ldarg_2);
+        il.Emit(OC.Call, ConstructInstanceMethod);
+        il.Emit(OC.Ret);
+    }
+
+    private void BuildClassSizeProperty(ulong classSize)
+    {
+        PropertyDefinition property = Type.DefineProperty(
+            "ClassSize", PropertyAttributes.None, Assembly.ImportRef(typeof(ulong)));
+
+        MethodDefinition getMethod = Type.DefineMethod(
+            "get_ClassSize",
+            MethodAttributes.Public |
+            MethodAttributes.HideBySig |
+            MethodAttributes.SpecialName |
+            MethodAttributes.Static,
+            Assembly.ImportRef(typeof(ulong)));
+        getMethod.Overrides.Add(Assembly.ImportRef(
+            typeof(ICppInstanceNonGeneric).GetMethods().First(f => f.Name is "get_ClassSize")));
+        ILProcessor? il = getMethod.Body.GetILProcessor();
+        il.Emit(OC.Ldc_I8, (long)classSize);
+        il.Emit(OC.Conv_U8);
+        il.Emit(OC.Ret);
+
+        property.BindMethods(getMethod: getMethod);
+    }
+
+    private void BuildImplicitOperator()
+    {
+        GenericInstanceType IcppInstanceType = new(Assembly.ImportRef(typeof(ICppInstance<>)))
+        {
+            GenericArguments = { Type }
+        };
+
+        MethodDefinition op_2_nint = Type.DefineMethod(
+            "op_Implicit",
+            MethodAttributes.Public |
+            MethodAttributes.HideBySig |
+            MethodAttributes.SpecialName |
+            MethodAttributes.Static,
+            Assembly.ImportRef(typeof(nint)),
+            parameterTypes: [new("ins", ParameterAttributes.None, Type)]);
+
+        op_2_nint.Overrides.Add(
+            new("op_Implicit", Assembly.ImportRef(typeof(nint)), IcppInstanceType)
+            {
+                Parameters = { new(IcppInstanceType.Resolve().GenericParameters[0]) }
+            });
+        {
+            ILProcessor? il = op_2_nint.Body.GetILProcessor();
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Call, Type.Properties.First(f => f.Name is PointerPropertyName).GetMethod);
+            il.Emit(OC.Ret);
+        }
+
+        MethodDefinition op_2_voidPtr = Type.DefineMethod(
+            "op_Implicit",
+            MethodAttributes.Public |
+            MethodAttributes.HideBySig |
+            MethodAttributes.SpecialName |
+            MethodAttributes.Static,
+            Assembly.ImportRef(typeof(void).MakePointerType()),
+            parameterTypes: [new("ins", ParameterAttributes.None, Type)]);
+
+        op_2_voidPtr.Overrides.Add(
+            new("op_Implicit", Assembly.ImportRef(typeof(void).MakePointerType()), IcppInstanceType)
+            {
+                Parameters = { new(IcppInstanceType.Resolve().GenericParameters[0]) }
+            });
+        {
+            ILProcessor? il = op_2_voidPtr.Body.GetILProcessor();
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Call, Type.Properties.First(f => f.Name is PointerPropertyName).GetMethod);
+            il.Emit(OC.Ret);
+        }
     }
 }

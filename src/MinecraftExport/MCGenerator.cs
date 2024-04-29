@@ -11,14 +11,13 @@ internal sealed class McGenerator : IGenerator
 {
     #region ---Constructor---
 
-    public McGenerator(string originalFilePath)
+    public McGenerator(string originalFilePath, string systemRuntimeAssemblyPath)
     {
         string originalDataJson = File.ReadAllText(originalFilePath);
         originalData = JsonSerializer.Deserialize<OriginalData>(originalDataJson) ??
                        throw new InvalidDataException("Incorrect original data file!");
-        //AssemblyName assemblyName = new("Hosihikari.Minecraft");
-        //assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess. /* Save */ Run);
-        //moduleBuilder = assemblyBuilder.DefineDynamicModule("Hosihikari.Minecraft");
+
+        this.systemRuntimeAssemblyPath = systemRuntimeAssemblyPath;
     }
 
     #endregion
@@ -40,6 +39,8 @@ internal sealed class McGenerator : IGenerator
 
     private AssemblyGenerator? assemblyGenerator;
 
+    private readonly string systemRuntimeAssemblyPath;
+
     #endregion
 
     #region ---Public method---
@@ -58,7 +59,7 @@ internal sealed class McGenerator : IGenerator
 
         //    moduleBuilder.DefineType(name);
         //}
-        AssemblyGenerator.TryCreateGenerator(originalData, new AssemblyName("Hosihikari.Minecraft"), out assemblyGenerator);
+        AssemblyGenerator.TryCreateGenerator(originalData, new AssemblyName("Hosihikari.Minecraft"), systemRuntimeAssemblyPath, out assemblyGenerator);
     }
 
     public async ValueTask RunAsync()
@@ -69,8 +70,8 @@ internal sealed class McGenerator : IGenerator
 
     public async ValueTask SaveAsync(string path)
     {
-        if(assemblyGenerator is not null)
-        await assemblyGenerator!.SaveAsync(new FileInfo(path));
+        if (assemblyGenerator is not null)
+            await assemblyGenerator!.SaveAsync(new FileInfo(path));
     }
 
     #endregion

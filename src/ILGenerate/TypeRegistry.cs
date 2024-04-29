@@ -1,24 +1,27 @@
 ﻿using Hosihikari.Generation.CppParser;
 using Hosihikari.Generation.Utils;
 using Hosihikari.NativeInterop.Unmanaged;
+using Mono.Cecil;
+using Mono.Cecil.Rocks;
+using System.Collections.Concurrent;
 
 namespace Hosihikari.Generation.ILGenerate;
 
 public class TypeRegistry
 {
 
-    private Dictionary<CppType, TypeGenerator> Types { get; } = [];
+    private ConcurrentDictionary<CppType, TypeGenerator> Types { get; } = [];
 
-    public Dictionary<CppType, Type> PredefinedEnums { get; } = [];
+    public ConcurrentDictionary<CppType, TypeReference> PredefinedEnums { get; } = [];
 
-    public AssemblyGenerator AssemblyGenerator { get; }
+    public AssemblyGenerator Assembly { get; }
 
     public TypeRegistry(AssemblyGenerator assemblyGenerator)
     {
         if (assemblyGenerator.TypeRegistry is not null)
             throw new InvalidOperationException("TypeRegistry is already initialized");
 
-        AssemblyGenerator = assemblyGenerator;
+        Assembly = assemblyGenerator;
     }
 
     public async ValueTask<TypeGenerator?> GetOrRegisterTypeAsync(CppType type, OriginalClass? @class)
@@ -42,18 +45,18 @@ public class TypeRegistry
         {
             if (@class is null)
             {
-                TypeGenerator.TryCreateEmptyTypeGenerator(AssemblyGenerator, type, out var typeGenerator);
+                TypeGenerator.TryCreateEmptyTypeGenerator(Assembly, type, out var typeGenerator);
                 rlt = typeGenerator;
             }
             else
             {
-                TypeGenerator.TryCreateTypeGenerator(AssemblyGenerator, type, @class, out var typeGenerator);
+                TypeGenerator.TryCreateTypeGenerator(Assembly, type, @class, out var typeGenerator);
                 rlt = typeGenerator;
             }
         });
 
         if (rlt is not null)
-            Types.Add(type, rlt);
+            Types[type] = rlt;
 
         return rlt;
     }
@@ -64,34 +67,41 @@ public class TypeRegistry
     /// <param name="type">The CppType to resolve.</param>
     /// <param name="autoRegister">Flag indicating whether to automatically register the type if not found.</param>
     /// <returns>The resolved Type or null.</returns>
-    public async ValueTask<Type?> ResolveTypeAsync(CppType type, bool autoRegister = true)
+    public async ValueTask<TypeReference?> ResolveTypeAsync(CppType type, bool autoRegister = true)
     {
         var rootType = type.RootType;
+        TypeReference? ret = null;
 
         switch (rootType.Type)
         {
             case CppTypeEnum.FundamentalType:
-                return await ResolveFundamentalTypeAsync(type);
+                ret = await ResolveFundamentalTypeAsync(type);
+                break;
 
             case CppTypeEnum.Enum:
-                return await ResolveEnumTypeAsync(type);
+                ret = await ResolveEnumTypeAsync(type);
+                break;
 
             case CppTypeEnum.Class:
             case CppTypeEnum.Struct:
             case CppTypeEnum.Union:
                 if (Types.TryGetValue(rootType, out var typeGenerator))
-                    return typeGenerator.TypeBuilder;
+                {
+                    ret = typeGenerator.Type;
+                }
                 else
                 {
                     if (autoRegister)
-                        return (await RegisterTypeAsync(type, null))?.TypeBuilder;
-
-                    return null;
+                        ret = (await RegisterTypeAsync(type, null))?.Type;
+                    else
+                        ret = null;
                 }
+                break;
 
             case CppTypeEnum.Function:
                 //throw new NotImplementedException("Not implemented");
-                return null;
+                ret = null;
+                break;
 
             case CppTypeEnum.VarArgs:
             case CppTypeEnum.Pointer:
@@ -100,8 +110,22 @@ public class TypeRegistry
             case CppTypeEnum.Array:
             default:
                 //throw new InvalidOperationException();
-                return null;
+                ret = null;
+                break;
         }
+
+        if (ret is null)
+            return null;
+
+        ret = await ModifyTypeAsync(type.ToEnumerable().Skip(1), ret);
+
+        if (ret is null)
+            return null;
+
+        if (ret.IsValueType || ret.IsPointer || ret.IsByReference)
+            return ret;
+
+        return Assembly.ImportRef(typeof(Result<>)).MakeGenericInstanceType(ret);
     }
 
 
@@ -110,7 +134,7 @@ public class TypeRegistry
     /// </summary>
     /// <param name="type">The CppType to resolve.</param>
     /// <returns>The resolved Type or null if not found.</returns>
-    private static async ValueTask<Type?> ResolveFundamentalTypeAsync(CppType type)
+    private async ValueTask<TypeReference?> ResolveFundamentalTypeAsync(CppType type)
     {
         // Check if the type is a fundamental type
         if (type.RootType.Type is not CppTypeEnum.FundamentalType)
@@ -147,7 +171,7 @@ public class TypeRegistry
         };
 
         // Modify the type asynchronously
-        return await ModifyTypeAsync(subTypes, rootClrType);
+        return await ModifyTypeAsync(subTypes, Assembly.ImportRef(rootClrType));
     }
 
     /// <summary>
@@ -155,7 +179,7 @@ public class TypeRegistry
     /// </summary>
     /// <param name="type">The CppType to resolve.</param>
     /// <returns>A ValueTask containing the resolved Type, or null if unable to resolve.</returns>
-    private async ValueTask<Type?> ResolveEnumTypeAsync(CppType type)
+    private async ValueTask<TypeReference?> ResolveEnumTypeAsync(CppType type)
     {
         // Get the root type
         var rootType = type.RootType;
@@ -168,7 +192,7 @@ public class TypeRegistry
         if (PredefinedEnums.TryGetValue(rootType, out var clrType))
             return await ModifyTypeAsync(type.ToEnumerable().Skip(1), clrType);
         else
-            return await ModifyTypeAsync(type.ToEnumerable().Skip(1), typeof(int));
+            return await ModifyTypeAsync(type.ToEnumerable().Skip(1), Assembly.ImportRef(typeof(int)));
     }
 
 
@@ -178,9 +202,9 @@ public class TypeRegistry
     /// <param name="subTypes">The collection of subtypes to apply to the root CLR type.</param>
     /// <param name="rootClrType">The root CLR type to modify.</param>
     /// <returns>The modified Type or null if modification fails.</returns>
-    private static async ValueTask<Type?> ModifyTypeAsync(IEnumerable<CppType> subTypes, Type rootClrType)
+    private async ValueTask<TypeReference?> ModifyTypeAsync(IEnumerable<CppType> subTypes, TypeReference rootClrType)
     {
-        Type? current = rootClrType;
+        TypeReference? current = rootClrType;
 
         // Running the modification process asynchronously
         await Task.Run(() =>
@@ -195,16 +219,16 @@ public class TypeRegistry
                             if (current.IsValueType || current.IsPointer)
                                 current = current.MakePointerType();
                             else
-                                current = typeof(Pointer<>).MakeGenericType(current);
+                                current = Assembly.ImportRef(typeof(Pointer<>)).MakeGenericInstanceType(current);
                         }
                         break;
                     case CppTypeEnum.Ref:
                     case CppTypeEnum.RValueRef:
                         {
                             if (current.IsValueType || current.IsPointer)
-                                current = current.MakeByRefType();
+                                current = current.MakeByReferenceType();
                             else
-                                current = typeof(Reference<>).MakeGenericType(current);
+                                current = Assembly.ImportRef(typeof(Reference<>)).MakeGenericInstanceType(current);
                         }
                         break;
 
@@ -218,11 +242,14 @@ public class TypeRegistry
         return current;
     }
 
-
-    public async ValueTask CreateTypesAsync()
-        => await Task.Run(() =>
+    public async ValueTask GenerateAllTypes()
+    {
+        foreach (var (_, type) in Types)
         {
-            foreach (var (_, generator) in Types)
-                generator.CreateType();
-        });
+            if (type.Generated)
+                continue;
+
+            await type.GenerateAsync();
+        }
+    }
 }

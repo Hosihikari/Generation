@@ -111,7 +111,8 @@ public record OriginalItem(
     [property: JsonPropertyName("name")] string Name,
     [property: JsonPropertyName("namespace")]
     string Namespace,
-    [property: JsonPropertyName("params")] OriginalTypeData[]? Params,
+    [property: JsonPropertyName("params")] OriginalTypeData[]? Parameters,
+    [property: JsonPropertyName("params_name")] List<string>? ParameterNames,
     [property: JsonPropertyName("rva")] ulong Rva,
     [property: JsonPropertyName("storage_class")]
     int StorageClass,

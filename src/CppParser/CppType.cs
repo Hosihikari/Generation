@@ -101,13 +101,15 @@ public class CppType
     /// </summary>
     public bool IsTemplate => TemplateTypes is not null;
 
+    private string GetTypeString()
+        => $"{string.Join("::", Namespaces ?? [])}{(Namespaces is null ? string.Empty : " ")}{TypeIdentifier}";
+
     /// <summary>
     ///     Returns a string that represents the current object.
     /// </summary>
     /// <returns>A string that represents the current object.</returns>
     public override string ToString()
-    {
-        return Type switch
+        => Type switch
         {
             CppTypeEnum.FundamentalType => FundamentalType.ToString()!,
             CppTypeEnum.VarArgs => "...",
@@ -115,18 +117,12 @@ public class CppType
             CppTypeEnum.Pointer => "*",
             CppTypeEnum.Ref => "&",
             CppTypeEnum.Array => "[]",
-            CppTypeEnum.Enum => $"enum {GetString()}",
-            CppTypeEnum.Class => $"class {GetString()}",
-            CppTypeEnum.Struct => $"struct {GetString()}",
-            CppTypeEnum.Union => $"union {GetString()}",
+            CppTypeEnum.Enum => $"enum {GetTypeString()}",
+            CppTypeEnum.Class => $"class {GetTypeString()}",
+            CppTypeEnum.Struct => $"struct {GetTypeString()}",
+            CppTypeEnum.Union => $"union {GetTypeString()}",
             _ => string.Empty
         };
-
-        string GetString()
-        {
-            return $"{string.Join("::", Namespaces ?? [])} {TypeIdentifier}";
-        }
-    }
 
     /// <summary>
     ///     Performs the specified action on each element of the <see cref="CppType" />.
@@ -160,7 +156,7 @@ public class CppType
         return ToEnumerable().Reverse();
     }
 
-    public override int GetHashCode() => ToString().GetHashCode();
+    public override int GetHashCode() => GetTypeString().GetHashCode();
 
     public override bool Equals(object? obj)
     {

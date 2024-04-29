@@ -18,6 +18,7 @@ public static class Program
         Option<string> inputPathOption = new("--in", "The path of the input");
         Option<string> outputPathOption = new("--out", "The path of the output directory");
         Option<string?> refPathOption = new("--ref", "The directory of reference assemblies");
+        Option<string?> runtimePathOption = new("--runtime", "The directory of system runtime assembly");
         Option<string?> versionOption = new("--ver", "The version of the assembly");
 
         RootCommand rootCommand = [];
@@ -26,13 +27,14 @@ public static class Program
         rootCommand.Add(outputPathOption);
         rootCommand.Add(versionOption);
         rootCommand.Add(refPathOption);
+        rootCommand.Add(runtimePathOption);
 
-        rootCommand.SetHandler(async (type, inputPath, outputPath, refPath, version) =>
+        rootCommand.SetHandler(async (type, inputPath, outputPath, refPath, runtimePath, version) =>
         {
             Stopwatch watcher = new();
             IGenerator generator = type switch
             {
-                OutPutType.Minecraft => new McGenerator(inputPath),
+                OutPutType.Minecraft => new McGenerator(inputPath, runtimePath ?? throw new ArgumentNullException(nameof(runtimePath))),
                 OutPutType.LeviLamina => new LlGenerator(),
                 _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
             };
@@ -46,7 +48,7 @@ public static class Program
                 DateTime.Now, watcher.Elapsed);
             await generator.SaveAsync(outputPath);
             logger.LogInformation("Save finished at {DateTime}", DateTime.Now);
-        }, typeOption, inputPathOption, outputPathOption, refPathOption, versionOption);
+        }, typeOption, inputPathOption, outputPathOption, refPathOption, runtimePathOption, versionOption);
 
         await rootCommand.InvokeAsync(args);
     }
