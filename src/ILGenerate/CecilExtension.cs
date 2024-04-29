@@ -35,17 +35,15 @@ public static class CecilExtension
         return method;
     }
 
-    /// <summary>
-    /// Extension method to define a method on a TypeDefinition.
-    /// </summary>
-    /// <param name="declaringType">The TypeDefinition on which to define the method.</param>
-    /// <param name="name">The name of the method.</param>
-    /// <param name="attributes">The attributes of the method.</param>
-    /// <param name="returnType">The return type of the method.</param>
-    /// <param name="parameterTypes">The types of the parameters of the method.</param>
-    /// <param name="parameterNames">The names of the parameters of the method.</param>
-    /// <param name="parameterAttributes">The attributes of the parameters of the method.</param>
-    /// <returns>The MethodDefinition of the defined method.</returns>
+    public static MethodDefinition DefineMethod(this TypeDefinition declaringType, string name, MethodAttributes attributes, TypeReference returnType, IEnumerable<ParameterDefinition> parameterTypes)
+    {
+        var method = new MethodDefinition(name, attributes, returnType);
+        foreach (var parameter in parameterTypes)
+            method.Parameters.Add(parameter);
+        declaringType.Methods.Add(method);
+        return method;
+    }
+
     public static MethodDefinition DefineMethod(
             this TypeDefinition declaringType,
             string name,
@@ -131,8 +129,10 @@ public static class CecilExtension
 
     public static void LoadAllArgs(this ILProcessor il)
     {
-        foreach (var parameter in il.Body.Method.Parameters)
-            il.Emit(OC.Ldarg, parameter);
+        for (int i = 0; i < il.Body.Method.Parameters.Count; i++)
+        {
+            il.Emit(OC.Ldarg, i + (il.Body.Method.HasThis ? 1 : 0));
+        }
     }
 
     public static ParameterDefinition[] CreateParamDefinitions(TypeReference[] typeReferences, Action<ParameterDefinition>? action = null)
@@ -145,5 +145,10 @@ public static class CecilExtension
             action?.Invoke(parameter);
         }
         return parameters;
+    }
+
+    public static ParameterDefinition Clone(this ParameterDefinition parameter)
+    {
+        return new ParameterDefinition(parameter.Name, parameter.Attributes, parameter.ParameterType);
     }
 }

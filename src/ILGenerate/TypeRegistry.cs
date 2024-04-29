@@ -70,11 +70,16 @@ public class TypeRegistry
     public async ValueTask<TypeReference?> ResolveTypeAsync(CppType type, bool autoRegister = true)
     {
         var rootType = type.RootType;
-        TypeReference? ret = null;
+        var subTypes = type.ToEnumerable().Skip(1);
+
+        TypeReference? ret;
 
         switch (rootType.Type)
         {
             case CppTypeEnum.FundamentalType:
+                if (rootType.FundamentalType is CppFundamentalType.Void && subTypes.Count() is 0)
+                    return Assembly.ImportRef(typeof(void));
+
                 ret = await ResolveFundamentalTypeAsync(type);
                 break;
 
@@ -117,7 +122,7 @@ public class TypeRegistry
         if (ret is null)
             return null;
 
-        ret = await ModifyTypeAsync(type.ToEnumerable().Skip(1), ret);
+        ret = await ModifyTypeAsync(subTypes, ret);
 
         if (ret is null)
             return null;

@@ -5,14 +5,22 @@ using Hosihikari.Generation.Utils;
 using Hosihikari.NativeInterop;
 using Hosihikari.NativeInterop.Unmanaged.Attributes;
 using Mono.Cecil;
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
-using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Hosihikari.Generation.ILGenerate;
 
 public class MethodGenerator
 {
+    private enum PropertyMethodType
+    {
+        None = 0x0,
+        Getter = 0x10,
+        Setter = 0x20
+    }
+
+
     public const string CtorPrefix = "ctor_";
     public const string DtorPrefix = "dtor_";
     public const string FuncPrefix = "func_";
@@ -183,15 +191,48 @@ public class MethodGenerator
         });
     }
 
-    public async ValueTask<bool> GenerateMethodAsync(FieldReference fptrField)
+    private static List<string> GetterPrefix { get; } = ["get", "is", "has", "can", "should"];
+
+    private static List<string> SetterPrefix { get; } = ["set"];
+
+    private bool TestPropertyMethod([NotNullWhen(true)] out bool? isGetter, [NotNullWhen(true)] out string? propertyName)
     {
-        bool ret = false;
-        await Task.Run(async () =>
+        var name = MethodItem.Name.Length > 1 ? $"{char.ToLower(MethodItem.Name[0])}{MethodItem.Name[1..]}" : MethodItem.Name.ToLower();
+
+        if (Parameters.Length is 0)
+            foreach (var prefix in GetterPrefix)
+            {
+                if (name.StartsWith(prefix) && name.Length > prefix.Length)
+                {
+                    isGetter = true;
+                    propertyName = name[prefix.Length..];
+                    return true;
+                }
+            }
+
+        if (Parameters.Length is 1 && ReturnType?.FundamentalType is CppFundamentalType.Void)
+            foreach (var prefix in SetterPrefix)
+            {
+                if (name.StartsWith(prefix) && name.Length > prefix.Length)
+                {
+                    isGetter = false;
+                    propertyName = name[prefix.Length..];
+                    return true;
+                }
+            }
+
+        isGetter = null;
+        propertyName = null;
+        return false;
+    }
+
+    public async ValueTask<bool> GenerateMethodAsync(FieldDefinition fptrField)
+    {
+        async ValueTask<(bool success, TypeReference? returnType, TypeReference[]? parameterTypes, bool hasVarArgs)> CheckTypes()
         {
             if (SymbolType is not SymbolType.Function)
             {
-                ret = false;
-                return;
+                return (false, default, default, default);
             }
 
             // Get the type registry from the AssemblyGenerator
@@ -221,11 +262,127 @@ public class MethodGenerator
             // Check if the return type or any parameter type is null
             if (returnType is null || parameterTypes.Any(x => x is null))
             {
-                ret = false;
-                return;
+                return (false, default, default, default);
             }
 
-            var method = GenerateOriginalMethod(returnType, parameterTypes!, fptrField, hasVarArgs);
+            return (true, returnType, parameterTypes, hasVarArgs)!;
+        }
+        bool GenerateMethodBody(MethodReference original, bool hasVarArgs)
+        {
+            bool GeneratePropertyMethod(PropertyDefinition property, bool isGetter)
+            {
+                if (isGetter)
+                {
+                    var attributes = MethodAttributes.Public |
+                        MethodAttributes.Final |
+                        MethodAttributes.HideBySig |
+                        MethodAttributes.SpecialName |
+                        MethodAttributes.NewSlot;
+                    if (IsStatic) attributes |= MethodAttributes.Static;
+
+                    var method = DeclaringType.Type.DefineMethod(
+                        $"get_{property.Name}",
+                        attributes,
+                        original.ReturnType);
+                    var il = method.Body.GetILProcessor();
+                    if (IsStatic is false)
+                    {
+                        il.LoadThis();
+                        il.Emit(OC.Call, DeclaringType.PointerProperty!.GetMethod);
+                        il.Emit(OC.Conv_I);
+                    }
+                    il.Emit(OC.Call, original);
+                    il.Emit(OC.Ret);
+
+                    property.BindMethods(getMethod: method);
+                }
+                else
+                {
+                    var attributes = MethodAttributes.Public |
+                        MethodAttributes.Final |
+                        MethodAttributes.HideBySig |
+                        MethodAttributes.SpecialName |
+                        MethodAttributes.NewSlot;
+                    if (IsStatic) attributes |= MethodAttributes.Static;
+
+                    var method = DeclaringType.Type.DefineMethod(
+                        $"set_{property.Name}",
+                        attributes,
+                        Assembly.ImportRef(typeof(void)),
+                        parameterTypes: [new("value", ParameterAttributes.None, property.PropertyType)]);
+                    var il = method.Body.GetILProcessor();
+                    if (IsStatic is false)
+                    {
+                        il.LoadThis();
+                        il.Emit(OC.Call, DeclaringType.PointerProperty!.GetMethod);
+                        il.Emit(OC.Conv_I);
+                    }
+                    il.LoadAllArgs();
+                    il.Emit(OC.Call, original);
+                    il.Emit(OC.Ret);
+                }
+
+                return true;
+            }
+            bool GenerateMethod()
+            {
+                var attributes = MethodAttributes.Public;
+                if (IsStatic) attributes |= MethodAttributes.Static;
+
+                var method = DeclaringType.Type.DefineMethod(
+                    MethodItem.Name.Length > 1 ? $"{char.ToUpper(MethodItem.Name[0])}{MethodItem.Name[1..]}" : MethodItem.Name.ToUpper(),
+                    attributes,
+                    original.ReturnType,
+                    from x in IsStatic ? original.Parameters : original.Parameters.Skip(1)
+                    select x.Clone());
+                var il = method.Body.GetILProcessor();
+                if (IsStatic is false)
+                {
+                    il.LoadThis();
+                    il.Emit(OC.Call, DeclaringType.PointerProperty!.GetMethod);
+                    il.Emit(OC.Conv_I);
+                }
+                il.LoadAllArgs();
+                il.Emit(OC.Call, original);
+                il.Emit(OC.Ret);
+
+                return true;
+            }
+
+
+
+            if (TestPropertyMethod(out var isGetter, out var propertyName))
+            {
+                PropertyDefinition property;
+                var properties = from x in DeclaringType.Type.Properties
+                                 where x.Name == propertyName
+                                 select x;
+                property = properties.Any() ? properties.First() : DeclaringType.Type.DefineProperty(propertyName, PropertyAttributes.None, original.ReturnType);
+
+                //getter only or setter only or both but property type is not by reference
+                if ((isGetter.Value && property.GetMethod is null) ||
+                    (isGetter.Value is false && property.GetMethod is null && property.SetMethod is null) ||
+                    (isGetter.Value is false && property.SetMethod is null && property.PropertyType.IsByReference is false))
+                {
+                    return GeneratePropertyMethod(property, isGetter.Value);
+                }
+                else return GenerateMethod();
+            }
+            else return GenerateMethod();
+        }
+
+        bool ret = false;
+        await Task.Run(async () =>
+        {
+            var (success, returnType, parameterTypes, hasVarArgs) = await CheckTypes();
+            if (success is false)
+            {
+                ret = false;
+                return;
+            };
+
+            var method = GenerateOriginalMethod(returnType!, parameterTypes!, fptrField, hasVarArgs);
+            ret = GenerateMethodBody(method, hasVarArgs);
         });
 
         return ret;
@@ -237,6 +394,55 @@ public class MethodGenerator
         FieldReference fptrField,
         bool hasVarArgs)
     {
+        /// <summary>
+        /// Generates the original method name based on certain criteria.
+        /// </summary>
+        /// <returns>The generated original method name.</returns>
+        string GenerateOriginalMethodName()
+        {
+            // Define a hash function to calculate the integer hash value
+            static int hash(string str)
+            {
+                int rval = 0;
+                for (int i = 0; i < str.Length; ++i)
+                {
+                    if ((i & 1) != 0)
+                        rval ^= (~((rval << 11) ^ str[i] ^ (rval >> 5)));
+                    else
+                        rval ^= (~((rval << 7) ^ str[i] ^ (rval >> 3)));
+                }
+                return rval;
+            }
+
+            static char select(string str)
+            {
+                var val = (uint)hash(str) % 36;
+                return (char)('0' + val switch
+                {
+                    >= 0 and < 10 => val,
+                    >= 10 and < 36 => val + 7,
+                    _ => '_' - '0'
+                });
+            }
+
+            var temp = SelectOperatorName();
+            // Generate the method name based on the MethodItem properties
+            temp ??= MethodItem.Name.Length > 1 ? $"{char.ToUpper(MethodItem.Name[0])}{MethodItem.Name[1..]}" : MethodItem.Name.ToUpper();
+
+            // Generate the method name using the hash of parameter names
+            StringBuilder builder = new(temp);
+
+            builder.Append($"_{MethodItem.Parameters?.Length ?? 0}");
+
+            foreach (var param in MethodItem.Parameters ?? [])
+            {
+                builder.Append(select(param.Name));
+            }
+            builder.Append($"_{select(MethodItem.Type.Name)}");
+
+            return builder.ToString();
+        }
+
         var original = DeclaringType.OriginalType;
 
         var originalMethod = original.DefineMethod(
@@ -273,53 +479,6 @@ public class MethodGenerator
         il.Emit(OC.Ret);
 
         return originalMethod;
-    }
-
-
-    /// <summary>
-    /// Generates the original method name based on certain criteria.
-    /// </summary>
-    /// <returns>The generated original method name.</returns>
-    private string GenerateOriginalMethodName()
-    {
-        // Define a hash function to calculate the integer hash value
-        static int hash(string str)
-        {
-            int rval = 0;
-            for (int i = 0; i < str.Length; ++i)
-            {
-                if ((i & 1) != 0)
-                    rval ^= (~((rval << 11) ^ str[i] ^ (rval >> 5)));
-                else
-                    rval ^= (~((rval << 7) ^ str[i] ^ (rval >> 3)));
-            }
-            return rval;
-        }
-
-        var temp = SelectOperatorName();
-        // Generate the method name based on the MethodItem properties
-        temp ??= MethodItem.Name.Length > 1 ? $"{char.ToUpper(MethodItem.Name[0])}{MethodItem.Name[1..]}" : MethodItem.Name.ToUpper();
-
-        if (MethodItem.Parameters is null)
-            return temp;
-
-        // Generate the method name using the hash of parameter names
-        StringBuilder builder = new(temp);
-
-        builder.Append($"_{MethodItem.Parameters.Length}");
-
-        foreach (var param in MethodItem.Parameters)
-        {
-            var val = (uint)hash(param.Name) % 36;
-            builder.Append((char)('0' + val switch
-            {
-                >= 0 and < 10 => val,
-                >= 10 and < 36 => val + 8,
-                _ => '_' - '0'
-            }));
-        }
-
-        return builder.ToString();
     }
 
 

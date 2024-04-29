@@ -41,6 +41,10 @@ public class TypeGenerator
 
     public bool Generated { get; private set; }
 
+    public PropertyDefinition? PointerProperty { get; private set; }
+    public PropertyDefinition? IsOwnerProperty { get; private set; }
+    public PropertyDefinition? OwnsMemoryProperty { get; private set; }
+
     private TypeGenerator(AssemblyGenerator assemblyGenerator, OriginalClass @class, CppType cppType)
     {
         Assembly = assemblyGenerator;
@@ -225,17 +229,24 @@ public class TypeGenerator
         Generated = false;
     }
 
+    [MemberNotNull(nameof(PointerProperty), nameof(IsOwnerProperty), nameof(OwnsMemoryProperty))]
     private async ValueTask GenerateImplAsync()
+#pragma warning disable CS8774
         => await Task.Run(() =>
         {
             var (_, ptrProperty) = GenerateProperty(PointerFieldName, PointerPropertyName, Assembly.ImportRef(typeof(nint)));
             var (_, ownsInstanceProperty) = GenerateProperty(OwnsInstanceFieldName, OwnsInstancePropertyName, Assembly.ImportRef(typeof(bool)));
             var (_, ownsMemoryProperty) = GenerateProperty(OwnsMemoryFieldName, OwnsMemoryPropertyName, Assembly.ImportRef(typeof(bool)));
 
+            PointerProperty = ptrProperty;
+            IsOwnerProperty = ownsInstanceProperty;
+            OwnsMemoryProperty = ownsMemoryProperty;
+
             GenerateDefaultCtor(ptrProperty, ownsInstanceProperty, ownsMemoryProperty);
             BuildClassSizeProperty(0);
             BuildImplicitOperator();
         });
+#pragma warning restore CS8774
 
     private (FieldDefinition field, PropertyDefinition property) GenerateProperty(
         string fieldName,
