@@ -41,6 +41,8 @@ public class TypeGenerator
 
     public bool Generated { get; private set; }
 
+    public bool DestructorGenerated { get; private set; }
+
     public PropertyDefinition? PointerProperty { get; private set; }
     public PropertyDefinition? IsOwnerProperty { get; private set; }
     public PropertyDefinition? OwnsMemoryProperty { get; private set; }
@@ -216,6 +218,9 @@ public class TypeGenerator
                 }
             }
         }
+
+        if (DestructorGenerated is false)
+            await GenerateDtorDefinitionAsync(il => il.Emit(OC.Ret));
 
         return true;
     }
@@ -491,5 +496,129 @@ public class TypeGenerator
             il.Emit(OC.Call, Type.Properties.First(f => f.Name is PointerPropertyName).GetMethod);
             il.Emit(OC.Ret);
         }
+    }
+    private async ValueTask GenerateDtorDefinitionAsync(Action<ILProcessor>? action = null)
+    {
+        if (DestructorGenerated) return;
+        DestructorGenerated = true;
+
+        await Task.Run(() =>
+        {
+            Type.Interfaces.Add(new(Assembly.ImportRef(Assembly.TypeSystem.IDisposable)));
+            ILProcessor il;
+
+            var destructInstanceMethod = Type.DefineMethod(
+                nameof(ICppInstanceNonGeneric.DestructInstance),
+                MethodAttributes.Public |
+                MethodAttributes.HideBySig |
+                MethodAttributes.Static,
+                Assembly.ImportRef(typeof(void)),
+                parameterTypes: [new("ptr", ParameterAttributes.None, Assembly.ImportRef(typeof(nint)))]);
+
+            var destructMethod = Type.DefineMethod(
+                nameof(ICppInstanceNonGeneric.Destruct),
+                MethodAttributes.Public |
+                MethodAttributes.Final |
+                MethodAttributes.HideBySig |
+                MethodAttributes.NewSlot |
+                MethodAttributes.Virtual,
+                Assembly.ImportRef(typeof(void)));
+            il = destructMethod.Body.GetILProcessor();
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Call, PointerProperty?.GetMethod ?? throw new Exception("pointer property is null"));
+            il.Emit(OC.Call, destructInstanceMethod);
+            il.Emit(OC.Ret);
+
+            var disposedValueField = Type.DefineField(
+                "disposedValue",
+                FieldAttributes.Private,
+                Assembly.ImportRef(typeof(bool)));
+
+            var disposeMethodVirtual = Type.DefineMethod(
+                nameof(IDisposable.Dispose),
+                MethodAttributes.Family |
+                MethodAttributes.HideBySig |
+                MethodAttributes.NewSlot |
+                MethodAttributes.Virtual,
+                Assembly.ImportRef(typeof(void)),
+                parameterTypes: [new("disposing", ParameterAttributes.None, Assembly.ImportRef(typeof(bool)))]);
+            il = disposeMethodVirtual.Body.GetILProcessor();
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Ldfld, disposedValueField);
+            var instruction_test_IsOwner = il.Create(OC.Ldarg_0);
+            il.Emit(OC.Brfalse_S, instruction_test_IsOwner);
+            il.Emit(OC.Ret);
+            il.Append(instruction_test_IsOwner);
+            il.Emit(OC.Call, IsOwnerProperty?.GetMethod ?? throw new Exception("owner property is null"));
+            var instruction_disposedValue_equals_true = il.Create(OC.Ldarg_0);
+            il.Emit(OC.Brfalse_S, instruction_disposedValue_equals_true);
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Call, destructMethod);
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Call, OwnsMemoryProperty?.GetMethod ?? throw new Exception("ownsMemory property is null"));
+            il.Emit(OC.Brtrue_S, instruction_disposedValue_equals_true);
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Call, PointerProperty.GetMethod ?? throw new Exception("pointer property is null"));
+            il.Emit(OC.Call, Assembly.ImportRef(typeof(HeapAlloc).GetMethod(nameof(HeapAlloc.Delete))!));
+            il.Append(instruction_disposedValue_equals_true);
+            il.Emit(OC.Ldc_I4_1);
+            il.Emit(OC.Stfld, disposedValueField);
+            il.Emit(OC.Ret);
+
+            MethodDefinition disposeMethod = Type.DefineMethod(
+                nameof(IDisposable.Dispose),
+                MethodAttributes.Public |
+                MethodAttributes.Final |
+                MethodAttributes.HideBySig |
+                MethodAttributes.NewSlot |
+                MethodAttributes.Virtual,
+            Assembly.ImportRef(typeof(void)));
+            il = disposeMethod.Body.GetILProcessor();
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Ldc_I4_1);
+            il.Emit(OC.Callvirt, disposeMethodVirtual);
+            il.Emit(OC.Ldarg_0);
+            il.Emit(OC.Call, Assembly.ImportRef(Assembly.TypeSystem.GC.GetMethods().First(t => t.Name is nameof(GC.SuppressFinalize))));
+            il.Emit(OC.Ret);
+
+            MethodDefinition method_Finalize = Type.DefineMethod(
+            "Finalize",
+            MethodAttributes.Family |
+            MethodAttributes.HideBySig |
+            MethodAttributes.Virtual,
+            Assembly.ImportRef(typeof(void)));
+            method_Finalize.Overrides.Add(Assembly.ImportRef(Assembly.TypeSystem.Object.GetMethods().First(m => m.Name is "Finalize")));
+            il = method_Finalize.Body.GetILProcessor();
+            Instruction? try_start = il.Create(OC.Ldarg_0);
+            Instruction? finally_start = il.Create(OC.Ldarg_0);
+            Instruction? finally_end = il.Create(OC.Ret);
+            Instruction? try_leave = il.Create(OC.Leave_S, finally_end);
+            il.Append(try_start);
+            il.Emit(OC.Ldc_I4_0);
+            il.Emit(OC.Callvirt, disposeMethodVirtual);
+            il.Append(try_leave);
+            il.Append(finally_start);
+            il.Emit(OC.Call, Assembly.ImportRef(Assembly.TypeSystem.Object.GetMethods().First(m => m.Name is "Finalize")));
+            il.Append(finally_end);
+
+            ExceptionHandler handler = new(ExceptionHandlerType.Finally)
+            {
+                TryStart = try_start,
+                TryEnd = try_leave.Next,
+                HandlerStart = finally_start,
+                HandlerEnd = finally_end
+            };
+            method_Finalize.Body.ExceptionHandlers.Add(handler);
+
+            il = destructInstanceMethod.Body.GetILProcessor();
+            if (action is not null)
+            {
+                action(il);
+            }
+            else
+            {
+                il.Emit(OC.Ret);
+            }
+        });
     }
 }

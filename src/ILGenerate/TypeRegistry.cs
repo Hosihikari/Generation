@@ -80,12 +80,10 @@ public class TypeRegistry
                 if (rootType.FundamentalType is CppFundamentalType.Void && subTypes.Count() is 0)
                     return Assembly.ImportRef(typeof(void));
 
-                ret = await ResolveFundamentalTypeAsync(type);
-                break;
+                return await ResolveFundamentalTypeAsync(type);
 
             case CppTypeEnum.Enum:
-                ret = await ResolveEnumTypeAsync(type);
-                break;
+                return await ResolveEnumTypeAsync(type);
 
             case CppTypeEnum.Class:
             case CppTypeEnum.Struct:

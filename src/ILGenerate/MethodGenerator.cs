@@ -3,9 +3,11 @@ global using OC = Mono.Cecil.Cil.OpCodes;
 using Hosihikari.Generation.CppParser;
 using Hosihikari.Generation.Utils;
 using Hosihikari.NativeInterop;
+using Hosihikari.NativeInterop.Unmanaged;
 using Hosihikari.NativeInterop.Unmanaged.Attributes;
 using Mono.Cecil;
-using System.Collections.Concurrent;
+using Mono.Cecil.Cil;
+using Mono.Cecil.Rocks;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
@@ -27,6 +29,8 @@ public class MethodGenerator
 
     public const string FunctionPointerName = "FunctionPointer";
 
+    public bool Generated { get; private set; }
+
     public TypeGenerator DeclaringType { get; }
 
     public AccessType AccessType { get; }
@@ -42,7 +46,7 @@ public class MethodGenerator
 
     public MethodDefinition? Method { get; private set; }
 
-    private AssemblyGenerator Assembly => DeclaringType.Assembly;
+    public AssemblyGenerator Assembly => DeclaringType.Assembly;
 
     private MethodGenerator(AccessType accessType, bool isStatic, TypeGenerator typeGenerator, OriginalItem item, CppType? returnType, CppType[] parameters)
     {
@@ -108,6 +112,9 @@ public class MethodGenerator
     [MemberNotNullWhen(true, nameof(Method))]
     public async ValueTask<bool> GenerateAsync()
     {
+        if (Generated) return Method is not null;
+        Generated = true;
+
 
         var fptrField = await GenerateFunctionPointer(); // Generate function pointer if types are not resolved
 
@@ -116,7 +123,9 @@ public class MethodGenerator
             case SymbolType.Function:
                 return await GenerateMethodAsync(fptrField);
             case SymbolType.Constructor:
+                return await GenerateConstructorAsync(fptrField);
             case SymbolType.Destructor:
+                return await GenerateDestructorAsync(fptrField);
             case SymbolType.Operator:
             case SymbolType.StaticField:
             case SymbolType.UnknownFunction:
@@ -125,7 +134,6 @@ public class MethodGenerator
 
         return false;
     }
-
 
     public async ValueTask<FieldDefinition> GenerateFunctionPointer()
     {
@@ -228,149 +236,6 @@ public class MethodGenerator
 
     public async ValueTask<bool> GenerateMethodAsync(FieldDefinition fptrField)
     {
-        async ValueTask<(bool success, TypeReference? returnType, TypeReference[]? parameterTypes, bool hasVarArgs)> CheckTypes()
-        {
-            if (SymbolType is not SymbolType.Function)
-            {
-                return (false, default, default, default);
-            }
-
-            // Get the type registry from the AssemblyGenerator
-            var registry = DeclaringType.Assembly.TypeRegistry;
-
-            bool hasVarArgs = false;
-
-            // Resolve the return type asynchronously
-            TypeReference? returnType = await registry.ResolveTypeAsync(ReturnType!);
-
-            // Resolve parameter types asynchronously
-            TypeReference?[] parameterTypes = new TypeReference[Parameters.Length + (IsStatic ? 0 : 1)];
-            if (IsStatic is false) parameterTypes[0] = Assembly.ImportRef(typeof(nint));
-            for (int i = 0; i < Parameters.Length; i++)
-            {
-                var parameter = Parameters[i];
-                if (parameter.Type is CppTypeEnum.VarArgs)
-                {
-                    hasVarArgs = true;
-                    continue;
-                }
-
-                var temp = await registry.ResolveTypeAsync(parameter);
-                parameterTypes[i + (IsStatic ? 0 : 1)] = temp;
-            }
-
-            // Check if the return type or any parameter type is null
-            if (returnType is null || parameterTypes.Any(x => x is null))
-            {
-                return (false, default, default, default);
-            }
-
-            return (true, returnType, parameterTypes, hasVarArgs)!;
-        }
-        bool GenerateMethodBody(MethodReference original, bool hasVarArgs)
-        {
-            bool GeneratePropertyMethod(PropertyDefinition property, bool isGetter)
-            {
-                if (isGetter)
-                {
-                    var attributes = MethodAttributes.Public |
-                        MethodAttributes.Final |
-                        MethodAttributes.HideBySig |
-                        MethodAttributes.SpecialName |
-                        MethodAttributes.NewSlot;
-                    if (IsStatic) attributes |= MethodAttributes.Static;
-
-                    var method = DeclaringType.Type.DefineMethod(
-                        $"get_{property.Name}",
-                        attributes,
-                        original.ReturnType);
-                    var il = method.Body.GetILProcessor();
-                    if (IsStatic is false)
-                    {
-                        il.LoadThis();
-                        il.Emit(OC.Call, DeclaringType.PointerProperty!.GetMethod);
-                        il.Emit(OC.Conv_I);
-                    }
-                    il.Emit(OC.Call, original);
-                    il.Emit(OC.Ret);
-
-                    property.BindMethods(getMethod: method);
-                }
-                else
-                {
-                    var attributes = MethodAttributes.Public |
-                        MethodAttributes.Final |
-                        MethodAttributes.HideBySig |
-                        MethodAttributes.SpecialName |
-                        MethodAttributes.NewSlot;
-                    if (IsStatic) attributes |= MethodAttributes.Static;
-
-                    var method = DeclaringType.Type.DefineMethod(
-                        $"set_{property.Name}",
-                        attributes,
-                        Assembly.ImportRef(typeof(void)),
-                        parameterTypes: [new("value", ParameterAttributes.None, property.PropertyType)]);
-                    var il = method.Body.GetILProcessor();
-                    if (IsStatic is false)
-                    {
-                        il.LoadThis();
-                        il.Emit(OC.Call, DeclaringType.PointerProperty!.GetMethod);
-                        il.Emit(OC.Conv_I);
-                    }
-                    il.LoadAllArgs();
-                    il.Emit(OC.Call, original);
-                    il.Emit(OC.Ret);
-                }
-
-                return true;
-            }
-            bool GenerateMethod()
-            {
-                var attributes = MethodAttributes.Public;
-                if (IsStatic) attributes |= MethodAttributes.Static;
-
-                var method = DeclaringType.Type.DefineMethod(
-                    MethodItem.Name.Length > 1 ? $"{char.ToUpper(MethodItem.Name[0])}{MethodItem.Name[1..]}" : MethodItem.Name.ToUpper(),
-                    attributes,
-                    original.ReturnType,
-                    from x in IsStatic ? original.Parameters : original.Parameters.Skip(1)
-                    select x.Clone());
-                var il = method.Body.GetILProcessor();
-                if (IsStatic is false)
-                {
-                    il.LoadThis();
-                    il.Emit(OC.Call, DeclaringType.PointerProperty!.GetMethod);
-                    il.Emit(OC.Conv_I);
-                }
-                il.LoadAllArgs();
-                il.Emit(OC.Call, original);
-                il.Emit(OC.Ret);
-
-                return true;
-            }
-
-
-
-            if (TestPropertyMethod(out var isGetter, out var propertyName))
-            {
-                PropertyDefinition property;
-                var properties = from x in DeclaringType.Type.Properties
-                                 where x.Name == propertyName
-                                 select x;
-                property = properties.Any() ? properties.First() : DeclaringType.Type.DefineProperty(propertyName, PropertyAttributes.None, original.ReturnType);
-
-                //getter only or setter only or both but property type is not by reference
-                if ((isGetter.Value && property.GetMethod is null) ||
-                    (isGetter.Value is false && property.GetMethod is null && property.SetMethod is null) ||
-                    (isGetter.Value is false && property.SetMethod is null && property.PropertyType.IsByReference is false))
-                {
-                    return GeneratePropertyMethod(property, isGetter.Value);
-                }
-                else return GenerateMethod();
-            }
-            else return GenerateMethod();
-        }
-
         bool ret = false;
         await Task.Run(async () =>
         {
@@ -386,6 +251,161 @@ public class MethodGenerator
         });
 
         return ret;
+    }
+
+    private async ValueTask<(bool success, TypeReference? returnType, TypeReference[]? parameterTypes, bool hasVarArgs)> CheckTypes()
+    {
+        if (SymbolType is not SymbolType.Function && SymbolType is not SymbolType.Constructor)
+        {
+            return (false, default, default, default);
+        }
+
+        // Get the type registry from the AssemblyGenerator
+        var registry = DeclaringType.Assembly.TypeRegistry;
+
+        bool hasVarArgs = false;
+
+        // Resolve the return type asynchronously
+        TypeReference? returnType = null;
+        if (SymbolType is SymbolType.Function)
+            returnType = await registry.ResolveTypeAsync(ReturnType!);
+
+        // Resolve parameter types asynchronously
+        TypeReference?[] parameterTypes = new TypeReference[Parameters.Length + (IsStatic ? 0 : 1)];
+        if (IsStatic is false) parameterTypes[0] = Assembly.ImportRef(typeof(nint));
+        for (int i = 0; i < Parameters.Length; i++)
+        {
+            var parameter = Parameters[i];
+            if (parameter.Type is CppTypeEnum.VarArgs)
+            {
+                hasVarArgs = true;
+                continue;
+            }
+
+            var temp = await registry.ResolveTypeAsync(parameter);
+            parameterTypes[i + (IsStatic ? 0 : 1)] = temp;
+        }
+
+        if (hasVarArgs)
+            parameterTypes = parameterTypes[..^1];
+
+        // Check if the return type or any parameter type is null
+        if ((returnType is null && SymbolType is SymbolType.Function) || parameterTypes.Any(x => x is null))
+        {
+            return (false, default, default, default);
+        }
+
+        return (true, returnType, parameterTypes, hasVarArgs)!;
+    }
+
+    private bool GenerateMethodBody(MethodReference original, bool hasVarArgs)
+    {
+        if (TestPropertyMethod(out var isGetter, out var propertyName))
+        {
+            PropertyDefinition property;
+            var properties = from x in DeclaringType.Type.Properties
+                             where x.Name == propertyName
+                             select x;
+            property = properties.Any() ? properties.First() : DeclaringType.Type.DefineProperty(propertyName, PropertyAttributes.None, original.ReturnType);
+
+            //getter only or setter only or both but property type is not by reference
+            if ((isGetter.Value && property.GetMethod is null) ||
+                (isGetter.Value is false && property.GetMethod is null && property.SetMethod is null) ||
+                (isGetter.Value is false && property.SetMethod is null && property.PropertyType.IsByReference is false))
+            {
+                if (hasVarArgs) return GenerateMethod(original, hasVarArgs);
+
+                return GeneratePropertyMethod(property, isGetter.Value, original);
+            }
+            else return GenerateMethod(original, hasVarArgs);
+        }
+        else return GenerateMethod(original, hasVarArgs);
+    }
+
+    private bool GeneratePropertyMethod(PropertyDefinition property, bool isGetter, MethodReference original)
+    {
+        if (isGetter)
+        {
+            var attributes = MethodAttributes.Public |
+                MethodAttributes.Final |
+                MethodAttributes.HideBySig |
+                MethodAttributes.SpecialName |
+                MethodAttributes.NewSlot;
+            if (IsStatic) attributes |= MethodAttributes.Static;
+
+            var method = DeclaringType.Type.DefineMethod(
+                $"get_{property.Name}",
+                attributes,
+                original.ReturnType);
+            var il = method.Body.GetILProcessor();
+            if (IsStatic is false)
+            {
+                il.LoadThis();
+                il.Emit(OC.Call, DeclaringType.PointerProperty?.GetMethod ?? throw new Exception("pointer property is null"));
+            }
+            il.Emit(OC.Call, original);
+            il.Emit(OC.Ret);
+
+            property.BindMethods(getMethod: method);
+        }
+        else
+        {
+            var attributes = MethodAttributes.Public |
+                MethodAttributes.Final |
+                MethodAttributes.HideBySig |
+                MethodAttributes.SpecialName |
+                MethodAttributes.NewSlot;
+            if (IsStatic) attributes |= MethodAttributes.Static;
+
+            var method = DeclaringType.Type.DefineMethod(
+                $"set_{property.Name}",
+                attributes,
+                Assembly.ImportRef(typeof(void)),
+                parameterTypes: [new("value", ParameterAttributes.None, property.PropertyType)]);
+            var il = method.Body.GetILProcessor();
+            if (IsStatic is false)
+            {
+                il.LoadThis();
+                il.Emit(OC.Call, DeclaringType.PointerProperty!.GetMethod);
+            }
+            il.LoadAllArgs();
+            il.Emit(OC.Call, original);
+            il.Emit(OC.Ret);
+        }
+
+        return true;
+    }
+    private bool GenerateMethod(MethodReference original, bool hasVarArgs)
+    {
+        var attributes = MethodAttributes.Public;
+        if (IsStatic) attributes |= MethodAttributes.Static;
+
+        var method = DeclaringType.Type.DefineMethod(
+            MethodItem.Name.Length > 1 ? $"{char.ToUpper(MethodItem.Name[0])}{MethodItem.Name[1..]}" : MethodItem.Name.ToUpper(),
+            attributes,
+            original.ReturnType,
+            from x in IsStatic ? original.Parameters : original.Parameters.Skip(1)
+            select x.Clone());
+        if (hasVarArgs) method.CallingConvention |= MethodCallingConvention.VarArg;
+        var il = method.Body.GetILProcessor();
+        if (IsStatic is false)
+        {
+            il.LoadThis();
+            il.Emit(OC.Call, DeclaringType.PointerProperty!.GetMethod);
+        }
+        il.LoadAllArgs();
+        if (hasVarArgs)
+        {
+            il.Emit(OC.Arglist);
+            var temp = Assembly.ImportRef(original);
+            temp.CallingConvention ^= MethodCallingConvention.VarArg;
+            temp.Parameters.Add(new(Assembly.ImportRef(typeof(RuntimeArgumentHandle))));
+            il.Emit(OC.Call, temp);
+        }
+        else il.Emit(OC.Call, original);
+        il.Emit(OC.Ret);
+
+        return true;
     }
 
     private MethodDefinition GenerateOriginalMethod(
@@ -450,28 +470,29 @@ public class MethodGenerator
             MethodAttributes.Public |
             MethodAttributes.Static,
             returnType,
-            parameterTypes!);
-        if (hasVarArgs) originalMethod.CallingConvention = MethodCallingConvention.VarArg;
+            (from param in parameterTypes.Index()
+             let paramNames = MethodItem.ParameterNames ?? []
+             let paramName = param.Index < paramNames.Count ? paramNames[param.Index] : string.Empty
+             select new ParameterDefinition(paramName == "/*this*/" ? "this" : paramName, ParameterAttributes.None, param.Item)).ToArray());
+
+        if (hasVarArgs) originalMethod.CallingConvention |= MethodCallingConvention.VarArg;
         originalMethod.CustomAttributes.Add(
             new(Assembly.ImportRef(typeof(SymbolAttribute).GetConstructors().First()))
             {
-                ConstructorArguments =
-                {
-                    new(Assembly.ImportRef(typeof(string)), MethodItem.Symbol)
-                }
+                ConstructorArguments = { new(Assembly.ImportRef(typeof(string)), MethodItem.Symbol) }
             });
         originalMethod.CustomAttributes.Add(
             new(Assembly.ImportRef(typeof(RVAAttribute).GetConstructors().First()))
             {
-                ConstructorArguments =
-                {
-                    new(Assembly.ImportRef(typeof(ulong)), MethodItem.Rva)
-                }
+                ConstructorArguments = { new(Assembly.ImportRef(typeof(ulong)), MethodItem.Rva) }
             });
 
         var il = originalMethod.Body.GetILProcessor();
         il.LoadAllArgs();
+        if (hasVarArgs)
+            il.Emit(OC.Arglist);
         il.Emit(OC.Ldsfld, fptrField);
+        if (hasVarArgs) parameterTypes = [.. parameterTypes, Assembly.ImportRef(typeof(RuntimeArgumentHandle))];
         il.EmitCalli(
             MethodCallingConvention.C,
             returnType,
@@ -481,6 +502,82 @@ public class MethodGenerator
         return originalMethod;
     }
 
+    private async ValueTask<bool> GenerateConstructorAsync(FieldDefinition fptrField)
+    {
+        bool ret = false;
+        await Task.Run(async () =>
+        {
+            var (success, returnType, parameterTypes, hasVarArgs) = await CheckTypes();
+            if (success is false)
+            {
+                ret = false;
+                return;
+            };
+
+            returnType = parameterTypes![0] = Assembly.ImportRef(typeof(nint));
+
+            var method = GenerateOriginalMethod(returnType!, parameterTypes!, fptrField, hasVarArgs);
+            ret = GenerateConstructorBody(method, hasVarArgs);
+        });
+
+        return ret;
+    }
+
+    private bool GenerateConstructorBody(MethodDefinition original, bool hasVarArgs)
+    {
+        var ctor = DeclaringType.Type.DefineMethod(
+            ".ctor",
+            MethodAttributes.Public |
+            MethodAttributes.HideBySig |
+            MethodAttributes.SpecialName |
+            MethodAttributes.RTSpecialName,
+            Assembly.ImportRef(typeof(void)),
+            parameterTypes: (from param in original.Parameters.Skip(1)
+                             select param.Clone())
+                            .Prepend(new("allocSize", ParameterAttributes.None, Assembly.ImportRef(typeof(ulong)))));
+        if (hasVarArgs) ctor.CallingConvention |= MethodCallingConvention.VarArg;
+        ILProcessor il = ctor.Body.GetILProcessor();
+        var fptr = new VariableDefinition(Assembly.ImportRef(typeof(void).MakePointerType()));
+        ctor.Body.Variables.Add(fptr);
+        il.LoadThis();
+        il.Emit(OC.Call, Assembly.ImportRef(Assembly.TypeSystem.Object.GetConstructors().First()));
+        il.Emit(OC.Ldarg_1);
+        il.Emit(OC.Call, Assembly.ImportRef(typeof(HeapAlloc).GetMethod(nameof(HeapAlloc.New))!));
+        il.Emit(OC.Stloc, fptr);
+        il.Emit(OC.Ldloc, fptr);
+        foreach (var (index, _) in ctor.Parameters.Index().Skip(1))
+            il.Emit(OC.Ldarg, index + 1);
+        if (hasVarArgs)
+        {
+            il.Emit(OC.Arglist);
+            var temp = Assembly.ImportRef(original);
+            temp.CallingConvention ^= MethodCallingConvention.VarArg;
+            temp.Parameters.Add(new(Assembly.ImportRef(typeof(RuntimeArgumentHandle))));
+            il.Emit(OC.Call, temp);
+        }
+        else il.Emit(OC.Call, original);
+        il.Emit(OC.Pop);
+        il.LoadThis();
+        il.Emit(OC.Ldloc, fptr);
+        il.Emit(OC.Call, DeclaringType.PointerProperty?.SetMethod ?? throw new Exception("pointer property is null"));
+        il.LoadThis();
+        il.Emit(OC.Ldc_I4_1);
+        il.Emit(OC.Conv_I1);
+        il.Emit(OC.Call, DeclaringType.IsOwnerProperty?.SetMethod ?? throw new Exception("owner property is null"));
+        il.LoadThis();
+        il.Emit(OC.Ldc_I4_1);
+        il.Emit(OC.Conv_I1);
+        il.Emit(OC.Call, DeclaringType.OwnsMemoryProperty?.SetMethod ?? throw new Exception("owner property is null"));
+        il.Emit(OC.Ret);
+
+        return true;
+    }
+
+
+    private async ValueTask<bool> GenerateDestructorAsync(FieldDefinition fptrField)
+    {
+        return true;
+    }
 
     private string? SelectOperatorName()
     {

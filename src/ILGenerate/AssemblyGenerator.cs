@@ -104,6 +104,11 @@ public class AssemblyGenerator
             return MainModule.ImportReference(type);
     }
 
+    public TypeReference ImportRef(TypeDefinition type)
+    {
+        return MainModule.ImportReference(type);
+    }
+
     public MethodReference ImportRef(MethodBase method)
     {
         return MainModule.ImportReference(method);
