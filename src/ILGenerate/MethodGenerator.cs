@@ -247,13 +247,13 @@ public class MethodGenerator
             };
 
             var method = GenerateOriginalMethod(returnType!, parameterTypes!, fptrField, hasVarArgs);
-            ret = GenerateMethodBody(method, hasVarArgs);
+            ret = GenerateMethod(method, hasVarArgs);
         });
 
         return ret;
     }
 
-    private async ValueTask<(bool success, TypeReference? returnType, TypeReference[]? parameterTypes, bool hasVarArgs)> CheckTypes()
+    public async ValueTask<(bool success, TypeReference? returnType, TypeReference[]? parameterTypes, bool hasVarArgs)> CheckTypes()
     {
         if (SymbolType is not SymbolType.Function && SymbolType is not SymbolType.Constructor)
         {
@@ -298,7 +298,7 @@ public class MethodGenerator
         return (true, returnType, parameterTypes, hasVarArgs)!;
     }
 
-    private bool GenerateMethodBody(MethodReference original, bool hasVarArgs)
+    private bool GenerateMethod(MethodReference original, bool hasVarArgs)
     {
         if (TestPropertyMethod(out var isGetter, out var propertyName))
         {
@@ -313,13 +313,13 @@ public class MethodGenerator
                 (isGetter.Value is false && property.GetMethod is null && property.SetMethod is null) ||
                 (isGetter.Value is false && property.SetMethod is null && property.PropertyType.IsByReference is false))
             {
-                if (hasVarArgs) return GenerateMethod(original, hasVarArgs);
+                if (hasVarArgs) return GenerateMethodDefault(original, hasVarArgs);
 
                 return GeneratePropertyMethod(property, isGetter.Value, original);
             }
-            else return GenerateMethod(original, hasVarArgs);
+            else return GenerateMethodDefault(original, hasVarArgs);
         }
-        else return GenerateMethod(original, hasVarArgs);
+        else return GenerateMethodDefault(original, hasVarArgs);
     }
 
     private bool GeneratePropertyMethod(PropertyDefinition property, bool isGetter, MethodReference original)
@@ -375,13 +375,13 @@ public class MethodGenerator
 
         return true;
     }
-    private bool GenerateMethod(MethodReference original, bool hasVarArgs)
+    private bool GenerateMethodDefault(MethodReference original, bool hasVarArgs)
     {
         var attributes = MethodAttributes.Public;
         if (IsStatic) attributes |= MethodAttributes.Static;
 
         var method = DeclaringType.Type.DefineMethod(
-            MethodItem.Name.Length > 1 ? $"{char.ToUpper(MethodItem.Name[0])}{MethodItem.Name[1..]}" : MethodItem.Name.ToUpper(),
+            MethodItem.GetMethodNameUpper(),
             attributes,
             original.ReturnType,
             from x in IsStatic ? original.Parameters : original.Parameters.Skip(1)
@@ -408,7 +408,7 @@ public class MethodGenerator
         return true;
     }
 
-    private MethodDefinition GenerateOriginalMethod(
+    public MethodDefinition GenerateOriginalMethod(
         TypeReference returnType,
         TypeReference[] parameterTypes,
         FieldReference fptrField,
@@ -447,7 +447,7 @@ public class MethodGenerator
 
             var temp = SelectOperatorName();
             // Generate the method name based on the MethodItem properties
-            temp ??= MethodItem.Name.Length > 1 ? $"{char.ToUpper(MethodItem.Name[0])}{MethodItem.Name[1..]}" : MethodItem.Name.ToUpper();
+            temp ??= MethodItem.GetMethodNameUpper();
 
             // Generate the method name using the hash of parameter names
             StringBuilder builder = new(temp);
@@ -542,7 +542,7 @@ public class MethodGenerator
         il.LoadThis();
         il.Emit(OC.Call, Assembly.ImportRef(Assembly.TypeSystem.Object.GetConstructors().First()));
         il.Emit(OC.Ldarg_1);
-        il.Emit(OC.Call, Assembly.ImportRef(typeof(HeapAlloc).GetMethod(nameof(HeapAlloc.New))!));
+        il.Emit(OC.Call, Assembly.ImportRef(typeof(NativeAlloc).GetMethod(nameof(NativeAlloc.New))!));
         il.Emit(OC.Stloc, fptr);
         il.Emit(OC.Ldloc, fptr);
         foreach (var (index, _) in ctor.Parameters.Index().Skip(1))
@@ -576,6 +576,16 @@ public class MethodGenerator
 
     private async ValueTask<bool> GenerateDestructorAsync(FieldDefinition fptrField)
     {
+        await Task.Run(async () =>
+        {
+            var original = GenerateOriginalMethod(Assembly.ImportRef(typeof(void)), [Assembly.ImportRef(typeof(nint))], fptrField, false);
+            await DeclaringType.GenerateDtorDefinitionAsync(il =>
+            {
+                il.Emit(OC.Ldarg_0);
+                il.Emit(OC.Call, original);
+                il.Emit(OC.Ret);
+            });
+        });
         return true;
     }
 

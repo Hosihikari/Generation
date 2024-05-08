@@ -15,10 +15,10 @@ public class TypeGenerator
     public const string FunctionPointerDefintionTypeName = "FunctionPointerDefintion";
     public const string PointerFieldName = "__pointer_";
     public const string OwnsInstanceFieldName = "__isOwner_";
-    public const string OwnsMemoryFieldName = "__isTempStackValue_";
-    public const string PointerPropertyName = "Pointer";
-    public const string OwnsInstancePropertyName = "IsOwner";
-    public const string OwnsMemoryPropertyName = "IsTempStackValue";
+    public const string OwnsMemoryFieldName = "_ownsMemory_";
+    public const string PointerPropertyName = nameof(ICppInstanceNonGeneric.Pointer);
+    public const string OwnsInstancePropertyName = nameof(ICppInstanceNonGeneric.OwnsInstance);
+    public const string OwnsMemoryPropertyName = nameof(ICppInstanceNonGeneric.OwnsMemory);
 
     public const string DefaultNamespace = "Hosihikari.Minecraft";
 
@@ -28,7 +28,6 @@ public class TypeGenerator
 
     public CppType ParsedType { get; }
 
-    public List<MethodGenerator> Methods { get; } = [];
     public List<StaticFieldGenerator> StaticFields { get; } = [];
 
     public TypeDefinition Type { get; }
@@ -196,7 +195,7 @@ public class TypeGenerator
         if (Class is null)
             return false;
 
-        var itemsAndAccessType = Class.GetAllItemsWithAccessType();
+        var itemsAndAccessType = Class.GetAllItemsWithAccessTypeExceptedVirtual();
         foreach (var (accessType, isStatic, items) in itemsAndAccessType)
         {
             if (items is null)
@@ -213,9 +212,25 @@ public class TypeGenerator
                     if (MethodGenerator.TryCreateMethodGenerator(accessType, isStatic, item, this, out var methodGenerator))
                     {
                         await methodGenerator.GenerateAsync();
-                        Methods.Add(methodGenerator);
                     }
                 }
+            }
+        }
+
+
+        if (Class.Virtual is not null)
+        {
+            if (VTableGenerator.TryCreateGenerator(new(Class.VtblEntry?.First() ?? "", [.. Class.Virtual], 0), this, out var vtableGenerator))
+                await vtableGenerator.GenerateAsync();
+
+        }
+        else if (Class.Vtables is not null)
+        {
+            HashSet<int> offsets = [];
+            foreach (var vtable in Class.Vtables)
+            {
+                if (offsets.Add(vtable.Offset) && VTableGenerator.TryCreateGenerator(vtable, this, out var vtableGenerator))
+                    await vtableGenerator.GenerateAsync();
             }
         }
 
@@ -344,7 +359,7 @@ public class TypeGenerator
                 {
                     Constant = false
                 },
-                new("isTempStackValue", ParameterAttributes.Optional, Assembly.ImportRef(typeof(bool)))
+                new("ownsMemory", ParameterAttributes.Optional, Assembly.ImportRef(typeof(bool)))
                 {
                     Constant = true
                 }]);
@@ -390,7 +405,7 @@ public class TypeGenerator
                 {
                     Constant = false
                 },
-                new("isTempStackValue", ParameterAttributes.Optional, Assembly.ImportRef(typeof(bool)))
+                new("ownsMemory", ParameterAttributes.Optional, Assembly.ImportRef(typeof(bool)))
                 {
                     Constant = true
                 }]);
@@ -411,7 +426,7 @@ public class TypeGenerator
             parameterTypes: [
                 new("ptr", ParameterAttributes.None, Assembly.ImportRef((typeof(nint)))),
                 new("owns", ParameterAttributes.None, Assembly.ImportRef((typeof(bool)))),
-                new("isTempStackValue", ParameterAttributes.None, Assembly.ImportRef(typeof(bool)))
+                new("ownsMemory", ParameterAttributes.None, Assembly.ImportRef(typeof(bool)))
                 ]);
         ConstructInstanceNonGenericMethod.Overrides.Add(
             Assembly.ImportRef(
@@ -497,7 +512,7 @@ public class TypeGenerator
             il.Emit(OC.Ret);
         }
     }
-    private async ValueTask GenerateDtorDefinitionAsync(Action<ILProcessor>? action = null)
+    public async ValueTask GenerateDtorDefinitionAsync(Action<ILProcessor>? action = null)
     {
         if (DestructorGenerated) return;
         DestructorGenerated = true;
@@ -559,7 +574,7 @@ public class TypeGenerator
             il.Emit(OC.Brtrue_S, instruction_disposedValue_equals_true);
             il.Emit(OC.Ldarg_0);
             il.Emit(OC.Call, PointerProperty.GetMethod ?? throw new Exception("pointer property is null"));
-            il.Emit(OC.Call, Assembly.ImportRef(typeof(HeapAlloc).GetMethod(nameof(HeapAlloc.Delete))!));
+            il.Emit(OC.Call, Assembly.ImportRef(typeof(NativeAlloc).GetMethod(nameof(NativeAlloc.Delete))!));
             il.Append(instruction_disposedValue_equals_true);
             il.Emit(OC.Ldc_I4_1);
             il.Emit(OC.Stfld, disposedValueField);

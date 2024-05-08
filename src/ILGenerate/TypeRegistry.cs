@@ -128,7 +128,7 @@ public class TypeRegistry
         if (ret.IsValueType || ret.IsPointer || ret.IsByReference)
             return ret;
 
-        return Assembly.ImportRef(typeof(Result<>)).MakeGenericInstanceType(ret);
+        return Assembly.ImportRef(typeof(UnexploredType<>)).MakeGenericInstanceType(ret);
     }
 
 

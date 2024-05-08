@@ -51,6 +51,23 @@ public static class OriginalDataExtensions
             (AccessType.Virtual,false, @class.Virtual),
             (AccessType.VirtualUnordered,false, @class.VirtualUnordered)
         ];
+
+    public static (AccessType accessType, bool isStatic, OriginalItem[]? item)[] GetAllItemsWithAccessTypeExceptedVirtual(this OriginalClass @class) =>
+        [
+            (AccessType.Public,false, @class.Public),
+            (AccessType.Protected,false, @class.Protected),
+            (AccessType.Private,false, @class.Private),
+            (AccessType.PublicStatic,true, @class.PublicStatic),
+            (AccessType.ProtectedStatic,true, @class.ProtectedStatic),
+            (AccessType.PrivateStatic,true, @class.PrivateStatic),
+            (AccessType.VirtualUnordered,false, @class.VirtualUnordered)
+        ];
+
+    public static string GetMethodNameLower(this OriginalItem item)
+        => (item.Name.Length > 1 ? $"{char.ToLower(item.Name[0])}{item.Name[1..]}" : item.Name.ToLower()).Replace("~", "Dtor_");
+
+    public static string GetMethodNameUpper(this OriginalItem item)
+        => (item.Name.Length > 1 ? $"{char.ToUpper(item.Name[0])}{item.Name[1..]}" : item.Name.ToUpper()).Replace("~", "Dtor_");
 }
 
 public record OriginalData(
@@ -84,7 +101,10 @@ public record OriginalClass(
     [property: JsonPropertyName("virtual")]
     OriginalItem[]? Virtual,
     [property: JsonPropertyName("virtual.unordered")]
-    OriginalItem[]? VirtualUnordered
+    OriginalItem[]? VirtualUnordered,
+
+    [property: JsonPropertyName("vtables")]
+    List<OriginalVtable>? Vtables
 );
 
 public record OriginalIdentifierData(
@@ -125,4 +145,10 @@ public record OriginalItem(
 public record OriginalTypeData(
     [property: JsonPropertyName("kind")] int Kind,
     [property: JsonPropertyName("name")] string Name
+);
+
+public record OriginalVtable(
+    [property: JsonPropertyName("entry")] string Entry,
+    [property: JsonPropertyName("functions")] List<OriginalItem> Functions,
+    [property: JsonPropertyName("offset")] int Offset
 );

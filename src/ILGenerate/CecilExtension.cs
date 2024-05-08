@@ -12,9 +12,11 @@ public static class CecilExtension
         return type;
     }
 
-    public static TypeDefinition DefineType(this TypeDefinition declaringType, string @namespace, string name, TypeAttributes attributes)
+    public static TypeDefinition DefineType(this TypeDefinition declaringType, string @namespace, string name, TypeAttributes attributes, TypeReference? baseType = null)
     {
-        var type = new TypeDefinition(@namespace, name, attributes);
+        var type = baseType is null ? 
+            new TypeDefinition(@namespace, name, attributes) :
+            new TypeDefinition(@namespace, name, attributes, baseType);
         declaringType.NestedTypes.Add(type);
         return type;
     }
