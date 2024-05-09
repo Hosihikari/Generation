@@ -11,13 +11,14 @@ internal sealed class McGenerator : IGenerator
 {
     #region ---Constructor---
 
-    public McGenerator(string originalFilePath, string systemRuntimeAssemblyPath)
+    public McGenerator(string originalFilePath, string systemRuntimeAssemblyPath, string referenceAssembliesDirectory)
     {
         string originalDataJson = File.ReadAllText(originalFilePath);
         originalData = JsonSerializer.Deserialize<OriginalData>(originalDataJson) ??
                        throw new InvalidDataException("Incorrect original data file!");
 
         this.systemRuntimeAssemblyPath = systemRuntimeAssemblyPath;
+        this.referenceAssembliesDirectory = referenceAssembliesDirectory;
     }
 
     #endregion
@@ -41,25 +42,22 @@ internal sealed class McGenerator : IGenerator
 
     private readonly string systemRuntimeAssemblyPath;
 
+    private readonly string referenceAssembliesDirectory;
+
     #endregion
 
     #region ---Public method---
 
-    [MemberNotNull(nameof(assemblyGenerator))]
     public void Initialize()
     {
-        //using StreamWriter logFile = File.AppendText($"SkipedClass-{DateTime.Now:yyyy-M-dTHH-mm-ss}.log");
-        //foreach ((string name, _) in originalData.Classes)
-        //{
-        //    if (Shared.SkippedOnContain.Any(str => name.Contains(str)))
-        //    {
-        //        logFile.WriteLine(name);
-        //        continue;
-        //    }
 
-        //    moduleBuilder.DefineType(name);
-        //}
-        AssemblyGenerator.TryCreateGenerator(originalData, new AssemblyName("Hosihikari.Minecraft"), systemRuntimeAssemblyPath, out assemblyGenerator);
+        AssemblyGenerator.TryCreateGenerator(
+            originalData,
+            new AssemblyName("Hosihikari.Minecraft"),
+            systemRuntimeAssemblyPath,
+            (from path in Directory.EnumerateFiles(referenceAssembliesDirectory)
+             select Assembly.LoadFrom(path)).ToList(),
+            out assemblyGenerator);
     }
 
     public async ValueTask RunAsync()

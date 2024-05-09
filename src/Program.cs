@@ -34,7 +34,10 @@ public static class Program
             Stopwatch watcher = new();
             IGenerator generator = type switch
             {
-                OutPutType.Minecraft => new McGenerator(inputPath, runtimePath ?? throw new ArgumentNullException(nameof(runtimePath))),
+                OutPutType.Minecraft => new McGenerator(
+                    inputPath,
+                    runtimePath ?? throw new ArgumentNullException(nameof(runtimePath)),
+                    refPath ?? throw new ArgumentNullException(nameof(refPath))),
                 OutPutType.LeviLamina => new LlGenerator(),
                 _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
             };

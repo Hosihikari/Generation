@@ -102,7 +102,8 @@ public class CppType
     public bool IsTemplate => TemplateTypes is not null;
 
     private string GetTypeString()
-        => $"{string.Join("::", Namespaces ?? [])}{(Namespaces is null ? string.Empty : " ")}{TypeIdentifier}";
+        => $"{string.Join("::", Namespaces ?? [])}{(Namespaces is null ? string.Empty : "::")}{TypeIdentifier}" +
+        $"{(IsTemplate ? $"<{string.Join(", ", TemplateTypes!.Select(t => t.GetTypeString()))}>" : string.Empty)}";
 
     /// <summary>
     ///     Returns a string that represents the current object.
@@ -156,7 +157,7 @@ public class CppType
         return ToEnumerable().Reverse();
     }
 
-    public override int GetHashCode() => GetTypeString().GetHashCode();
+    public override int GetHashCode() => ToString().GetHashCode();
 
     public override bool Equals(object? obj)
     {
@@ -164,5 +165,29 @@ public class CppType
             return false;
 
         return GetHashCode() == other.GetHashCode();
+    }
+
+    public CppType Clone()
+    {
+        return new()
+        {
+            FundamentalType = FundamentalType,
+            Namespaces = Namespaces,
+            OriginalTypeString = OriginalTypeString,
+            RootType = RootType,
+            SubType = SubType,
+            Parent = Parent,
+            TemplateTypes = TemplateTypes,
+            Type = Type,
+            TypeIdentifier = TypeIdentifier,
+            TypeIdentifierWithTemplateArgs = TypeIdentifierWithTemplateArgs,
+            IsConst = IsConst
+        };
+    }
+
+    public CppType Operate(Action<CppType> action)
+    {
+        action(this);
+        return this;
     }
 }

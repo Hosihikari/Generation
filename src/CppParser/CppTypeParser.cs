@@ -4,6 +4,13 @@ namespace Hosihikari.Generation.CppParser;
 
 public static class CppTypeParser
 {
+    public static KeyValuePair<bool, CppType?> TryParse(string type)
+    {
+        if (TryParse(type, out CppType? result))
+            return new(true, result);
+        return new(false, null);
+    }
+
     public static bool TryParse(string type, [NotNullWhen(true)] out CppType? result)
     {
         result = null;

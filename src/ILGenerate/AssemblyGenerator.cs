@@ -45,7 +45,9 @@ public class AssemblyGenerator
 
     public TypeSystem TypeSystem { get; }
 
-    private AssemblyGenerator(OriginalData originalData, AssemblyName assemblyName, string runtimeAssemblyPath)
+    public IReadOnlyCollection<Assembly> ReferenceAssemblies = [];
+
+    private AssemblyGenerator(OriginalData originalData, AssemblyName assemblyName, string runtimeAssemblyPath, IReadOnlyList<Assembly> referenceAssemblies)
     {
         SystemRuntimeAssembly = AssemblyDefinition.ReadAssembly(runtimeAssemblyPath);
         TypeSystem = new(SystemRuntimeAssembly);
@@ -78,12 +80,12 @@ public class AssemblyGenerator
                 }
             });
 
-        TypeRegistry = new(this);
+        TypeRegistry = new(this, referenceAssemblies);
     }
 
-    public static bool TryCreateGenerator(OriginalData originalData, AssemblyName assemblyName, string runtimeAssemblyPath, out AssemblyGenerator? generator)
+    public static bool TryCreateGenerator(OriginalData originalData, AssemblyName assemblyName, string runtimeAssemblyPath, IReadOnlyList<Assembly> referenceAssemblies, out AssemblyGenerator? generator)
     {
-        generator = new(originalData, assemblyName, runtimeAssemblyPath);
+        generator = new(originalData, assemblyName, runtimeAssemblyPath, referenceAssemblies);
         return true;
     }
 

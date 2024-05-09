@@ -1,6 +1,7 @@
 ﻿using Hosihikari.Generation.CppParser;
 using Hosihikari.Generation.Utils;
 using Hosihikari.NativeInterop.Unmanaged;
+using Hosihikari.NativeInterop.Unmanaged.Attributes;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
@@ -220,12 +221,14 @@ public class TypeGenerator
 
         if (Class.Virtual is not null)
         {
+            Type.CustomAttributes.Add(new(Assembly.ImportRef(typeof(VirtualCppClassAttribute).GetConstructors().First())));
             if (VTableGenerator.TryCreateGenerator(new(Class.VtblEntry?.First() ?? "", [.. Class.Virtual], 0), this, out var vtableGenerator))
                 await vtableGenerator.GenerateAsync();
 
         }
         else if (Class.Vtables is not null)
         {
+            Type.CustomAttributes.Add(new(Assembly.ImportRef(typeof(VirtualCppClassAttribute).GetConstructors().First())));
             HashSet<int> offsets = [];
             foreach (var vtable in Class.Vtables)
             {
@@ -558,27 +561,34 @@ public class TypeGenerator
                 Assembly.ImportRef(typeof(void)),
                 parameterTypes: [new("disposing", ParameterAttributes.None, Assembly.ImportRef(typeof(bool)))]);
             il = disposeMethodVirtual.Body.GetILProcessor();
-            il.Emit(OC.Ldarg_0);
+            il.LoadThis();
             il.Emit(OC.Ldfld, disposedValueField);
-            var instruction_test_IsOwner = il.Create(OC.Ldarg_0);
+            var instruction_test_IsOwner = il.Create(OC.Nop);
             il.Emit(OC.Brfalse_S, instruction_test_IsOwner);
             il.Emit(OC.Ret);
             il.Append(instruction_test_IsOwner);
-            il.Emit(OC.Call, IsOwnerProperty?.GetMethod ?? throw new Exception("owner property is null"));
-            var instruction_disposedValue_equals_true = il.Create(OC.Ldarg_0);
-            il.Emit(OC.Brfalse_S, instruction_disposedValue_equals_true);
-            il.Emit(OC.Ldarg_0);
-            il.Emit(OC.Call, destructMethod);
-            il.Emit(OC.Ldarg_0);
-            il.Emit(OC.Call, OwnsMemoryProperty?.GetMethod ?? throw new Exception("ownsMemory property is null"));
-            il.Emit(OC.Brtrue_S, instruction_disposedValue_equals_true);
-            il.Emit(OC.Ldarg_0);
-            il.Emit(OC.Call, PointerProperty.GetMethod ?? throw new Exception("pointer property is null"));
-            il.Emit(OC.Call, Assembly.ImportRef(typeof(NativeAlloc).GetMethod(nameof(NativeAlloc.Delete))!));
-            il.Append(instruction_disposedValue_equals_true);
+            il.LoadThis();
             il.Emit(OC.Ldc_I4_1);
             il.Emit(OC.Stfld, disposedValueField);
-            il.Emit(OC.Ret);
+            il.LoadThis();
+            il.Emit(OC.Call, IsOwnerProperty?.GetMethod ?? throw new Exception("owner property is null"));
+            var instruction_disposedValue_equals_true = il.Create(OC.Ret);
+            il.Emit(OC.Brfalse_S, instruction_disposedValue_equals_true);
+            il.LoadThis();
+            il.Emit(OC.Call, destructMethod);
+            il.LoadThis();
+            il.Emit(OC.Ldc_I4_0);
+            il.Emit(OC.Call, IsOwnerProperty?.SetMethod ?? throw new Exception("owner property is null"));
+            il.LoadThis();
+            il.Emit(OC.Call, OwnsMemoryProperty?.GetMethod ?? throw new Exception("ownsMemory property is null"));
+            il.Emit(OC.Brfalse_S, instruction_disposedValue_equals_true);
+            il.LoadThis();
+            il.Emit(OC.Call, PointerProperty.GetMethod ?? throw new Exception("pointer property is null"));
+            il.Emit(OC.Call, Assembly.ImportRef(typeof(NativeAlloc).GetMethod(nameof(NativeAlloc.Delete))!));
+            il.LoadThis();
+            il.Emit(OC.Ldc_I4_0);
+            il.Emit(OC.Call, OwnsMemoryProperty?.SetMethod ?? throw new Exception("ownsMemory property is null"));
+            il.Append(instruction_disposedValue_equals_true);
 
             MethodDefinition disposeMethod = Type.DefineMethod(
                 nameof(IDisposable.Dispose),

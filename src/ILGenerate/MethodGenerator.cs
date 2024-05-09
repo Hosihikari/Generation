@@ -255,7 +255,7 @@ public class MethodGenerator
 
     public async ValueTask<(bool success, TypeReference? returnType, TypeReference[]? parameterTypes, bool hasVarArgs)> CheckTypes()
     {
-        if (SymbolType is not SymbolType.Function && SymbolType is not SymbolType.Constructor)
+        if (SymbolType is SymbolType.StaticField || SymbolType is SymbolType.UnknownFunction)
         {
             return (false, default, default, default);
         }
@@ -371,6 +371,8 @@ public class MethodGenerator
             il.LoadAllArgs();
             il.Emit(OC.Call, original);
             il.Emit(OC.Ret);
+
+            property.BindMethods(setMethod: method);
         }
 
         return true;
@@ -412,7 +414,8 @@ public class MethodGenerator
         TypeReference returnType,
         TypeReference[] parameterTypes,
         FieldReference fptrField,
-        bool hasVarArgs)
+        bool hasVarArgs,
+        (int vtblOffset, int virtIndex)? virt = null)
     {
         /// <summary>
         /// Generates the original method name based on certain criteria.
@@ -459,6 +462,7 @@ public class MethodGenerator
                 builder.Append(select(param.Name));
             }
             builder.Append($"_{select(MethodItem.Type.Name)}");
+            if (virt is not null) builder.Append("_Virt");
 
             return builder.ToString();
         }

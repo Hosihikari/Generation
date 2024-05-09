@@ -1,9 +1,12 @@
 ﻿using Hosihikari.Generation.CppParser;
 using Hosihikari.Generation.Utils;
+using Hosihikari.NativeInterop.Generation;
 using Hosihikari.NativeInterop.Unmanaged;
 using Mono.Cecil;
 using Mono.Cecil.Rocks;
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
+using System.Reflection;
 
 namespace Hosihikari.Generation.ILGenerate;
 
@@ -12,16 +15,41 @@ public class TypeRegistry
 
     private ConcurrentDictionary<CppType, TypeGenerator> Types { get; } = [];
 
-    public ConcurrentDictionary<CppType, TypeReference> PredefinedEnums { get; } = [];
+    public FrozenDictionary<CppType, TypeReference> PredefinedEnums { get; }
+
+    public FrozenDictionary<CppType, TypeReference> PredefinedTypes { get; }
 
     public AssemblyGenerator Assembly { get; }
 
-    public TypeRegistry(AssemblyGenerator assemblyGenerator)
+    public IReadOnlyList<Assembly> ReferenceAssemblies { get; }
+
+
+
+    public TypeRegistry(AssemblyGenerator assemblyGenerator, IReadOnlyList<Assembly> references)
     {
         if (assemblyGenerator.TypeRegistry is not null)
             throw new InvalidOperationException("TypeRegistry is already initialized");
 
         Assembly = assemblyGenerator;
+        ReferenceAssemblies = [typeof(ICppInstanceNonGeneric).Assembly, .. references];
+
+        var types = from reference in ReferenceAssemblies
+                    from type in reference.GetTypes()
+                    let attributes = type.GetCustomAttributes<PredefinedTypeAttribute>()
+                    where attributes.Any()
+                    select (attributes.First(), type);
+
+        var predefinedTypes = from type in types
+                              let rlt = CppTypeParser.TryParse(type.Item1.TypeName)
+                              where rlt.Key
+                              select (type.Item1.IgnoreTemplateArgs ? rlt.Value!.Clone().Operate(t => t.TemplateTypes = null) : rlt.Value, type.type);
+
+        PredefinedEnums = (from type in predefinedTypes
+                           where type.Item1.Type is CppTypeEnum.Enum && type.type.IsEnum
+                           select KeyValuePair.Create(type.Item1, Assembly.ImportRef(type.type))).ToFrozenDictionary();
+
+        PredefinedTypes = (from type in predefinedTypes
+                           select KeyValuePair.Create(type.Item1, Assembly.ImportRef(type.type))).ToFrozenDictionary();
     }
 
     public async ValueTask<TypeGenerator?> GetOrRegisterTypeAsync(CppType type, OriginalClass? @class)
@@ -88,6 +116,9 @@ public class TypeRegistry
             case CppTypeEnum.Class:
             case CppTypeEnum.Struct:
             case CppTypeEnum.Union:
+                var temp = await ResolvePredefinedTypeAsync(type);
+                if (temp is not null) return temp;
+
                 if (Types.TryGetValue(rootType, out var typeGenerator))
                 {
                     ret = typeGenerator.Type;
@@ -196,6 +227,19 @@ public class TypeRegistry
             return await ModifyTypeAsync(type.ToEnumerable().Skip(1), clrType);
         else
             return await ModifyTypeAsync(type.ToEnumerable().Skip(1), Assembly.ImportRef(typeof(int)));
+    }
+
+    private async ValueTask<TypeReference?> ResolvePredefinedTypeAsync(CppType type)
+    {
+        if (PredefinedTypes.TryGetValue(type, out var predefinedType))
+        {
+            return await ModifyTypeAsync(type.ToEnumerable().Skip(1), predefinedType);
+        }
+        else if (PredefinedTypes.TryGetValue(type.Clone().Operate(t => t.TemplateTypes = null), out predefinedType))
+        {
+            return await ModifyTypeAsync(type.ToEnumerable().Skip(1), predefinedType);
+        }
+        else return null;
     }
 
 

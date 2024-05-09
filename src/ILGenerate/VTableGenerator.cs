@@ -53,8 +53,9 @@ public class VTableGenerator(OriginalVtable vtable, TypeGenerator type)
                 var (success, returnType, parameterTypes, hasVarArgs) = await methodGenerator.CheckTypes();
                 if (success)
                 {
+                    returnType ??= Assembly.ImportRef(typeof(void));
                     var fptr = await methodGenerator.GenerateFunctionPointer();
-                    var original = methodGenerator.GenerateOriginalMethod(returnType!, parameterTypes!, fptr, hasVarArgs);
+                    var original = methodGenerator.GenerateOriginalMethod(returnType!, parameterTypes!, fptr, hasVarArgs, (Vtable.Offset, index));
 
                     var fptrType = new FunctionPointerType()
                     {
@@ -87,43 +88,49 @@ public class VTableGenerator(OriginalVtable vtable, TypeGenerator type)
 
     private async ValueTask GenerateMethodAsync(OriginalItem item, int vtableOffset, MethodDefinition original, FieldDefinition vfptrField, bool hasVarAgs)
     {
-        var method = DeclaringType.Type.DefineMethod(
-            item.GetMethodNameUpper(),
-            MethodAttributes.Public,
-            original.ReturnType,
-            from param in original.Parameters.Index().Skip(1)
-            let paramNames = item.ParameterNames ?? []
-            let paramName = param.Index < paramNames.Count ? paramNames[param.Index] : string.Empty
-            select new ParameterDefinition(
-                paramName,
-                param.Item.Attributes,
-                param.Item.ParameterType));
-        if (hasVarAgs) method.CallingConvention |= MethodCallingConvention.VarArg;
-        var vtablePtr = new VariableDefinition(VtableStructType.MakePointerType());
-        method.Body.Variables.Add(vtablePtr);
-        var il = method.Body.GetILProcessor();
-        il.LoadThis();
-        il.Emit(OC.Call, DeclaringType.PointerProperty?.GetMethod ?? throw new Exception("pointer property is null"));
-        il.Emit(OC.Ldc_I4, vtableOffset);
-        il.Emit(OC.Call, Assembly.ImportRef(typeof(CppTypeSystem).GetMethods().First(m => m.Name is nameof(CppTypeSystem.GetVTable))));
-        il.Emit(OC.Stloc, vtablePtr);
-        il.LoadThis();
-        il.Emit(OC.Call, DeclaringType.PointerProperty?.GetMethod ?? throw new Exception("pointer property is null"));
-        il.LoadAllArgs();
-        if (hasVarAgs) il.Emit(OC.Arglist);
-        il.Emit(OC.Ldloc, vtablePtr);
-        il.Emit(OC.Ldfld, vfptrField);
-        il.EmitCalli(MethodCallingConvention.C, original.ReturnType, [.. original.Parameters]);
-        il.Emit(OC.Ret);
-
         if ((SymbolType)item.SymbolType is SymbolType.Destructor)
         {
             await DeclaringType.GenerateDtorDefinitionAsync(il =>
             {
-                il.LoadThis();
-                il.Emit(OC.Call, method);
+                il.Emit(OC.Ldarg_0);
+                il.Emit(OC.Ldarg_0);
+                il.Emit(OC.Ldc_I4, vtableOffset);
+                il.Emit(OC.Call, Assembly.ImportRef(typeof(CppTypeSystem).GetMethods().First(m => m.Name is nameof(CppTypeSystem.GetVTable))));
+                il.Emit(OC.Ldfld, vfptrField);
+                il.EmitCalli(MethodCallingConvention.C, Assembly.ImportRef(typeof(void)), [new(Assembly.ImportRef(typeof(nint)))]);
                 il.Emit(OC.Ret);
             });
+        }
+        else
+        {
+            var method = DeclaringType.Type.DefineMethod(
+                item.GetMethodNameUpper(),
+                MethodAttributes.Public,
+                original.ReturnType,
+                from param in original.Parameters.Index().Skip(1)
+                let paramNames = item.ParameterNames ?? []
+                let paramName = param.Index < paramNames.Count ? paramNames[param.Index] : string.Empty
+                select new ParameterDefinition(
+                    paramName,
+                    param.Item.Attributes,
+                    param.Item.ParameterType));
+            if (hasVarAgs) method.CallingConvention |= MethodCallingConvention.VarArg;
+            var vtablePtr = new VariableDefinition(VtableStructType.MakePointerType());
+            method.Body.Variables.Add(vtablePtr);
+            var il = method.Body.GetILProcessor();
+            il.LoadThis();
+            il.Emit(OC.Call, DeclaringType.PointerProperty?.GetMethod ?? throw new Exception("pointer property is null"));
+            il.Emit(OC.Ldc_I4, vtableOffset);
+            il.Emit(OC.Call, Assembly.ImportRef(typeof(CppTypeSystem).GetMethods().First(m => m.Name is nameof(CppTypeSystem.GetVTable))));
+            il.Emit(OC.Stloc, vtablePtr);
+            il.LoadThis();
+            il.Emit(OC.Call, DeclaringType.PointerProperty?.GetMethod ?? throw new Exception("pointer property is null"));
+            il.LoadAllArgs();
+            if (hasVarAgs) il.Emit(OC.Arglist);
+            il.Emit(OC.Ldloc, vtablePtr);
+            il.Emit(OC.Ldfld, vfptrField);
+            il.EmitCalli(MethodCallingConvention.C, original.ReturnType, [.. original.Parameters]);
+            il.Emit(OC.Ret);
         }
     }
 
