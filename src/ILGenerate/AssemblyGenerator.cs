@@ -20,13 +20,13 @@ public class TypeSystem
         TargetFrameworkAttribute = types.FirstOrDefault(t => t.Name == "TargetFrameworkAttribute") ?? throw new Exception("TargetFrameworkAttribute type is not found");
     }
 
-    public TypeDefinition Object { get; private set; }
-    public TypeDefinition String { get; private set; }
-    public TypeDefinition IDisposable { get; private set; }
-    public TypeDefinition GC { get; private set; }
-    public TypeDefinition ValueType { get; private set; }
+    public TypeDefinition Object { get; }
+    public TypeDefinition String { get; }
+    public TypeDefinition IDisposable { get; }
+    public TypeDefinition GC { get; }
+    public TypeDefinition ValueType { get; }
 
-    public TypeDefinition TargetFrameworkAttribute { get; private set; }
+    public TypeDefinition TargetFrameworkAttribute { get; }
 }
 
 public class AssemblyGenerator

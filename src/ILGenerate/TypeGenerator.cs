@@ -56,9 +56,10 @@ public class TypeGenerator
 
         Type = Assembly.MainModule.DefineType(
             GenerateNamespace(cppType.RootType.Namespaces),
-            cppType.RootType.TypeIdentifier,
+            GenerateTypeName(cppType),
             TypeAttributes.Class |
-            TypeAttributes.Public);
+            TypeAttributes.Public,
+            Assembly.ImportRef(typeof(object)));
         Type.Interfaces.Add(
             new(
                 new GenericInstanceType(Assembly.ImportRef(typeof(ICppInstance<>)))
@@ -93,9 +94,10 @@ public class TypeGenerator
 
         Type = Assembly.Module.DefineType(
             GenerateNamespace(cppType.RootType.Namespaces),
-            cppType.RootType.TypeIdentifier,
+            GenerateTypeName(cppType),
             TypeAttributes.Class |
-            TypeAttributes.Public);
+            TypeAttributes.Public,
+            Assembly.ImportRef(typeof(object)));
         Type.Interfaces.Add(
             new(
                 new GenericInstanceType(Assembly.ImportRef(typeof(ICppInstance<>)))
@@ -179,6 +181,21 @@ public class TypeGenerator
                 else
                     builder.Append('_');
             }
+        }
+
+        return builder.ToString();
+    }
+
+    private static string GenerateTypeName(CppType cppType)
+    {
+        cppType = cppType.RootType;
+        if (cppType.IsTemplate is false)
+            return cppType.TypeIdentifier;
+
+        StringBuilder builder = new(cppType.TypeIdentifier);
+        foreach (var type in cppType.TemplateTypes)
+        {
+            builder.Append('_').Append(GenerateTypeName(type));
         }
 
         return builder.ToString();
@@ -532,6 +549,10 @@ public class TypeGenerator
                 MethodAttributes.Static,
                 Assembly.ImportRef(typeof(void)),
                 parameterTypes: [new("ptr", ParameterAttributes.None, Assembly.ImportRef(typeof(nint)))]);
+            destructInstanceMethod.Overrides.Add(Assembly.ImportRef(
+                typeof(ICppInstanceNonGeneric)
+                .GetMethods()
+                .First(f => f.Name is nameof(ICppInstanceNonGeneric.DestructInstance))));
 
             var destructMethod = Type.DefineMethod(
                 nameof(ICppInstanceNonGeneric.Destruct),

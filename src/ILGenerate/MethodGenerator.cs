@@ -213,7 +213,7 @@ public class MethodGenerator
                 if (name.StartsWith(prefix) && name.Length > prefix.Length)
                 {
                     isGetter = true;
-                    propertyName = name[prefix.Length..];
+                    propertyName = prefix is "get" ? name[prefix.Length..] : name;
                     return true;
                 }
             }
@@ -224,7 +224,7 @@ public class MethodGenerator
                 if (name.StartsWith(prefix) && name.Length > prefix.Length)
                 {
                     isGetter = false;
-                    propertyName = name[prefix.Length..];
+                    propertyName = prefix is "set" ? name[prefix.Length..] : name;
                     return true;
                 }
             }

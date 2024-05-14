@@ -54,6 +54,8 @@ public class TypeRegistry
 
     public async ValueTask<TypeGenerator?> GetOrRegisterTypeAsync(CppType type, OriginalClass? @class)
     {
+        type = type.RootType;
+
         if (Types.TryGetValue(type, out var typeGenerator))
             return typeGenerator;
 
@@ -125,8 +127,8 @@ public class TypeRegistry
                 }
                 else
                 {
-                    if (autoRegister)
-                        ret = (await RegisterTypeAsync(type, null))?.Type;
+                    if (autoRegister && type.IsTemplate is false)
+                        ret = (await GetOrRegisterTypeAsync(type, null))?.Type;
                     else
                         ret = null;
                 }

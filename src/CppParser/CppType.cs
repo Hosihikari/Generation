@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Hosihikari.Generation.CppParser;
 
 public class CppType
@@ -99,6 +101,7 @@ public class CppType
     /// <summary>
     ///     Gets a value indicating whether the type is a template type.
     /// </summary>
+    [MemberNotNullWhen(true, nameof(TemplateTypes))]
     public bool IsTemplate => TemplateTypes is not null;
 
     private string GetTypeString()
@@ -157,7 +160,7 @@ public class CppType
         return ToEnumerable().Reverse();
     }
 
-    public override int GetHashCode() => ToString().GetHashCode();
+    public override int GetHashCode() => GetTypeString().GetHashCode();
 
     public override bool Equals(object? obj)
     {
