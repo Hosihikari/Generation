@@ -8,15 +8,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Hosihikari.NativeInterop" Version="1.0.9" />
         <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
         <PackageReference Include="Mono.Cecil" Version="0.11.5" />
         <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Reference Include="Hosihikari.NativeInterop">
-        <HintPath>..\..\NativeInterop\src\bin\Release\net8.0\Hosihikari.NativeInterop.dll</HintPath>
-      </Reference>
     </ItemGroup>
 
 </Project>
