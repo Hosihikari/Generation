@@ -186,7 +186,7 @@ public class TypeRegistry
         {
             CppFundamentalType.Void => typeof(void),
 
-            CppFundamentalType.Boolean => typeof(bool),
+            CppFundamentalType.Boolean => typeof(NativeBoolean),
 
             CppFundamentalType.Float => typeof(float),
             CppFundamentalType.Double => typeof(double),

@@ -121,12 +121,12 @@ public class MethodGenerator
         switch (SymbolType)
         {
             case SymbolType.Function:
+            case SymbolType.Operator:
                 return await GenerateMethodAsync(fptrField);
             case SymbolType.Constructor:
                 return await GenerateConstructorAsync(fptrField);
             case SymbolType.Destructor:
                 return await GenerateDestructorAsync(fptrField);
-            case SymbolType.Operator:
             case SymbolType.StaticField:
             case SymbolType.UnknownFunction:
                 return false;
@@ -267,7 +267,7 @@ public class MethodGenerator
 
         // Resolve the return type asynchronously
         TypeReference? returnType = null;
-        if (SymbolType is SymbolType.Function)
+        if (SymbolType is SymbolType.Function or SymbolType.Operator)
             returnType = await registry.ResolveTypeAsync(ReturnType!);
 
         // Resolve parameter types asynchronously
@@ -290,7 +290,7 @@ public class MethodGenerator
             parameterTypes = parameterTypes[..^1];
 
         // Check if the return type or any parameter type is null
-        if ((returnType is null && SymbolType is SymbolType.Function) || parameterTypes.Any(x => x is null))
+        if ((returnType is null && SymbolType is SymbolType.Function or SymbolType.Operator) || parameterTypes.Any(x => x is null))
         {
             return (false, default, default, default);
         }
@@ -383,7 +383,7 @@ public class MethodGenerator
         if (IsStatic) attributes |= MethodAttributes.Static;
 
         var method = DeclaringType.Type.DefineMethod(
-            MethodItem.GetMethodNameUpper(),
+            SelectOperatorName() ?? MethodItem.GetMethodNameUpper(),
             attributes,
             original.ReturnType,
             from x in IsStatic ? original.Parameters : original.Parameters.Skip(1)
